@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mana Poster Web Portal
 
-## Getting Started
+Creator-first portal foundation using Next.js + Firebase.
 
-First, run the development server:
+## Implemented in this phase
+
+- Manager/admin can create creator access with:
+  - name
+  - email
+  - phone
+- System generates secure unique creator ID:
+  - `Mana-XXXXXX` (serial based, no duplicates)
+- System returns:
+  - direct creator login link
+  - ready-made WhatsApp message text
+- Creator activation via link:
+  - sets password
+  - activates account
+  - logs in immediately
+- Single-device policy for creators:
+  - one creator account -> one active device
+  - second device login is rejected
+  - manager/admin can reset creator device lock
+- Role guard skeleton:
+  - manager dashboard
+  - creator dashboard
+
+## Tech stack
+
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS
+- Firebase Auth
+- Firestore
+- Firebase Admin SDK (server routes)
+
+## Environment variables
+
+Create `.env.local`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`FIREBASE_PRIVATE_KEY` should use escaped new lines in env (`\n`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Firestore collections used
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `system/counters`
+  - `creatorSerial: number`
+- `creatorProfiles/{creatorPublicId}`
+- `creatorInvites/{inviteId}`
+- `users/{uid}`
 
-## Learn More
+## Local run
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open:
+- `/login`
+- `/manager/dashboard`
+- `/creator/dashboard`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Invite links currently do not expire by business decision.
+- Creator device lock reset is allowed for manager and admin roles.
+- Role comes from Firebase custom claims first, then `users.role`.
