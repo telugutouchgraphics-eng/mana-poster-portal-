@@ -4,6 +4,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { makeCreatorPublicId } from "@/lib/server/creator-id";
 import { requireRole } from "@/lib/server/auth";
 import { generateInviteToken, hashInviteToken } from "@/lib/server/invite-token";
+import { writeAuditLog } from "@/lib/server/audit-log";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 
 const requestSchema = z.object({
   name: z.string().trim().min(2),
@@ -13,6 +15,11 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await enforceRateLimit(req, {
+      key: "manager_creator_invite",
+      limit: 15,
+      windowMs: 10 * 60 * 1000,
+    });
     const actor = await requireRole(req, ["manager", "admin"]);
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
@@ -93,6 +100,20 @@ export async function POST(req: NextRequest) {
       `Login link: ${loginLink}`,
     ].join("\n");
 
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "creator_invited",
+      targetType: "creator_profile",
+      targetId: result.creatorPublicId,
+      message: "Creator invite generated.",
+      metadata: {
+        inviteId: result.inviteId,
+        email: normalizedEmail,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       creatorPublicId: result.creatorPublicId,
@@ -103,7 +124,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to generate invite.";
-    const status = message === "Forbidden" ? 403 : 400;
+    const status =
+      message === "Forbidden" ? 403 : message === "Rate limit exceeded" ? 429 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }

@@ -8,9 +8,11 @@ import {
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { getClientAuth, isFirebaseClientConfigured } from "@/lib/firebase/client";
 import { getOrCreateDeviceId } from "@/lib/client/device-id";
+import { AppRole } from "@/lib/types/roles";
 
 interface AuthContextValue {
   user: User | null;
+  roles: AppRole[];
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -33,8 +35,9 @@ async function safeDeviceLogout(user: User | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const firebaseReady = isFirebaseClientConfigured();
+  const firebaseReady = isFirebaseClientConfigured() || process.env.NODE_ENV === "production";
   const [user, setUser] = useState<User | null>(null);
+  const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(firebaseReady);
 
   useEffect(() => {
@@ -42,16 +45,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const auth = getClientAuth();
-    return onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
+    let auth;
+    try {
+      auth = getClientAuth();
+    } catch {
       setLoading(false);
+      return;
+    }
+    return onAuthStateChanged(auth, async (nextUser) => {
+      setUser(nextUser);
+      if (!nextUser) {
+        setRoles([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = await nextUser.getIdToken();
+        const response = await fetch("/api/auth/me", {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const data = (await response.json()) as {
+          roles?: AppRole[];
+          role?: AppRole;
+        };
+        const nextRoles =
+          Array.isArray(data.roles) && data.roles.length > 0
+            ? data.roles
+            : data.role
+              ? [data.role]
+              : [];
+        setRoles(nextRoles);
+      } catch {
+        setRoles([]);
+      } finally {
+        setLoading(false);
+      }
     });
   }, [firebaseReady]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      roles,
       loading,
       signOut: async () => {
         if (!firebaseReady) {
@@ -62,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await firebaseSignOut(auth);
       },
     }),
-    [user, loading, firebaseReady]
+    [user, roles, loading, firebaseReady]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

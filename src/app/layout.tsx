@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Sora, Space_Grotesk } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import "./globals.css";
 
-const sora = Sora({
-  variable: "--font-sora",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -24,11 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${sora.variable} ${spaceGrotesk.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-amber-50 text-slate-900">
+    <html lang="en" className={`${inter.variable} ${manrope.variable} h-full antialiased`}>
+      <body className="min-h-full bg-[var(--background)] text-[var(--foreground)]">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

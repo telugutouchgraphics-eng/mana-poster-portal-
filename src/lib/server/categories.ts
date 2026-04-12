@@ -1,15 +1,19 @@
+import {
+  CSV_FIXED_DYNAMIC_EVENT_CATEGORIES,
+  CSV_LUNAR_PLACEHOLDER_CATEGORIES,
+} from "./dynamic-event-catalog";
+import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
+
 export interface CategoryDef {
   id: string;
   label: string;
 }
 
-interface DynamicEventCategoryDef extends CategoryDef {
-  month: number;
-  day: number;
-  durationDays?: number;
+export interface VisibleCategoryDef extends CategoryDef {
+  isBlinking?: boolean;
 }
 
-// Flutter app HomeScreen _staticCategorySlugs కి aligned.
+// Flutter app HomeScreen static category set ki aligned.
 export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "all", label: "All" },
   { id: "good_night", label: "Good Night" },
@@ -30,7 +34,6 @@ export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "new", label: "New" },
 ];
 
-// Dynamic event types (manual assignmentకి కావాలంటే valid IDs గా ఉండాలి)
 const DYNAMIC_META_CATEGORIES: CategoryDef[] = [
   { id: "festival", label: "Festival" },
   { id: "jayanthi", label: "Jayanthi" },
@@ -52,58 +55,8 @@ const WEEKDAY_DYNAMIC_CATEGORIES: Array<
   { id: "weekday_sunday_special", label: "Sunday Special", weekday: 7 },
 ];
 
-// Flutter dynamic_event_repository.dart (Gregorian events) కి aligned.
-const DYNAMIC_EVENT_CATEGORIES: DynamicEventCategoryDef[] = [
-  { id: "new_year_day", label: "New Year Day", month: 1, day: 1 },
-  { id: "national_youth_day", label: "National Youth Day", month: 1, day: 12 },
-  { id: "makara_sankranti", label: "Makara Sankranti", month: 1, day: 14, durationDays: 3 },
-  { id: "army_day", label: "Army Day", month: 1, day: 15 },
-  { id: "gandhi_vardhanthi", label: "Gandhi Vardhanthi", month: 1, day: 30 },
-  { id: "mother_language_day", label: "Mother Language Day", month: 2, day: 21 },
-  { id: "international_womens_day", label: "International Women's Day", month: 3, day: 8 },
-  { id: "world_health_day", label: "World Health Day", month: 4, day: 7 },
-  { id: "ambedkar_jayanthi", label: "Ambedkar Jayanthi", month: 4, day: 14 },
-  { id: "labour_day", label: "Labour Day", month: 5, day: 1 },
-  {
-    id: "alluri_sitarama_raju_vardhanthi",
-    label: "Alluri Sitarama Raju Vardhanthi",
-    month: 5,
-    day: 7,
-  },
-  { id: "ntr_jayanthi", label: "NTR Jayanthi", month: 5, day: 28 },
-  { id: "telangana_formation_day", label: "Telangana Formation Day", month: 6, day: 2 },
-  { id: "world_environment_day", label: "World Environment Day", month: 6, day: 5 },
-  { id: "international_yoga_day", label: "International Yoga Day", month: 6, day: 21 },
-  { id: "pv_narasimha_rao_jayanthi", label: "P.V. Narasimha Rao Jayanthi", month: 6, day: 28 },
-  { id: "national_doctors_day", label: "National Doctors Day", month: 7, day: 1 },
-  { id: "alluri_sitarama_raju_jayanthi", label: "Alluri Sitarama Raju Jayanthi", month: 7, day: 4 },
-  { id: "ysr_jayanthi", label: "YSR Jayanthi", month: 7, day: 8 },
-  { id: "prof_jayashankar_jayanthi", label: "Prof. Jayashankar Jayanthi", month: 8, day: 6 },
-  { id: "independence_day", label: "Independence Day", month: 8, day: 15 },
-  { id: "tanguturi_prakasam_jayanthi", label: "Tanguturi Prakasam Jayanthi", month: 8, day: 23 },
-  { id: "telugu_language_day", label: "Telugu Language Day", month: 8, day: 29 },
-  { id: "teachers_day", label: "Teachers Day", month: 9, day: 5 },
-  { id: "kaloji_narayana_rao_jayanthi", label: "Kaloji Narayana Rao Jayanthi", month: 9, day: 9 },
-  { id: "ysr_vardhanthi", label: "YSR Vardhanthi", month: 9, day: 2 },
-  { id: "gandhi_jayanthi", label: "Gandhi Jayanthi", month: 10, day: 2 },
-  { id: "national_unity_day", label: "National Unity Day", month: 10, day: 31 },
-  { id: "andhra_pradesh_formation_day", label: "Andhra Pradesh Formation Day", month: 11, day: 1 },
-  { id: "childrens_day", label: "Children's Day", month: 11, day: 14 },
-  { id: "constitution_day", label: "Constitution Day", month: 11, day: 26 },
-  { id: "potti_sriramulu_vardhanthi", label: "Potti Sriramulu Vardhanthi", month: 12, day: 15 },
-  { id: "national_farmers_day", label: "National Farmers Day", month: 12, day: 23 },
-  { id: "christmas", label: "Christmas", month: 12, day: 25 },
-];
-
-// Lunar placeholders (app repo లో enabled:false)
-const LUNAR_DYNAMIC_CATEGORIES: CategoryDef[] = [
-  { id: "ugadi", label: "Ugadi" },
-  { id: "sri_rama_navami", label: "Sri Rama Navami" },
-  { id: "bonalu", label: "Bonalu" },
-  { id: "bathukamma", label: "Bathukamma" },
-  { id: "vinayaka_chavithi", label: "Vinayaka Chavithi" },
-  { id: "deepavali", label: "Deepavali" },
-];
+const DYNAMIC_EVENT_CATEGORIES = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES;
+const LUNAR_DYNAMIC_CATEGORIES: CategoryDef[] = CSV_LUNAR_PLACEHOLDER_CATEGORIES;
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -133,25 +86,65 @@ function uniqueById(items: CategoryDef[]): CategoryDef[] {
 
 export function getVisibleAssignableCategories(
   now: Date = new Date(),
-  daysBeforeEvent = 3
-): CategoryDef[] {
+  daysBeforeEvent = 2,
+  daysBeforeDashboard = 7,
+  blinkingDays = daysBeforeEvent,
+): VisibleCategoryDef[] {
   const today = startOfDay(now);
-  const visibleDynamicEvents = DYNAMIC_EVENT_CATEGORIES.filter((event) => {
+  const visibleDynamicEvents = DYNAMIC_EVENT_CATEGORIES.flatMap((event) => {
     const eventStart = new Date(today.getFullYear(), event.month - 1, event.day);
-    const visibleStart = plusDays(eventStart, -daysBeforeEvent);
+    const visibleStart = plusDays(eventStart, -daysBeforeDashboard);
+    const blinkingStart = plusDays(eventStart, -blinkingDays);
     const durationDays = Math.max(1, event.durationDays ?? 1);
     const eventEnd = plusDays(eventStart, durationDays - 1);
-    return isDateInRange(today, visibleStart, eventEnd);
-  }).map((event) => ({ id: event.id, label: event.label }));
+    if (!isDateInRange(today, visibleStart, eventEnd)) {
+      return [];
+    }
+    return [
+      {
+        id: event.id,
+        label: event.label,
+        isBlinking: isDateInRange(today, blinkingStart, eventEnd),
+      },
+    ];
+  });
 
-  const todayWeekday = ((today.getDay() + 6) % 7) + 1; // Mon=1..Sun=7
+  const resolvedLunarEvents = LUNAR_DYNAMIC_CATEGORIES.flatMap((event) => {
+    const resolved = RESOLVED_LUNAR_EVENT_DATES[today.getFullYear()]?.[event.id];
+    if (!resolved) {
+      return [];
+    }
+
+    const eventStart = new Date(today.getFullYear(), resolved.month - 1, resolved.day);
+    const visibleStart = plusDays(eventStart, -daysBeforeDashboard);
+    const blinkingStart = plusDays(eventStart, -blinkingDays);
+    const eventEnd =
+      resolved.endMonth != null && resolved.endDay != null
+        ? new Date(today.getFullYear(), resolved.endMonth - 1, resolved.endDay)
+        : plusDays(eventStart, Math.max(1, resolved.durationDays ?? 1) - 1);
+
+    if (!isDateInRange(today, visibleStart, eventEnd)) {
+      return [];
+    }
+
+    return [
+      {
+        id: event.id,
+        label: event.label,
+        isBlinking: isDateInRange(today, blinkingStart, eventEnd),
+      },
+    ];
+  });
+
+  const todayWeekday = ((today.getDay() + 6) % 7) + 1;
   const visibleWeekday = WEEKDAY_DYNAMIC_CATEGORIES.filter(
-    (item) => item.weekday === todayWeekday
+    (item) => item.weekday === todayWeekday,
   ).map((item) => ({ id: item.id, label: item.label }));
 
   return uniqueById([
     ...PERMANENT_CREATOR_CATEGORIES,
     ...visibleDynamicEvents,
+    ...resolvedLunarEvents,
     ...visibleWeekday,
   ]);
 }
@@ -167,4 +160,3 @@ export const CREATOR_ASSIGNABLE_CATEGORIES: CategoryDef[] = uniqueById([
 export function isValidCategoryId(id: string): boolean {
   return CREATOR_ASSIGNABLE_CATEGORIES.some((category) => category.id === id);
 }
-

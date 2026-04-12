@@ -1,6 +1,5 @@
 export const PERSONALIZATION_SAMPLE = {
-  name: "Bommidi Naga Gopi",
+  name: "Sample Name",
   photoUrl: "/samples/default-avatar.png",
   whatsappNumber: "",
 } as const;
-

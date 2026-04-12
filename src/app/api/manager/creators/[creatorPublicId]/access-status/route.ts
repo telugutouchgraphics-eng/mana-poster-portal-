@@ -10,6 +10,7 @@ import {
   removeRole,
 } from "@/lib/server/role-utils";
 import { AppRole } from "@/lib/types/roles";
+import { writeAuditLog } from "@/lib/server/audit-log";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -21,7 +22,7 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireRole(req, ["admin", "manager"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const { creatorPublicId } = await params;
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
@@ -95,6 +96,19 @@ export async function POST(req: NextRequest, { params }: Params) {
           { merge: true }
         );
     }
+
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "creator_access_status_changed",
+      targetType: "creator_profile",
+      targetId: creatorPublicId,
+      message: `Creator access changed to ${payload.status}.`,
+      metadata: {
+        status: payload.status,
+      },
+    });
 
     return NextResponse.json({ ok: true, status: payload.status });
   } catch (error) {

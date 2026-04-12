@@ -10,19 +10,31 @@ interface CreatorRow {
   phone: string;
   status: string;
   assignedCategories: string[];
+  createdAt?: number;
+  totalUploads?: number;
+  approvedCount?: number;
+  pendingCount?: number;
+  rejectedCount?: number;
+  lastUploadAt?: number;
 }
 
 interface CategoryDef {
   id: string;
   label: string;
+  isBlinking?: boolean;
 }
 
 interface CreatorAccessTableProps {
   title: string;
   subtitle: string;
+  showPayoutActions?: boolean;
 }
 
-export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps) {
+export function CreatorAccessTable({
+  title,
+  subtitle,
+  showPayoutActions = false,
+}: CreatorAccessTableProps) {
   const { user } = useAuth();
   const [rows, setRows] = useState<CreatorRow[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -32,6 +44,15 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
   const [error, setError] = useState<string | null>(null);
   const [selectedMap, setSelectedMap] = useState<Record<string, string[]>>({});
   const [linkResult, setLinkResult] = useState<Record<string, string>>({});
+  const [payoutAmountMap, setPayoutAmountMap] = useState<Record<string, string>>({});
+
+  function formatDate(epochMs?: number) {
+    if (!epochMs) return "-";
+    return new Date(epochMs).toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
 
   const authHeader = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -196,22 +217,71 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
     }
   }
 
+  async function resetDevice(creatorPublicId: string) {
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/manager/creators/${encodeURIComponent(creatorPublicId)}/reset-device`,
+        {
+          method: "POST",
+          headers,
+        }
+      );
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to reset creator device.");
+      }
+      await loadCreators();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to reset creator device.");
+    }
+  }
+
+  async function markPayout(creatorPublicId: string) {
+    const amount = Number(payoutAmountMap[creatorPublicId] ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter valid payout amount first.");
+      return;
+    }
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/admin/creators/${encodeURIComponent(creatorPublicId)}/payouts`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ amount }),
+        },
+      );
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to mark payout.");
+      }
+      setPayoutAmountMap((prev) => ({ ...prev, [creatorPublicId]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to mark payout.");
+    }
+  }
+
   return (
-    <section className="mt-6 rounded-2xl border border-amber-200 bg-[var(--surface)] p-6 shadow-sm">
+    <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
       <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name, ID, email"
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         >
           <option value="all">All statuses</option>
           <option value="pending_invite">Pending invite</option>
@@ -220,7 +290,7 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
         </select>
         <button
           onClick={() => void loadCreators()}
-          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
         >
           Refresh
         </button>
@@ -232,15 +302,15 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
         </p>
       ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full table-fixed text-sm">
-          <thead className="bg-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+      <div className="mt-4 overflow-x-auto rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
+        <table className="min-w-[1280px] w-full text-sm">
+          <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             <tr>
-              <th className="w-[22%] px-3 py-3">Creator</th>
-              <th className="w-[22%] px-3 py-3">Contact</th>
-              <th className="w-[12%] px-3 py-3">Status</th>
-              <th className="w-[30%] px-3 py-3">Assigned Categories</th>
-              <th className="w-[14%] px-3 py-3">Actions</th>
+              <th className="px-4 py-3">Creator</th>
+              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Assigned Categories</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -258,19 +328,26 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.creatorPublicId} className="border-t border-slate-100 align-top">
-                  <td className="px-3 py-3">
+                <tr key={row.creatorPublicId} className="border-t border-slate-100/80 align-top">
+                  <td className="px-4 py-4">
                     <p className="font-semibold text-slate-900">{row.name}</p>
                     <p className="font-mono text-xs text-slate-600" title={row.creatorPublicId}>
                       ID: {row.creatorPublicId}
                     </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
+                      {row.pendingCount ?? 0}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Last upload: {formatDate(row.lastUploadAt)}
+                    </p>
                   </td>
-                  <td className="px-3 py-3 text-slate-700">
+                  <td className="px-4 py-4 text-slate-700">
                     <p className="break-all">{row.email}</p>
                     <p>{row.phone}</p>
                   </td>
-                  <td className="px-3 py-3">
-                    <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs">
+                  <td className="px-4 py-4">
+                    <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
                       {row.status}
                     </span>
                     {linkResult[row.creatorPublicId] ? (
@@ -279,20 +356,29 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="grid grid-cols-2 gap-1">
+                  <td className="px-4 py-4">
+                    <div className="grid grid-cols-2 gap-2">
                       {categories.map((category) => {
                         const selected = (selectedMap[row.creatorPublicId] ?? []).includes(
                           category.id
                         );
                         return (
-                          <label key={category.id} className="flex items-center gap-1 text-xs">
+                          <label
+                            key={category.id}
+                            className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
+                              category.isBlinking
+                                ? "animate-pulse border-emerald-300 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
+                                : "border-transparent bg-white text-slate-700"
+                            }`}
+                          >
                             <input
                               type="checkbox"
                               checked={selected}
                               onChange={() => toggleCategory(row.creatorPublicId, category.id)}
                             />
-                            <span>{category.label}</span>
+                            <span className={category.isBlinking ? "font-semibold" : undefined}>
+                              {category.label}
+                            </span>
                           </label>
                         );
                       })}
@@ -306,17 +392,17 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-col gap-2">
+                  <td className="px-4 py-4">
+                    <div className="grid gap-2">
                       <button
                         onClick={() => void assignCategories(row.creatorPublicId)}
-                        className="w-full whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800"
+                        className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                       >
                         Save categories
                       </button>
                       <button
                         onClick={() => void regenerateLink(row.creatorPublicId)}
-                        className="w-full whitespace-nowrap rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white"
+                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
                       >
                         New link
                       </button>
@@ -327,12 +413,40 @@ export function CreatorAccessTable({ title, subtitle }: CreatorAccessTableProps)
                             row.status === "blocked" ? "active" : "blocked"
                           )
                         }
-                        className={`w-full whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${
-                          row.status === "blocked" ? "bg-emerald-600" : "bg-rose-600"
+                        className={`w-full whitespace-nowrap rounded-xl px-3 py-2.5 text-xs font-semibold text-white ${
+                          row.status === "blocked" ? "bg-[var(--portal-green-dark)]" : "bg-rose-600"
                         }`}
                       >
                         {row.status === "blocked" ? "Enable access" : "Remove access"}
                       </button>
+                      <button
+                        onClick={() => void resetDevice(row.creatorPublicId)}
+                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                      >
+                        Reset device
+                      </button>
+                      {showPayoutActions ? (
+                        <>
+                          <input
+                            value={payoutAmountMap[row.creatorPublicId] ?? ""}
+                            onChange={(e) =>
+                              setPayoutAmountMap((prev) => ({
+                                ...prev,
+                                [row.creatorPublicId]: e.target.value,
+                              }))
+                            }
+                            placeholder="Payout amount"
+                            inputMode="decimal"
+                            className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs outline-none transition focus:border-[var(--portal-border-strong)]"
+                          />
+                          <button
+                            onClick={() => void markPayout(row.creatorPublicId)}
+                            className="w-full whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,var(--portal-green-dark),var(--portal-green))] px-3 py-2 text-xs font-semibold text-white"
+                          >
+                            Mark payout
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

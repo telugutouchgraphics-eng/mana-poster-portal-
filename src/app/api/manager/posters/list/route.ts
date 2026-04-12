@@ -4,6 +4,9 @@ import { requireRole } from "@/lib/server/auth";
 
 interface PosterPersonalization {
   photoShape: "circle" | "rounded" | "square" | "hexagon" | "pill";
+  photoRenderMode: "cutout" | "original";
+  edgeStyle: "soft_fade" | "sharp";
+  showSafeAreas: boolean;
   photoX: number;
   photoY: number;
   photoScale: number;
@@ -27,6 +30,20 @@ interface PosterListItem {
   imageUrl: string;
   status: string;
   reviewComment: string;
+  duplicateStatus: string;
+  duplicateCount: number;
+  reviewHistory: Array<{
+    type: string;
+    actorRole: string;
+    actorId: string;
+    actorName: string;
+    comment: string;
+    createdAt: number;
+  }>;
+  saleCount: number;
+  grossAmount: number;
+  creatorEarnings: number;
+  platformEarnings: number;
   personalizationConfig: PosterPersonalization;
   createdAt: number;
   updatedAt: number;
@@ -34,15 +51,18 @@ interface PosterListItem {
 
 const defaultPersonalization: PosterPersonalization = {
   photoShape: "circle",
-  photoX: 50,
-  photoY: 45,
-  photoScale: 36,
+  photoRenderMode: "cutout",
+  edgeStyle: "soft_fade",
+  showSafeAreas: true,
+  photoX: 78,
+  photoY: 42,
+  photoScale: 44,
   nameX: 50,
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
   showWhatsapp: true,
-  sampleName: "Bommidi Naga Gopi",
+  sampleName: "Sample Name",
 };
 
 function parsePersonalization(input: unknown): PosterPersonalization {
@@ -73,6 +93,12 @@ function parsePersonalization(input: unknown): PosterPersonalization {
   };
   return {
     photoShape,
+    photoRenderMode: raw.photoRenderMode === "original" ? "original" : defaultPersonalization.photoRenderMode,
+    edgeStyle: raw.edgeStyle === "sharp" ? "sharp" : defaultPersonalization.edgeStyle,
+    showSafeAreas:
+      typeof raw.showSafeAreas === "boolean"
+        ? raw.showSafeAreas
+        : defaultPersonalization.showSafeAreas,
     photoX: numberInRange(raw.photoX, defaultPersonalization.photoX, 0, 100),
     photoY: numberInRange(raw.photoY, defaultPersonalization.photoY, 0, 100),
     photoScale: numberInRange(raw.photoScale, defaultPersonalization.photoScale, 10, 100),
@@ -117,6 +143,13 @@ export async function GET(req: NextRequest) {
       )
       .slice(0, 250);
 
+    const duplicateHashCounts = new Map<string, number>();
+    for (const item of posterDocs) {
+      const hash = String(item.data.imageHash ?? "").trim();
+      if (!hash) continue;
+      duplicateHashCounts.set(hash, (duplicateHashCounts.get(hash) ?? 0) + 1);
+    }
+
     const creatorIds = Array.from(
       new Set(
         posterDocs
@@ -151,6 +184,25 @@ export async function GET(req: NextRequest) {
           imageUrl: String(item.data.imageUrl ?? ""),
           status: String(item.data.status ?? "pending"),
           reviewComment: String(item.data.reviewComment ?? ""),
+          duplicateStatus: String(item.data.duplicateStatus ?? "unique"),
+          duplicateCount: duplicateHashCounts.get(String(item.data.imageHash ?? "").trim()) ?? 0,
+          reviewHistory: Array.isArray(item.data.reviewHistory)
+            ? item.data.reviewHistory.map((entry) => {
+                const raw = entry as Record<string, unknown>;
+                return {
+                  type: String(raw.type ?? "submitted"),
+                  actorRole: String(raw.actorRole ?? ""),
+                  actorId: String(raw.actorId ?? ""),
+                  actorName: String(raw.actorName ?? ""),
+                  comment: String(raw.comment ?? ""),
+                  createdAt: Number(raw.createdAt ?? 0),
+                };
+              })
+            : [],
+          saleCount: Number(item.data.saleCount ?? 0),
+          grossAmount: Number(item.data.grossAmount ?? 0),
+          creatorEarnings: Number(item.data.creatorEarnings ?? 0),
+          platformEarnings: Number(item.data.platformEarnings ?? 0),
           personalizationConfig: parsePersonalization(item.data.personalizationConfig),
           createdAt: Number(item.data.createdAt ?? 0),
           updatedAt: Number(item.data.updatedAt ?? 0),

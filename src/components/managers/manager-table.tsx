@@ -142,23 +142,23 @@ export function ManagerTable() {
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-amber-200 bg-[var(--surface)] p-6 shadow-sm">
+    <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <h2 className="text-lg font-semibold text-slate-900">Managers</h2>
       <p className="mt-1 text-sm text-slate-600">
         Search managers, activate/deactivate, reset password and reset device lock.
       </p>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search manager"
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -166,7 +166,7 @@ export function ManagerTable() {
         </select>
         <button
           onClick={() => void loadManagers()}
-          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
         >
           Refresh
         </button>
@@ -178,14 +178,14 @@ export function ManagerTable() {
         </p>
       ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full table-fixed text-sm">
-          <thead className="bg-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+      <div className="mt-4 overflow-x-auto rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
+        <table className="min-w-[920px] w-full text-sm">
+          <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             <tr>
-              <th className="w-[34%] px-3 py-3">Manager</th>
-              <th className="w-[28%] px-3 py-3">Contact</th>
-              <th className="w-[12%] px-3 py-3">Status</th>
-              <th className="w-[26%] px-3 py-3">Actions</th>
+              <th className="px-4 py-3">Manager</th>
+              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -203,19 +203,19 @@ export function ManagerTable() {
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.uid} className="border-t border-slate-100 align-top">
-                  <td className="px-3 py-3">
+                <tr key={row.uid} className="border-t border-slate-100/80 align-top">
+                  <td className="px-4 py-4">
                     <p className="font-semibold text-slate-900">{row.name}</p>
                     <p className="font-mono text-xs text-slate-600">
                       ID: {displayManagerId(row)}
                     </p>
                   </td>
-                  <td className="px-3 py-3 text-slate-700">
+                  <td className="px-4 py-4 text-slate-700">
                     <p className="break-all">{row.email}</p>
                     <p>{row.phone}</p>
                   </td>
-                  <td className="px-3 py-3">
-                    <span className="rounded-full border border-slate-300 px-2 py-0.5 text-xs">
+                  <td className="px-4 py-4">
+                    <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
                       {row.managerStatus}
                     </span>
                     {passwordResult[row.uid] ? (
@@ -224,8 +224,8 @@ export function ManagerTable() {
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-col gap-2">
+                  <td className="px-4 py-4">
+                    <div className="grid gap-2">
                       <button
                         onClick={() =>
                           void toggleStatus(
@@ -233,19 +233,19 @@ export function ManagerTable() {
                             row.managerStatus === "active" ? "inactive" : "active"
                           )
                         }
-                        className="w-full whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800"
+                        className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                       >
                         {row.managerStatus === "active" ? "Deactivate" : "Activate"}
                       </button>
                       <button
                         onClick={() => void resetPassword(row.uid)}
-                        className="w-full whitespace-nowrap rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white"
+                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
                       >
                         Reset password
                       </button>
                       <button
                         onClick={() => void resetDevice(row.uid)}
-                        className="w-full whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
+                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
                       >
                         Reset device
                       </button>

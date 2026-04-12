@@ -8,6 +8,8 @@ import {
   normalizeRoles,
   pickPrimaryRole,
 } from "@/lib/server/role-utils";
+import { writeAuditLog } from "@/lib/server/audit-log";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 
 const requestSchema = z.object({
   token: z.string().min(10),
@@ -16,6 +18,11 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await enforceRateLimit(req, {
+      key: "creator_activate",
+      limit: 10,
+      windowMs: 10 * 60 * 1000,
+    });
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
     const tokenHash = hashInviteToken(payload.token);
@@ -147,6 +154,19 @@ export async function POST(req: NextRequest) {
       );
     });
 
+    await writeAuditLog({
+      actorUid: authUserUid,
+      actorRole: "creator",
+      actorEmail: email,
+      action: "creator_account_activated",
+      targetType: "creator_profile",
+      targetId: creatorPublicId,
+      message: "Creator access link claimed and account activated.",
+      metadata: {
+        inviteId: inviteDoc.id,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       email,
@@ -154,6 +174,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Activation failed.";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    const status = message === "Rate limit exceeded" ? 429 : 400;
+    return NextResponse.json({ ok: false, error: message }, { status });
   }
 }

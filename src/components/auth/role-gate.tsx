@@ -80,9 +80,14 @@ export function RoleGate({ allowed, children }: RoleGateProps) {
 
   if (!isAllowed) {
     return (
-      <div className="mx-auto mt-20 w-full max-w-md rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center">
-        <h2 className="text-lg font-semibold text-orange-900">Access Guard</h2>
-        <p className="mt-2 text-sm text-orange-700">{reason}</p>
+      <div className="flex min-h-screen w-full items-center justify-center px-4 py-8">
+        <div className="w-full max-w-lg rounded-[28px] border border-[var(--portal-border)] bg-white p-6 text-center shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
+            Access Guard
+          </p>
+          <h2 className="mt-3 text-lg font-semibold text-slate-900">Access required</h2>
+          <p className="mt-2 text-sm text-slate-600">{reason}</p>
+        </div>
       </div>
     );
   }

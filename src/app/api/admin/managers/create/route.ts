@@ -9,6 +9,8 @@ import {
   normalizeRoles,
   pickPrimaryRole,
 } from "@/lib/server/role-utils";
+import { writeAuditLog } from "@/lib/server/audit-log";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 
 const PERMANENT_ADMIN_EMAIL = "telugutouchgraphics@gmail.com";
 
@@ -21,6 +23,11 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await enforceRateLimit(req, {
+      key: "admin_manager_create",
+      limit: 10,
+      windowMs: 10 * 60 * 1000,
+    });
     const actor = await requireRole(req, ["admin"]);
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
@@ -122,6 +129,20 @@ export async function POST(req: NextRequest) {
       return nextPublicId;
     });
 
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "manager_created",
+      targetType: "manager_user",
+      targetId: managerUid,
+      message: "Manager account created or updated.",
+      metadata: {
+        managerPublicId,
+        email: normalizedEmail,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       managerUid,
@@ -131,7 +152,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Manager create failed.";
-    const status = message === "Forbidden" ? 403 : 400;
+    const status =
+      message === "Forbidden" ? 403 : message === "Rate limit exceeded" ? 429 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }

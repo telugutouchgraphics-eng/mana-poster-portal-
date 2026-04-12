@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     await requireRole(req, ["admin", "manager", "creator"]);
     return NextResponse.json({
       ok: true,
-      categories: getVisibleAssignableCategories(new Date(), 3),
+      categories: getVisibleAssignableCategories(new Date(), 2, 7, 2),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unauthorized";

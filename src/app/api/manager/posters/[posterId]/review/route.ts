@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { writeAuditLog } from "@/lib/server/audit-log";
 
 const payloadSchema = z.object({
-  status: z.enum(["approved", "rejected"]),
+  status: z.enum(["approved", "rejected", "archived", "deleted"]),
   reviewComment: z.string().trim().max(300).optional(),
 });
 
@@ -13,7 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ posterId: string }> }
 ) {
   try {
-    await requireRole(req, ["admin", "manager"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const { posterId } = await params;
     const payload = payloadSchema.parse(await req.json());
 
@@ -26,10 +27,48 @@ export async function POST(
       );
     }
 
+    const currentData = snap.data() as Record<string, unknown>;
+    const history = Array.isArray(currentData.reviewHistory)
+      ? currentData.reviewHistory
+      : [];
+    const now = Date.now();
+
     await posterRef.update({
       status: payload.status,
       reviewComment: payload.reviewComment ?? "",
-      updatedAt: Date.now(),
+      updatedAt: now,
+      archivedAt: payload.status === "archived" ? now : null,
+      deletedAt: payload.status === "deleted" ? now : null,
+      reviewHistory: [
+        ...history,
+        {
+          type:
+            payload.status === "approved"
+              ? "approved"
+              : payload.status === "rejected"
+                ? "rejected"
+                : payload.status,
+          actorRole: actor.role,
+          actorId: actor.uid,
+          actorName: actor.email ?? actor.uid,
+          comment: payload.reviewComment ?? "",
+          createdAt: now,
+        },
+      ],
+    });
+
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "poster_review_updated",
+      targetType: "creator_poster",
+      targetId: posterId,
+      message: `Poster status changed to ${payload.status}.`,
+      metadata: {
+        status: payload.status,
+        reviewComment: payload.reviewComment ?? "",
+      },
     });
 
     return NextResponse.json({ ok: true });
@@ -39,4 +78,3 @@ export async function POST(
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
-

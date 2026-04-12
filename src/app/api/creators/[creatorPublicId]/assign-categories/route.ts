@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { isValidCategoryId } from "@/lib/server/categories";
+import { writeAuditLog } from "@/lib/server/audit-log";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -44,6 +45,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       { merge: true }
     );
+
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "creator_categories_updated",
+      targetType: "creator_profile",
+      targetId: creatorPublicId,
+      message: "Creator assigned categories updated.",
+      metadata: {
+        categoryIds: uniqueIds,
+      },
+    });
 
     return NextResponse.json({ ok: true, assignedCategories: uniqueIds });
   } catch (error) {

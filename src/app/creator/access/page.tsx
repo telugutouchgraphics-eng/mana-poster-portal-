@@ -78,8 +78,8 @@ export default function CreatorAccessPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-6 py-12">
-      <section className="w-full rounded-3xl border border-amber-200 bg-[var(--surface)] p-7 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-600">
+      <section className="w-full rounded-3xl border border-[var(--portal-border)] bg-white p-7 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--portal-purple)]">
           Creator Access
         </p>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">Activate account</h1>
@@ -93,7 +93,7 @@ export default function CreatorAccessPage() {
             <input
               value={token}
               readOnly
-              className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-600"
+              className="mt-1 w-full rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2.5 text-xs text-slate-600"
             />
           </label>
           <label className="block text-sm font-medium text-slate-700">
@@ -103,13 +103,13 @@ export default function CreatorAccessPage() {
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               required
-              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-orange-400/30 focus:ring"
+              className="mt-1 w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[var(--portal-border-strong)]"
             />
           </label>
           <button
             type="submit"
             disabled={!canSubmit || busy}
-            className="w-full rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-orange-300"
+            className="w-full rounded-xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Activating..." : "Activate & Login"}
           </button>

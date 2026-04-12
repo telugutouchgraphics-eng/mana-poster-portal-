@@ -51,6 +51,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
+FIREBASE_STORAGE_BUCKET=
 ```
 
 `FIREBASE_PRIVATE_KEY` should use escaped new lines in env (`\n`).
@@ -74,6 +75,12 @@ Open:
 - `/login`
 - `/manager/dashboard`
 - `/creator/dashboard`
+
+## Deployment
+
+- Portal deploy checklist: `PORTAL_LAUNCH_CHECKLIST.md`
+- Portal deployment guide: `PORTAL_DEPLOYMENT_GUIDE.md`
+- Security notes: `PORTAL_SECURITY_NOTES.md`
 
 ## Notes
 

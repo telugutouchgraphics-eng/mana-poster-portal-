@@ -3,6 +3,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuth } from "@/lib/server/auth";
 import { normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 
 const requestSchema = z.object({
   deviceId: z.string().trim().min(8).max(128),
@@ -11,6 +12,11 @@ const requestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await enforceRateLimit(req, {
+      key: "register_device",
+      limit: 25,
+      windowMs: 10 * 60 * 1000,
+    });
     const user = await requireAuth(req);
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
@@ -82,7 +88,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, role, roles });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Device registration failed.";
-    const status = message.includes("token") ? 401 : 400;
+    const status =
+      message.includes("token") ? 401 : message === "Rate limit exceeded" ? 429 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }

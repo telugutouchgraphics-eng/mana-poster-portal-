@@ -1,30 +1,57 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fffaf0;
-  --foreground: #10212f;
-  --accent: #ff7a18;
-  --accent-soft: #ffe1ca;
-  --surface: #fffefb;
-  --surface-strong: #f7f0e8;
+  --background: #f3f6fb;
+  --foreground: #0f172a;
+  --accent: #6d28d9;
+  --accent-soft: #ede9fe;
+  --surface: #ffffff;
+  --surface-strong: #f8fafc;
+  --portal-bg: #f3f6fb;
+  --portal-surface: #ffffff;
+  --portal-surface-soft: #f8fafc;
+  --portal-border: #d9e2f1;
+  --portal-border-strong: #c8d5ea;
+  --portal-text: #0f172a;
+  --portal-purple: #6d28d9;
+  --portal-purple-dark: #4c1d95;
+  --portal-purple-soft: #f3e8ff;
+  --portal-green: #25d366;
+  --portal-green-dark: #16a34a;
+  --portal-muted: #64748b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk);
-  --font-mono: var(--font-sora);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-manrope);
+}
+
+html {
+  min-height: 100%;
 }
 
 body {
-  background:
-    radial-gradient(circle at 20% 0%, #ffe2b9 0, transparent 35%),
-    radial-gradient(circle at 80% 100%, #ffd1a7 0, transparent 30%),
-    var(--background);
+  background: var(--portal-bg);
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(109, 40, 217, 0.18);
+  color: var(--portal-text);
 }

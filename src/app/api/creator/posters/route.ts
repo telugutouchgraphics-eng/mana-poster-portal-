@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { z } from "zod";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
@@ -12,27 +13,22 @@ const payloadSchema = z.object({
 
 const personalizationSchema = z.object({
   photoShape: z.enum(["circle", "rounded", "square", "hexagon", "pill"]).default("circle"),
-  photoX: z.number().min(0).max(100).default(50),
-  photoY: z.number().min(0).max(100).default(45),
-  photoScale: z.number().min(10).max(100).default(36),
+  photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
+  edgeStyle: z.enum(["soft_fade", "sharp"]).default("soft_fade"),
+  showSafeAreas: z.boolean().default(true),
+  photoX: z.number().min(0).max(100).default(78),
+  photoY: z.number().min(0).max(100).default(42),
+  photoScale: z.number().min(10).max(100).default(44),
   nameX: z.number().min(0).max(100).default(50),
   nameY: z.number().min(0).max(100).default(82),
   showBottomStrip: z.boolean().default(true),
   stripHeight: z.number().min(8).max(40).default(16),
   showWhatsapp: z.boolean().default(true),
-  sampleName: z.string().trim().min(1).max(80).default("Bommidi Naga Gopi"),
+  sampleName: z.string().trim().min(1).max(80).default("Sample Name"),
 });
 
 function sanitizeFileName(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_");
-}
-
-function derivePosterTitle(fileName: string, categoryLabel: string): string {
-  const cleaned = fileName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
-  if (cleaned.length >= 2) {
-    return cleaned.slice(0, 80);
-  }
-  return `${categoryLabel} Poster`;
 }
 
 export async function POST(req: NextRequest) {
@@ -87,12 +83,31 @@ export async function POST(req: NextRequest) {
       ? "webp"
       : "png";
     const safeOriginal = sanitizeFileName(image.name || `poster.${ext}`);
-    const title = derivePosterTitle(safeOriginal, category.label);
+    const title = creator.creatorPublicId;
     const now = Date.now();
     const bucket = adminStorage.bucket();
     const filePath = `creator_posters/${creator.creatorPublicId}/${now}-${safeOriginal}`;
     const file = bucket.file(filePath);
     const bytes = Buffer.from(await image.arrayBuffer());
+    const imageHash = createHash("sha256").update(bytes).digest("hex");
+
+    const duplicateSnap = await adminDb
+      .collection("creatorPosters")
+      .where("creatorPublicId", "==", creator.creatorPublicId)
+      .where("categoryId", "==", parsed.categoryId)
+      .where("imageHash", "==", imageHash)
+      .get();
+
+    if (!duplicateSnap.empty) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Same poster already uploaded in this category. Change design and upload again.",
+        },
+        { status: 409 },
+      );
+    }
+
     await file.save(bytes, {
       resumable: false,
       contentType: mimeType,
@@ -114,11 +129,28 @@ export async function POST(req: NextRequest) {
       title,
       categoryId: parsed.categoryId,
       categoryLabel: category.label,
+      imageHash,
       imagePath: filePath,
       imageUrl,
       status: "pending",
       reviewComment: "",
+      duplicateStatus: "unique",
+      reviewHistory: [
+        {
+          type: "submitted",
+          actorRole: "creator",
+          actorId: creator.creatorPublicId,
+          actorName: creator.name,
+          comment: "Poster submitted for review.",
+          createdAt: now,
+        },
+      ],
       personalizationConfig,
+      creatorIdLabel: creator.creatorPublicId,
+      grossAmount: 0,
+      creatorEarnings: 0,
+      platformEarnings: 0,
+      payoutStatus: "pending",
       createdAt: now,
       updatedAt: now,
     });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { writeAuditLog } from "@/lib/server/audit-log";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -8,7 +9,7 @@ interface Params {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireRole(req, ["manager", "admin"]);
+    const actor = await requireRole(req, ["manager", "admin"]);
     const { creatorPublicId } = await params;
     const creatorRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
     const creatorSnap = await creatorRef.get();
@@ -30,6 +31,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         { merge: true }
       );
     }
+
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: "creator_device_reset",
+      targetType: "creator_profile",
+      targetId: creatorPublicId,
+      message: "Creator active device session reset.",
+      metadata: {
+        authUid: authUid ?? "",
+      },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
