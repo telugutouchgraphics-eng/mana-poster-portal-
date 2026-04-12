@@ -239,8 +239,8 @@ export function ManagerTable() {
                   </tr>
                   {expandedRows[row.uid] ? (
                     <tr key={`${row.uid}-details`} className="border-t border-slate-100/80 bg-white">
-                      <td colSpan={4} className="px-4 py-4">
-                        <div className="grid gap-3 md:grid-cols-3">
+                      <td colSpan={4} className="px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() =>
                               void toggleStatus(
@@ -248,19 +248,19 @@ export function ManagerTable() {
                                 row.managerStatus === "active" ? "inactive" : "active"
                               )
                             }
-                            className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                            className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                           >
                             {row.managerStatus === "active" ? "Deactivate" : "Activate"}
                           </button>
                           <button
                             onClick={() => void resetPassword(row.uid)}
-                            className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                            className="whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
                           >
                             Reset password
                           </button>
                           <button
                             onClick={() => void resetDevice(row.uid)}
-                            className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                            className="whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
                           >
                             Reset device
                           </button>

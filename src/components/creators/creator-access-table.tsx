@@ -371,37 +371,39 @@ export function CreatorAccessTable({
                   </tr>
                   {expandedRows[row.creatorPublicId] ? (
                     <tr className="border-t border-slate-100/80 bg-white">
-                      <td colSpan={5} className="px-4 py-4">
-                        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                               Assigned Categories
                             </p>
-                            <div className="mt-3 grid grid-cols-2 gap-2">
-                              {categories.map((category) => {
-                                const selected = (selectedMap[row.creatorPublicId] ?? []).includes(
-                                  category.id
-                                );
-                                return (
-                                  <label
-                                    key={category.id}
-                                    className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
-                                      category.isBlinking
-                                        ? "animate-pulse border-emerald-300 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
-                                        : "border-transparent bg-[var(--portal-surface-soft)] text-slate-700"
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selected}
-                                      onChange={() => toggleCategory(row.creatorPublicId, category.id)}
-                                    />
-                                    <span className={category.isBlinking ? "font-semibold" : undefined}>
-                                      {category.label}
-                                    </span>
-                                  </label>
-                                );
-                              })}
+                            <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                {categories.map((category) => {
+                                  const selected = (selectedMap[row.creatorPublicId] ?? []).includes(
+                                    category.id
+                                  );
+                                  return (
+                                    <label
+                                      key={category.id}
+                                      className={`flex min-h-[40px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                                        category.isBlinking
+                                          ? "animate-pulse border-emerald-300 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
+                                          : "border-transparent bg-white text-slate-700"
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={() => toggleCategory(row.creatorPublicId, category.id)}
+                                      />
+                                      <span className={category.isBlinking ? "font-semibold" : undefined}>
+                                        {category.label}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             </div>
                             <p className="mt-3 text-xs text-slate-600">
                               Last upload: {formatDate(row.lastUploadAt)}
@@ -415,16 +417,16 @@ export function CreatorAccessTable({
                               </p>
                             ) : null}
                           </div>
-                          <div className="grid gap-2">
+                          <div className="grid content-start gap-2">
                             <button
                               onClick={() => void assignCategories(row.creatorPublicId)}
-                              className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                              className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                             >
                               Save categories
                             </button>
                             <button
                               onClick={() => void regenerateLink(row.creatorPublicId)}
-                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
                             >
                               New link
                             </button>
@@ -435,7 +437,7 @@ export function CreatorAccessTable({
                                   row.status === "blocked" ? "active" : "blocked"
                                 )
                               }
-                              className={`w-full whitespace-nowrap rounded-xl px-3 py-2.5 text-xs font-semibold text-white ${
+                              className={`w-full whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold text-white ${
                                 row.status === "blocked" ? "bg-[var(--portal-green-dark)]" : "bg-rose-600"
                               }`}
                             >
@@ -443,7 +445,7 @@ export function CreatorAccessTable({
                             </button>
                             <button
                               onClick={() => void resetDevice(row.creatorPublicId)}
-                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
                             >
                               Reset device
                             </button>
