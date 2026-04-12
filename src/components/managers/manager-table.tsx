@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
 interface ManagerRow {
@@ -27,6 +27,7 @@ export function ManagerTable() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [passwordResult, setPasswordResult] = useState<Record<string, string>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const authHeader = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -141,6 +142,13 @@ export function ManagerTable() {
     }
   }
 
+  function toggleExpanded(managerUid: string) {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [managerUid]: !prev[managerUid],
+    }));
+  }
+
   return (
     <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <h2 className="text-lg font-semibold text-slate-900">Managers</h2>
@@ -203,55 +211,69 @@ export function ManagerTable() {
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.uid} className="border-t border-slate-100/80 align-top">
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-slate-900">{row.name}</p>
-                    <p className="font-mono text-xs text-slate-600">
-                      ID: {displayManagerId(row)}
-                    </p>
-                  </td>
-                  <td className="px-4 py-4 text-slate-700">
-                    <p className="break-all">{row.email}</p>
-                    <p>{row.phone}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
-                      {row.managerStatus}
-                    </span>
-                    {passwordResult[row.uid] ? (
-                      <p className="mt-2 text-xs text-emerald-700">
-                        Temp password copied
+                <Fragment key={row.uid}>
+                  <tr key={`${row.uid}-summary`} className="border-t border-slate-100/80 align-top">
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-900">{row.name}</p>
+                      <p className="font-mono text-xs text-slate-600">
+                        ID: {displayManagerId(row)}
                       </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="grid gap-2">
+                    </td>
+                    <td className="px-4 py-4 text-slate-700">
+                      <p className="break-all">{row.email}</p>
+                      <p>{row.phone}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
+                        {row.managerStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
                       <button
-                        onClick={() =>
-                          void toggleStatus(
-                            row.uid,
-                            row.managerStatus === "active" ? "inactive" : "active"
-                          )
-                        }
+                        onClick={() => toggleExpanded(row.uid)}
                         className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                       >
-                        {row.managerStatus === "active" ? "Deactivate" : "Activate"}
+                        {expandedRows[row.uid] ? "Close" : "Open"}
                       </button>
-                      <button
-                        onClick={() => void resetPassword(row.uid)}
-                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
-                      >
-                        Reset password
-                      </button>
-                      <button
-                        onClick={() => void resetDevice(row.uid)}
-                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
-                      >
-                        Reset device
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  {expandedRows[row.uid] ? (
+                    <tr key={`${row.uid}-details`} className="border-t border-slate-100/80 bg-white">
+                      <td colSpan={4} className="px-4 py-4">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <button
+                            onClick={() =>
+                              void toggleStatus(
+                                row.uid,
+                                row.managerStatus === "active" ? "inactive" : "active"
+                              )
+                            }
+                            className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                          >
+                            {row.managerStatus === "active" ? "Deactivate" : "Activate"}
+                          </button>
+                          <button
+                            onClick={() => void resetPassword(row.uid)}
+                            className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                          >
+                            Reset password
+                          </button>
+                          <button
+                            onClick={() => void resetDevice(row.uid)}
+                            className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                          >
+                            Reset device
+                          </button>
+                        </div>
+                        {passwordResult[row.uid] ? (
+                          <p className="mt-3 text-xs font-semibold text-emerald-700">
+                            Temp password copied
+                          </p>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))
             )}
           </tbody>

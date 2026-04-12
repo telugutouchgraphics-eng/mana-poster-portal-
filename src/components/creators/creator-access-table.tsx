@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
 interface CreatorRow {
@@ -45,6 +45,7 @@ export function CreatorAccessTable({
   const [selectedMap, setSelectedMap] = useState<Record<string, string[]>>({});
   const [linkResult, setLinkResult] = useState<Record<string, string>>({});
   const [payoutAmountMap, setPayoutAmountMap] = useState<Record<string, string>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   function formatDate(epochMs?: number) {
     if (!epochMs) return "-";
@@ -266,6 +267,13 @@ export function CreatorAccessTable({
     }
   }
 
+  function toggleExpanded(creatorPublicId: string) {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [creatorPublicId]: !prev[creatorPublicId],
+    }));
+  }
+
   return (
     <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
@@ -328,128 +336,148 @@ export function CreatorAccessTable({
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.creatorPublicId} className="border-t border-slate-100/80 align-top">
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-slate-900">{row.name}</p>
-                    <p className="font-mono text-xs text-slate-600" title={row.creatorPublicId}>
-                      ID: {row.creatorPublicId}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
-                      {row.pendingCount ?? 0}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Last upload: {formatDate(row.lastUploadAt)}
-                    </p>
-                  </td>
-                  <td className="px-4 py-4 text-slate-700">
-                    <p className="break-all">{row.email}</p>
-                    <p>{row.phone}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
-                      {row.status}
-                    </span>
-                    {linkResult[row.creatorPublicId] ? (
-                      <p className="mt-2 max-w-[220px] truncate text-xs text-emerald-700">
-                        Link copied
+                <Fragment key={row.creatorPublicId}>
+                  <tr className="border-t border-slate-100/80 align-top">
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-900">{row.name}</p>
+                      <p className="font-mono text-xs text-slate-600" title={row.creatorPublicId}>
+                        ID: {row.creatorPublicId}
                       </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      {categories.map((category) => {
-                        const selected = (selectedMap[row.creatorPublicId] ?? []).includes(
-                          category.id
-                        );
-                        return (
-                          <label
-                            key={category.id}
-                            className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
-                              category.isBlinking
-                                ? "animate-pulse border-emerald-300 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
-                                : "border-transparent bg-white text-slate-700"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleCategory(row.creatorPublicId, category.id)}
-                            />
-                            <span className={category.isBlinking ? "font-semibold" : undefined}>
-                              {category.label}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    {(selectedMap[row.creatorPublicId] ?? []).length > 0 ? (
-                      <p className="mt-2 text-xs text-slate-600">
-                        Current:{" "}
-                        {(selectedMap[row.creatorPublicId] ?? [])
-                          .map((id) => categoryNameMap[id] ?? id)
-                          .join(", ")}
+                      <p className="mt-2 text-xs text-slate-500">
+                        Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
+                        {row.pendingCount ?? 0}
                       </p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="grid gap-2">
+                    </td>
+                    <td className="px-4 py-4 text-slate-700">
+                      <p className="break-all">{row.email}</p>
+                      <p>{row.phone}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {(selectedMap[row.creatorPublicId] ?? []).length} selected
+                    </td>
+                    <td className="px-4 py-4">
                       <button
-                        onClick={() => void assignCategories(row.creatorPublicId)}
+                        onClick={() => toggleExpanded(row.creatorPublicId)}
                         className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                       >
-                        Save categories
+                        {expandedRows[row.creatorPublicId] ? "Close" : "Open"}
                       </button>
-                      <button
-                        onClick={() => void regenerateLink(row.creatorPublicId)}
-                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
-                      >
-                        New link
-                      </button>
-                      <button
-                        onClick={() =>
-                          void updateAccessStatus(
-                            row.creatorPublicId,
-                            row.status === "blocked" ? "active" : "blocked"
-                          )
-                        }
-                        className={`w-full whitespace-nowrap rounded-xl px-3 py-2.5 text-xs font-semibold text-white ${
-                          row.status === "blocked" ? "bg-[var(--portal-green-dark)]" : "bg-rose-600"
-                        }`}
-                      >
-                        {row.status === "blocked" ? "Enable access" : "Remove access"}
-                      </button>
-                      <button
-                        onClick={() => void resetDevice(row.creatorPublicId)}
-                        className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
-                      >
-                        Reset device
-                      </button>
-                      {showPayoutActions ? (
-                        <>
-                          <input
-                            value={payoutAmountMap[row.creatorPublicId] ?? ""}
-                            onChange={(e) =>
-                              setPayoutAmountMap((prev) => ({
-                                ...prev,
-                                [row.creatorPublicId]: e.target.value,
-                              }))
-                            }
-                            placeholder="Payout amount"
-                            inputMode="decimal"
-                            className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs outline-none transition focus:border-[var(--portal-border-strong)]"
-                          />
-                          <button
-                            onClick={() => void markPayout(row.creatorPublicId)}
-                            className="w-full whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,var(--portal-green-dark),var(--portal-green))] px-3 py-2 text-xs font-semibold text-white"
-                          >
-                            Mark payout
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  {expandedRows[row.creatorPublicId] ? (
+                    <tr className="border-t border-slate-100/80 bg-white">
+                      <td colSpan={5} className="px-4 py-4">
+                        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                              Assigned Categories
+                            </p>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {categories.map((category) => {
+                                const selected = (selectedMap[row.creatorPublicId] ?? []).includes(
+                                  category.id
+                                );
+                                return (
+                                  <label
+                                    key={category.id}
+                                    className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-2 text-xs transition ${
+                                      category.isBlinking
+                                        ? "animate-pulse border-emerald-300 bg-emerald-50 text-emerald-900 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]"
+                                        : "border-transparent bg-[var(--portal-surface-soft)] text-slate-700"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      onChange={() => toggleCategory(row.creatorPublicId, category.id)}
+                                    />
+                                    <span className={category.isBlinking ? "font-semibold" : undefined}>
+                                      {category.label}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            <p className="mt-3 text-xs text-slate-600">
+                              Last upload: {formatDate(row.lastUploadAt)}
+                            </p>
+                            {(selectedMap[row.creatorPublicId] ?? []).length > 0 ? (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Current:{" "}
+                                {(selectedMap[row.creatorPublicId] ?? [])
+                                  .map((id) => categoryNameMap[id] ?? id)
+                                  .join(", ")}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="grid gap-2">
+                            <button
+                              onClick={() => void assignCategories(row.creatorPublicId)}
+                              className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                            >
+                              Save categories
+                            </button>
+                            <button
+                              onClick={() => void regenerateLink(row.creatorPublicId)}
+                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                            >
+                              New link
+                            </button>
+                            <button
+                              onClick={() =>
+                                void updateAccessStatus(
+                                  row.creatorPublicId,
+                                  row.status === "blocked" ? "active" : "blocked"
+                                )
+                              }
+                              className={`w-full whitespace-nowrap rounded-xl px-3 py-2.5 text-xs font-semibold text-white ${
+                                row.status === "blocked" ? "bg-[var(--portal-green-dark)]" : "bg-rose-600"
+                              }`}
+                            >
+                              {row.status === "blocked" ? "Enable access" : "Remove access"}
+                            </button>
+                            <button
+                              onClick={() => void resetDevice(row.creatorPublicId)}
+                              className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                            >
+                              Reset device
+                            </button>
+                            {linkResult[row.creatorPublicId] ? (
+                              <p className="text-xs font-semibold text-emerald-700">Link copied</p>
+                            ) : null}
+                            {showPayoutActions ? (
+                              <>
+                                <input
+                                  value={payoutAmountMap[row.creatorPublicId] ?? ""}
+                                  onChange={(e) =>
+                                    setPayoutAmountMap((prev) => ({
+                                      ...prev,
+                                      [row.creatorPublicId]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Payout amount"
+                                  inputMode="decimal"
+                                  className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs outline-none transition focus:border-[var(--portal-border-strong)]"
+                                />
+                                <button
+                                  onClick={() => void markPayout(row.creatorPublicId)}
+                                  className="w-full whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                                >
+                                  Mark payout
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))
             )}
           </tbody>
