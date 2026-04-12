@@ -22,7 +22,7 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
         navItems={[...creatorNavItems]}
         actions={
           <DashboardSessionActions
-            links={[{ href: "/manager/dashboard/invite-creator", label: "Manager View" }]}
+            links={[{ href: "/manager/dashboard/creators", label: "Manager View" }]}
           />
         }
       >

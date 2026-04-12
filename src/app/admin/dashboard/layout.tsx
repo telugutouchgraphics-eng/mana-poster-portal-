@@ -40,7 +40,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
         navItems={[...adminNavItems]}
         actions={
           <DashboardSessionActions
-            links={[{ href: "/manager/dashboard/invite-creator", label: "Manager View" }]}
+            links={[{ href: "/manager/dashboard/creators", label: "Manager View" }]}
           />
         }
       >

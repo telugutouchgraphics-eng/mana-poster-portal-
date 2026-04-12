@@ -27,7 +27,7 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
 
   if (roles.includes("admin")) {
     quickLinks.push({
-      href: "/admin/dashboard/create-manager",
+      href: "/admin/dashboard/managers",
       label: "Admin View",
     });
   }
@@ -43,8 +43,8 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
     <RoleGate allowed={["admin", "manager"]}>
       <PortalDashboardShell
         badge="Manager Panel"
-        title="Creator Access Desk"
-        description="Daily creator work ni handle cheyyadaniki simple manager dashboard."
+        title="Manager Dashboard"
+        description="Creators ni manage cheyyadaniki direct working screen."
         navItems={[...managerNavItems]}
         actions={<DashboardSessionActions links={quickLinks} />}
       >
