@@ -6,14 +6,14 @@ import { DashboardSessionActions } from "@/components/layout/dashboard-session-a
 const creatorNavItems = [
   {
     href: "/creator/dashboard/upload",
-    label: "Upload Studio",
-    hint: "Upload poster, customize user placement, and review recent uploads.",
+    label: "Upload Posters",
+    hint: "Upload posters and set user photo and name placement.",
     shortLabel: "Upload",
   },
   {
     href: "/creator/dashboard/performance",
     label: "Performance",
-    hint: "Assigned category performance, rankings, and earnings visibility.",
+    hint: "Check poster status, rankings, and earnings summary.",
     shortLabel: "Stats",
   },
 ] as const;
@@ -24,7 +24,7 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
       <PortalDashboardShell
         badge="Creator Panel"
         title="Creator Dashboard"
-        description="Poster uploads, approval status, earnings visibility, and rankings kosam creator dashboard."
+        description="Poster upload and approval tracking kosam simple creator working area."
         navItems={[...creatorNavItems]}
         actions={
           <DashboardSessionActions

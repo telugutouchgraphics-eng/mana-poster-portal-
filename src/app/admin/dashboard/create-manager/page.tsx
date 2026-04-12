@@ -1,5 +1,5 @@
-import { ManagerCreateForm } from "@/components/admin/manager-create-form";
+import { redirect } from "next/navigation";
 
 export default function AdminCreateManagerPage() {
-  return <ManagerCreateForm />;
+  redirect("/admin/dashboard/managers");
 }

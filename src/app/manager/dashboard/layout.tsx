@@ -8,27 +8,21 @@ import { useAuth } from "@/components/auth/auth-provider";
 
 const managerNavItems = [
   {
-    href: "/manager/dashboard/invite-creator",
-    label: "Invite Creator",
-    hint: "Create creator access and generate login links.",
-    shortLabel: "Invite",
-  },
-  {
     href: "/manager/dashboard/creators",
-    label: "Creator Access",
-    hint: "Assign categories, reset links, and control access.",
-    shortLabel: "Access",
+    label: "Creators",
+    hint: "Create creator access, assign categories, and control login access.",
+    shortLabel: "Creators",
   },
   {
     href: "/manager/dashboard/reviews",
     label: "Poster Review",
-    hint: "Approve, reject, and now record poster sales.",
+    hint: "Approve or reject uploaded posters.",
     shortLabel: "Review",
   },
   {
     href: "/manager/dashboard/performance",
     label: "Performance",
-    hint: "Category-wise creator rankings and performance view.",
+    hint: "See creator activity and category-wise performance.",
     shortLabel: "Stats",
   },
 ] as const;
@@ -56,7 +50,7 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
       <PortalDashboardShell
         badge="Manager Panel"
         title="Creator Access Desk"
-        description="Creator invites, category assignment, poster review, and performance tracking kosam manager working area."
+        description="Daily creator work ni handle cheyyadaniki simple manager dashboard."
         navItems={[...managerNavItems]}
         actions={<DashboardSessionActions links={quickLinks} />}
       >

@@ -1,5 +1,5 @@
-import { CreatorInviteForm } from "@/components/creators/creator-invite-form";
+import { redirect } from "next/navigation";
 
 export default function ManagerInviteCreatorPage() {
-  return <CreatorInviteForm actorLabel="Manager" />;
+  redirect("/manager/dashboard/creators");
 }

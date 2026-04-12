@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AdminDashboardPage() {
-  redirect("/admin/dashboard/create-manager");
+  redirect("/admin/dashboard/managers");
 }

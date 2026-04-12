@@ -8,7 +8,7 @@ import { ReactNode } from "react";
 interface DashboardNavItem {
   href: string;
   label: string;
-  hint: string;
+  hint?: string;
   shortLabel?: string;
 }
 
@@ -82,30 +82,21 @@ export function PortalDashboardShell({
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold">{item.label}</p>
-                        <p
-                          className={`mt-1 text-xs leading-5 ${
-                            active ? "text-slate-600" : "text-violet-100/78"
-                          }`}
-                        >
-                          {item.hint}
-                        </p>
+                        {item.hint ? (
+                          <p
+                            className={`mt-1 text-xs leading-5 ${
+                              active ? "text-slate-600" : "text-violet-100/78"
+                            }`}
+                          >
+                            {item.hint}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </Link>
                 );
               })}
             </nav>
-
-            <div className="border-t border-white/12 px-5 py-4">
-              <div className="rounded-2xl border border-white/12 bg-white/10 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.24em] text-violet-100">
-                  Live Control
-                </p>
-                <p className="mt-2 text-sm text-violet-50/92">
-                  App content, creator workflow, approvals, and operations ni okka place nundi handle cheyyachu.
-                </p>
-              </div>
-            </div>
           </div>
         </aside>
 

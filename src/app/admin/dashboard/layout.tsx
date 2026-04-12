@@ -5,58 +5,34 @@ import { DashboardSessionActions } from "@/components/layout/dashboard-session-a
 
 const adminNavItems = [
   {
-    href: "/admin/dashboard/create-manager",
-    label: "Create Manager",
-    hint: "Create permanent manager accounts with controlled access.",
-    shortLabel: "Manager",
-  },
-  {
-    href: "/admin/dashboard/invite-creator",
-    label: "Invite Creator",
-    hint: "Generate creator access and direct login links.",
-    shortLabel: "Invite",
-  },
-  {
     href: "/admin/dashboard/managers",
     label: "Managers",
-    hint: "Activate, deactivate, reset passwords, and reset devices.",
+    hint: "Create manager accounts and control manager access.",
     shortLabel: "Managers",
   },
   {
     href: "/admin/dashboard/creators",
     label: "Creators",
-    hint: "Assign categories, manage access, and mark payouts.",
+    hint: "Create creator access, assign categories, and manage payouts.",
     shortLabel: "Creators",
-  },
-  {
-    href: "/admin/dashboard/competitions",
-    label: "Competitions",
-    hint: "Create seasonal category contests and monitor active competition setup.",
-    shortLabel: "Contest",
   },
   {
     href: "/admin/dashboard/app-banners",
     label: "App Banners",
-    hint: "Manage app home banners and category-area visuals from admin panel.",
+    hint: "Upload app home banners and control their visibility.",
     shortLabel: "Banners",
   },
   {
     href: "/admin/dashboard/announcements",
-    label: "Announcements",
-    hint: "Send creator-focused updates, notices, and campaign instructions.",
-    shortLabel: "Alerts",
+    label: "Creator Notices",
+    hint: "Send upload instructions and campaign notices to creators.",
+    shortLabel: "Notices",
   },
   {
     href: "/admin/dashboard/payouts",
     label: "Payouts",
-    hint: "Review creator payout history, search entries, and export reports.",
+    hint: "Check creator payout history and export reports.",
     shortLabel: "Payouts",
-  },
-  {
-    href: "/admin/dashboard/audit-logs",
-    label: "Audit Logs",
-    hint: "Track sensitive admin and manager actions before and after launch.",
-    shortLabel: "Audit",
   },
 ] as const;
 
@@ -65,8 +41,8 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     <RoleGate allowed={["admin"]}>
       <PortalDashboardShell
         badge="Admin Panel"
-        title="Super Admin Dashboard"
-        description="Managers, creators, payouts, banners, announcements, and review operations ni admin side nundi manage cheyyadaniki dashboard."
+        title="Admin Dashboard"
+        description="Mana Poster app operations ni simple ga manage cheyyadaniki main admin working area."
         navItems={[...adminNavItems]}
         actions={
           <DashboardSessionActions
