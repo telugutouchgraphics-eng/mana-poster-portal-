@@ -301,7 +301,7 @@ export default function CreatorUploadStudioPage() {
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Upload failed.");
       }
-      setUploadMessage("Poster uploaded. Manager review kosam pending lo poyindi.");
+      setUploadMessage("Poster uploaded. Manager review ki pampabadindi.");
       setFile(null);
       await loadDashboard(true);
     } catch (err) {
@@ -476,7 +476,7 @@ export default function CreatorUploadStudioPage() {
           <div className="mt-5 space-y-3">
             {loading ? (
               <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-                Loading uploads...
+                Loading posters...
               </div>
             ) : posters.length === 0 ? (
               <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
@@ -636,8 +636,7 @@ export default function CreatorUploadStudioPage() {
                 </label>
 
                 <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">
-                  Photo and name ni direct ga mouse tho drag cheyochu. Mouse wheel use chesi photo
-                  size fast ga adjust cheyochu.
+                  Photo and name ni direct ga drag cheyochu. Mouse wheel tho photo size adjust cheyochu.
                 </div>
 
                 <label className="flex items-center gap-2 text-sm text-white/90">
@@ -765,7 +764,7 @@ export default function CreatorUploadStudioPage() {
                       {personalization.showWhatsapp ? (
                         <div className="-mt-px w-full bg-[#25D366] px-4 py-2 text-center text-white">
                           <p className="truncate text-sm font-semibold leading-tight">
-                            {PERSONALIZATION_SAMPLE.whatsappNumber || "User WhatsApp Number"}
+                            {PERSONALIZATION_SAMPLE.whatsappNumber || "WhatsApp Number"}
                           </p>
                         </div>
                       ) : null}
@@ -777,7 +776,7 @@ export default function CreatorUploadStudioPage() {
                       onClick={() => {
                         setCustomizeOpen(false);
                         setUploadMessage(
-                          "Customization applied. Upload Poster click chesthe configuration save avtundi.",
+                          "Customization applied. Upload chesinappudu ee placement save avtundi.",
                         );
                       }}
                       className="rounded-2xl bg-[var(--portal-green)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
@@ -788,7 +787,7 @@ export default function CreatorUploadStudioPage() {
                 </div>
               ) : (
                 <div className="flex h-[60vh] w-full max-w-4xl items-center justify-center rounded-[24px] bg-[#050816] text-sm text-slate-400">
-                  Select a poster image first to open the full preview.
+                  Poster image select chesaka full preview ikkada open avuthundi.
                 </div>
               )}
             </section>

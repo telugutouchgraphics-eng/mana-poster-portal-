@@ -355,7 +355,7 @@ export function PosterReviewTable() {
                                 "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
                             }}
                           >
-                            {config.sampleName || row.creatorName || "Creator Name"}
+                            {config.sampleName || row.creatorName || "User Name"}
                           </p>
                         </div>
                       ) : null}
@@ -363,14 +363,14 @@ export function PosterReviewTable() {
                     {config.showBottomStrip ? (
                       <div className="-mt-px w-full bg-white px-3 py-1.5 text-center text-slate-900">
                         <p className="truncate text-sm font-bold">
-                          {config.sampleName || row.creatorName || "Creator Name"}
+                          {config.sampleName || row.creatorName || "User Name"}
                         </p>
                       </div>
                     ) : null}
                     {config.showWhatsapp && row.creatorPhone.trim().length > 0 ? (
                       <div className="-mt-px w-full bg-[#25D366] px-3 py-1.5 text-center text-white">
                         <p className="truncate text-xs font-semibold">
-                          WhatsApp {row.creatorPhone}
+                          {row.creatorPhone}
                         </p>
                       </div>
                     ) : null}
