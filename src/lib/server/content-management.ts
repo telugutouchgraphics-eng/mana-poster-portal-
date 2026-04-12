@@ -28,6 +28,23 @@ export interface CreatorAnnouncementRecord {
   updatedAt: number;
 }
 
+export interface AdminPushNotificationRecord {
+  id: string;
+  title: string;
+  message: string;
+  imageUrl: string;
+  imagePath: string;
+  route: string;
+  audience: "all_users";
+  status: "sent" | "failed";
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+  sentAt: number;
+  createdByUid: string;
+  createdByEmail: string;
+}
+
 export async function loadAppBanners(): Promise<AppBannerRecord[]> {
   const snap = await adminDb.collection("appBanners").get();
   return snap.docs
@@ -40,6 +57,16 @@ export async function loadCreatorAnnouncements(): Promise<CreatorAnnouncementRec
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<CreatorAnnouncementRecord, "id">) }))
     .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function loadAdminPushNotifications(): Promise<AdminPushNotificationRecord[]> {
+  const snap = await adminDb.collection("adminPushNotifications").limit(50).get();
+  return snap.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<AdminPushNotificationRecord, "id">),
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function uploadAdminAsset(buffer: Buffer, contentType: string, path: string) {

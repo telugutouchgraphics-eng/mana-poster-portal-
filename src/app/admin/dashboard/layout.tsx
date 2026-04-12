@@ -28,6 +28,12 @@ const adminNavItems = [
     hint: "Send upload instructions and campaign notices to creators.",
     shortLabel: "Notices",
   },
+  {
+    href: "/admin/dashboard/push-notifications",
+    label: "Push Notifications",
+    hint: "Send app notification alerts with image directly to users.",
+    shortLabel: "Push",
+  },
 ] as const;
 
 export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
