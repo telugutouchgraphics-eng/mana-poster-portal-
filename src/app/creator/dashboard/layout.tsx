@@ -10,12 +10,6 @@ const creatorNavItems = [
     hint: "Upload posters and set user photo and name placement.",
     shortLabel: "Upload",
   },
-  {
-    href: "/creator/dashboard/performance",
-    label: "Performance",
-    hint: "Check poster status, rankings, and earnings summary.",
-    shortLabel: "Stats",
-  },
 ] as const;
 
 export default function CreatorDashboardLayout({ children }: { children: ReactNode }) {

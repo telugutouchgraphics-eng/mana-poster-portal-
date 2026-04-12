@@ -28,12 +28,6 @@ const adminNavItems = [
     hint: "Send upload instructions and campaign notices to creators.",
     shortLabel: "Notices",
   },
-  {
-    href: "/admin/dashboard/payouts",
-    label: "Payouts",
-    hint: "Check creator payout history and export reports.",
-    shortLabel: "Payouts",
-  },
 ] as const;
 
 export default function AdminDashboardLayout({ children }: { children: ReactNode }) {

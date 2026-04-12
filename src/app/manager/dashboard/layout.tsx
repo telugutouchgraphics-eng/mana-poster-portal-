@@ -19,12 +19,6 @@ const managerNavItems = [
     hint: "Approve or reject uploaded posters.",
     shortLabel: "Review",
   },
-  {
-    href: "/manager/dashboard/performance",
-    label: "Performance",
-    hint: "See creator activity and category-wise performance.",
-    shortLabel: "Stats",
-  },
 ] as const;
 
 export default function ManagerDashboardLayout({ children }: { children: ReactNode }) {
