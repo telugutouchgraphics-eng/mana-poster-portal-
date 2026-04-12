@@ -22,15 +22,15 @@ export default function Home() {
                 Mana Poster Portal
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-700">
-                Admin, Manager, Creator access
+                Admin, manager, creator access
               </p>
             </div>
           </div>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-950 md:text-6xl">
-            Admin, manager, and creator teams kosam complete operations dashboard.
+            Mana Poster app content, creators, and approvals ni manage cheyadaniki single portal.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-            Creator access, poster approvals, payouts, competitions, banners, and platform content ni easy ga manage cheyyadaniki ee portal use avuthundi.
+            Creator access, poster approvals, payouts, competitions, banners, and app content ni daily operations lo handle cheyyadaniki ee portal use avuthundi.
           </p>
         </div>
 
@@ -63,21 +63,21 @@ export default function Home() {
 
         <div className="mt-10 grid gap-4 lg:grid-cols-3">
           <article className="rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-5">
-            <p className="text-sm font-semibold text-slate-900">Full control</p>
+            <p className="text-sm font-semibold text-slate-900">Admin control</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              Admin nundi platform-wide actions, manager nundi creator workflow, creator nundi upload flow clear ga handle cheyyachu.
+              Managers, creators, payouts, banners, and approvals anni admin side nundi control cheyyachu.
             </p>
           </article>
           <article className="rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-5">
-            <p className="text-sm font-semibold text-slate-900">App-connected workflow</p>
+            <p className="text-sm font-semibold text-slate-900">Manager workflow</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              App lo visible ayye creator posters, categories, and future content slots ki portal side management ready ga untundi.
+              Creator invite, category assign, review, and approval work manager dashboard nundi smooth ga handle cheyyachu.
             </p>
           </article>
           <article className="rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-5">
-            <p className="text-sm font-semibold text-slate-900">Launch-ready roles</p>
+            <p className="text-sm font-semibold text-slate-900">Creator uploads</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              Separate dashboards, clear side navigation, and role-based access with better day-to-day usability.
+              Creator posters upload ayyi, review complete ayyaka app lo publish ayye flow ki portal direct ga connect ayyindi.
             </p>
           </article>
         </div>

@@ -159,22 +159,22 @@ function LoginContent() {
                 Mana Poster
               </p>
               <p className="mt-1 text-sm font-semibold text-violet-50/92">
-                Web portal access
+                Dashboard access
               </p>
             </div>
           </div>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">
-            Secure login for admin, manager, and creator dashboards.
+            Login to manage Mana Poster app operations.
           </h1>
           <p className="mt-5 max-w-md text-sm leading-7 text-violet-100/92 md:text-base">
-            Role-based access, creator device control, and production-ready dashboard entry flow ikkada nundi handle avuthundi.
+            Role-based access, creator device control, and dashboard entry ikkada nundi handle avuthundi.
           </p>
 
           <div className="mt-8 space-y-3">
             <div className="rounded-[24px] border border-white/12 bg-white/10 px-4 py-4">
-              <p className="text-sm font-semibold">Role-based access</p>
+              <p className="text-sm font-semibold">Role access</p>
               <p className="mt-1 text-sm text-violet-100/90">
-                Admin, manager, and creator ki vallaki assign ayina view maatrame open avuthundi.
+                Admin, manager, and creator ki vallaki assign ayina dashboard maatrame open avuthundi.
               </p>
             </div>
             <div className="rounded-[24px] border border-white/12 bg-white/10 px-4 py-4">
@@ -257,7 +257,7 @@ export default function LoginPage() {
       fallback={
         <main className="flex min-h-screen w-full items-center px-6 py-12">
           <section className="w-full rounded-[28px] border border-[var(--portal-border)] bg-white p-7 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-            <p className="text-sm text-slate-600">Loading login...</p>
+            <p className="text-sm text-slate-600">Loading...</p>
           </section>
         </main>
       }

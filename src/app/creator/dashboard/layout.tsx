@@ -13,7 +13,7 @@ const creatorNavItems = [
   {
     href: "/creator/dashboard/performance",
     label: "Performance",
-    hint: "Assigned category performance, rankings, and momentum.",
+    hint: "Assigned category performance, rankings, and earnings visibility.",
     shortLabel: "Stats",
   },
 ] as const;
@@ -24,7 +24,7 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
       <PortalDashboardShell
         badge="Creator Panel"
         title="Creator Dashboard"
-        description="Premium workspace for uploads, approvals, earnings visibility, and category competition."
+        description="Poster uploads, approval status, earnings visibility, and rankings kosam creator dashboard."
         navItems={[...creatorNavItems]}
         actions={
           <DashboardSessionActions

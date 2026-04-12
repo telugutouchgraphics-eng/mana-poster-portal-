@@ -480,7 +480,7 @@ export default function CreatorUploadStudioPage() {
               </div>
             ) : posters.length === 0 ? (
               <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-                Inka posters upload cheyyaledu.
+                Uploads levu.
               </div>
             ) : (
               posters.map((poster) => (

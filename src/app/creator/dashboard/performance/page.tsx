@@ -94,24 +94,22 @@ export default function CreatorPerformancePage() {
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <article className="rounded-[28px] border border-[var(--portal-border)] bg-white px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
-            Performance View
+            Upload Summary
           </p>
           <h3 className="mt-3 text-2xl font-bold text-slate-950">
-            Assigned category progress and ranking view designed for quick self-tracking.
+            Assigned categories lo mee uploads, approvals, and ranking ikkada clear ga kanipisthayi.
           </h3>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-            Creator ki e category lo growth undi, e category lo improve avvali ane signal immediate
-            ga kanipinchela layout polish chesam.
+            E category lo strong ga perform chesthunnaro, e category lo improve avvalo, and current ranking enti ane details ikkada ready ga untayi.
           </p>
         </article>
 
-        <article className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(37,211,102,0.16),rgba(255,255,255,0.95))] px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
+        <article className="rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-green-dark)]">
-            Focus Area
+            Creator Focus
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-700">
-            Approvals, rankings, and earnings ni separate sections lo clean ga chupisthunnam kabatti
-            creator ki comparison and planning rendu easy avtayi.
+            Approvals, rankings, and earnings ni separate sections lo chudagalru kabatti next uploads plan cheyyadam easy avtundi.
           </p>
         </article>
       </section>
@@ -125,7 +123,7 @@ export default function CreatorPerformancePage() {
           <div className="mt-5 space-y-4">
             {activeCompetitions.length === 0 ? (
               <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-                Competition active ayyaka mee live contest rank ikkada kanipisthundi.
+                Active competition unnapudu mee rank ikkada kanipisthundi.
               </div>
             ) : (
               activeCompetitions.map((item) => (
@@ -163,14 +161,14 @@ export default function CreatorPerformancePage() {
         </article>
 
         <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-          <h3 className="text-xl font-bold text-slate-950">Category Performance</h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Nee assigned categories lo upload quality and approval momentum ikkada kanipisthundi.
-          </p>
+        <h3 className="text-xl font-bold text-slate-950">Category Performance</h3>
+        <p className="mt-2 text-sm text-slate-600">
+            Mee assigned categories lo uploads, approvals, pending, and rejected counts ikkada kanipisthayi.
+        </p>
           <div className="mt-5 space-y-3">
             {categoryPerformance.length === 0 ? (
               <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-                Uploads review ayyaka category performance blocks ikkada fill avthai.
+                Review data available ayyaka category stats ikkada kanipisthayi.
               </div>
             ) : (
               categoryPerformance.map((item) => (
@@ -212,7 +210,7 @@ export default function CreatorPerformancePage() {
           <div className="mt-5 space-y-4">
             {competition.length === 0 ? (
               <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-                Category ranking data ready ayyaka top creators and mee rank ikkada kanipisthai.
+                Ranking data available ayyaka top creators and mee rank ikkada kanipisthayi.
               </div>
             ) : (
               competition.map((item) => (

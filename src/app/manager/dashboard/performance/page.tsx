@@ -94,24 +94,22 @@ export default function ManagerPerformancePage() {
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <article className="rounded-[28px] border border-[var(--portal-border)] bg-white px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
-            Performance Pulse
+            Review Summary
           </p>
           <h3 className="mt-3 text-2xl font-bold text-slate-950">
-            Category momentum and creator rankings in a cleaner comparative view.
+            Category performance and creator rankings ni single view lo monitor cheyyachu.
           </h3>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-            E category active ga undi, e creators consistent ga perform chesthunaru ane clarity
-            kosam ee page tuned chesam.
+            Review load ekkada ekkuva undo, e category lo approvals ekkuva vastunnayo, e creators active ga upload chesthunnaroo ikkada clear ga kanipisthundi.
           </p>
         </article>
 
-        <article className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(37,211,102,0.16),rgba(255,255,255,0.95))] px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
+        <article className="rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-6 py-6 shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-green-dark)]">
-            Live Comparison
+            Manager Focus
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-700">
-            Category stats and leaderboards same screen lo side-by-side undadam valla manager ki
-            decisions fast ga teesukovadam easy avtundi.
+            Review decisions, creator follow-up, and category planning ki avasaram ayye numbers ikkade ready ga untayi.
           </p>
         </article>
       </section>
@@ -119,12 +117,12 @@ export default function ManagerPerformancePage() {
       <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <h3 className="text-xl font-bold text-slate-950">Active Competitions</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Current contest momentum and top creators.
+          Active competitions lo top creators and current standings.
         </p>
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           {activeCompetitions.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              Competitions create ayyaka live contest blocks ikkada kanipisthai.
+              Active competitions unnapudu ikkada list kanipisthundi.
             </div>
           ) : (
             activeCompetitions.map((item) => (
@@ -164,12 +162,12 @@ export default function ManagerPerformancePage() {
       <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <h3 className="text-xl font-bold text-slate-950">Category Performance</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Category-wise upload, approval, rejection momentum ni clear ga chudachu.
+          Category-wise uploads, approvals, rejections, and pending work ni clear ga chudachu.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {categoryPerformance.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              Upload data per category build ayyaka category momentum ikkada visible avtundi.
+              Upload data available ayyaka category stats ikkada kanipisthai.
             </div>
           ) : (
             categoryPerformance.slice(0, 9).map((item) => (

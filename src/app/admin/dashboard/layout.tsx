@@ -66,7 +66,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       <PortalDashboardShell
         badge="Admin Panel"
         title="Super Admin Dashboard"
-        description="Platform-wide control center for managers, creators, payouts, banners, announcements, and review operations."
+        description="Managers, creators, payouts, banners, announcements, and review operations ni admin side nundi manage cheyyadaniki dashboard."
         navItems={[...adminNavItems]}
         actions={
           <DashboardSessionActions

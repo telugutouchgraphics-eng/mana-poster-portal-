@@ -28,7 +28,7 @@ const managerNavItems = [
   {
     href: "/manager/dashboard/performance",
     label: "Performance",
-    hint: "Category-wise creator rankings and momentum view.",
+    hint: "Category-wise creator rankings and performance view.",
     shortLabel: "Stats",
   },
 ] as const;
@@ -56,7 +56,7 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
       <PortalDashboardShell
         badge="Manager Panel"
         title="Creator Access Desk"
-        description="Daily working area for invites, category assignment, poster review, and creator performance tracking."
+        description="Creator invites, category assignment, poster review, and performance tracking kosam manager working area."
         navItems={[...managerNavItems]}
         actions={<DashboardSessionActions links={quickLinks} />}
       >

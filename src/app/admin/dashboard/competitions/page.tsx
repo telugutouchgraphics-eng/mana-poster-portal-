@@ -124,7 +124,7 @@ export default function AdminCompetitionsPage() {
       <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-xl font-bold text-slate-950">Create Competition</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Assigned categories ki seasonal contests create cheyyachu.
+          Assigned categories ki competitions create cheyyachu.
         </p>
         <form onSubmit={handleCreate} className="mt-5 space-y-4">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Competition title" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
@@ -171,7 +171,7 @@ export default function AdminCompetitionsPage() {
         <div className="mt-5 space-y-3">
           {competitions.length === 0 ? (
             <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-              Competitions inka create cheyyaledu.
+              Competitions levu.
             </div>
           ) : (
             competitions.map((item) => (
@@ -182,7 +182,7 @@ export default function AdminCompetitionsPage() {
                     {item.status}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">{item.description || "No description"}</p>
+                <p className="mt-2 text-sm text-slate-600">{item.description || "-"}</p>
                 <p className="mt-2 text-xs text-slate-500">
                   {new Date(item.startAt).toLocaleDateString("en-IN")} to{" "}
                   {new Date(item.endAt).toLocaleDateString("en-IN")}

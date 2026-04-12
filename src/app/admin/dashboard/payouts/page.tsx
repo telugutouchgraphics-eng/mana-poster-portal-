@@ -86,7 +86,7 @@ export default function AdminPayoutsPage() {
           <div>
             <h3 className="text-xl font-bold text-slate-950">Payout Reports</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Creator payouts history, filters, and CSV export.
+              Creator payout history, filters, and CSV export.
             </p>
           </div>
           <div className="rounded-2xl bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-900">
@@ -138,7 +138,7 @@ export default function AdminPayoutsPage() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                    No payouts found.
+                    Payout records levu.
                   </td>
                 </tr>
               ) : (

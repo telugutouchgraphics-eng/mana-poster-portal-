@@ -116,9 +116,9 @@ export default function AdminAppBannersPage() {
     <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">App Banner Upload</p>
-        <h3 className="mt-2 text-2xl font-bold text-slate-950">Manage home banner area</h3>
+        <h3 className="mt-2 text-2xl font-bold text-slate-950">Manage app banners</h3>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          App lo categories kinda kanipinche banner visuals ni ikkada nundi upload chesi control cheyyachu.
+          App home lo categories kinda kanipinche banners ni ikkada nundi upload chesi control cheyyachu.
         </p>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Banner title" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
@@ -139,11 +139,11 @@ export default function AdminAppBannersPage() {
       </article>
 
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <h3 className="text-2xl font-bold text-slate-950">Current App Banners</h3>
-        <p className="mt-2 text-sm text-slate-600">Active and inactive app banner creatives.</p>
+        <h3 className="text-2xl font-bold text-slate-950">Banner List</h3>
+        <p className="mt-2 text-sm text-slate-600">Active and inactive app banners.</p>
         <div className="mt-5 space-y-4">
           {items.length === 0 ? (
-            <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">Inka app banners add cheyyaledu.</div>
+            <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">App banners levu.</div>
           ) : items.map((item) => (
             <div key={item.id} className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
               <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
