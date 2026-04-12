@@ -62,7 +62,7 @@ const defaultPersonalization: PosterPersonalization = {
   showBottomStrip: true,
   stripHeight: 16,
   showWhatsapp: true,
-  sampleName: "Sample Name",
+  sampleName: "User Name",
 };
 
 function parsePersonalization(input: unknown): PosterPersonalization {

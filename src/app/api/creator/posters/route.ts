@@ -24,7 +24,7 @@ const personalizationSchema = z.object({
   showBottomStrip: z.boolean().default(true),
   stripHeight: z.number().min(8).max(40).default(16),
   showWhatsapp: z.boolean().default(true),
-  sampleName: z.string().trim().min(1).max(80).default("Sample Name"),
+  sampleName: z.string().trim().min(1).max(80).default("User Name"),
 });
 
 function sanitizeFileName(input: string): string {
