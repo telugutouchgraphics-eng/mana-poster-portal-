@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -142,9 +143,26 @@ function LoginContent() {
     <main className="flex min-h-screen w-full items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
       <section className="grid w-full overflow-hidden rounded-[36px] border border-[var(--portal-border)] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)] lg:min-h-[calc(100vh-3rem)] lg:grid-cols-[1.08fr_0.92fr]">
         <div className="bg-[var(--portal-purple)] px-8 py-10 text-white md:px-10 md:py-12">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-violet-100">
-            Mana Poster
-          </p>
+          <div className="flex items-center gap-4">
+            <div className="overflow-hidden rounded-[22px] bg-white p-2">
+              <Image
+                src="/mana-poster-logo.png"
+                alt="Mana Poster"
+                width={64}
+                height={64}
+                className="h-14 w-14 object-contain"
+                priority
+              />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-violet-100">
+                Mana Poster
+              </p>
+              <p className="mt-1 text-sm font-semibold text-violet-50/92">
+                Web portal access
+              </p>
+            </div>
+          </div>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight md:text-5xl">
             Secure login for admin, manager, and creator dashboards.
           </h1>

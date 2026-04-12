@@ -18,6 +18,11 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Mana Poster Web Portal",
   description: "Admin, manager, and creator operations portal",
+  icons: {
+    icon: "/mana-poster-logo.png",
+    shortcut: "/mana-poster-logo.png",
+    apple: "/mana-poster-logo.png",
+  },
 };
 
 export default function RootLayout({

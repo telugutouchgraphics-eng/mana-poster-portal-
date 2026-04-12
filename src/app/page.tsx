@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
@@ -5,9 +6,26 @@ export default function Home() {
     <main className="min-h-screen w-full px-4 py-8 sm:px-6 lg:px-8">
       <section className="rounded-[36px] border border-[var(--portal-border)] bg-white p-8 shadow-[0_16px_40px_rgba(15,23,42,0.06)] md:p-12">
         <div className="max-w-4xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--portal-purple)]">
-            Mana Poster Portal
-          </p>
+          <div className="flex items-center gap-4">
+            <div className="overflow-hidden rounded-[22px] border border-[var(--portal-border)] bg-white p-2">
+              <Image
+                src="/mana-poster-logo.png"
+                alt="Mana Poster"
+                width={60}
+                height={60}
+                className="h-[52px] w-[52px] object-contain"
+                priority
+              />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--portal-purple)]">
+                Mana Poster Portal
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">
+                Admin, Manager, Creator access
+              </p>
+            </div>
+          </div>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-950 md:text-6xl">
             Admin, manager, and creator teams kosam complete operations dashboard.
           </h1>

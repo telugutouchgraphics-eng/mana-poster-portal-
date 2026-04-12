@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
@@ -36,9 +37,24 @@ export function PortalDashboardShell({
         <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
           <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-purple)] text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
             <div className="border-b border-white/12 px-5 py-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-violet-100">
-                {badge}
-              </p>
+              <div className="flex items-center gap-3">
+                <div className="overflow-hidden rounded-2xl bg-white p-1.5">
+                  <Image
+                    src="/mana-poster-logo.png"
+                    alt="Mana Poster"
+                    width={42}
+                    height={42}
+                    className="h-10 w-10 object-contain"
+                    priority
+                  />
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-violet-100">
+                    {badge}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white/92">Mana Poster</p>
+                </div>
+              </div>
               <h1 className="mt-3 text-2xl font-bold leading-tight">{title}</h1>
               <p className="mt-2 text-sm leading-6 text-violet-100/90">{description}</p>
             </div>
