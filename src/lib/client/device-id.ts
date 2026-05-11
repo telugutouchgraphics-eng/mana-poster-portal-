@@ -15,3 +15,12 @@ export function getOrCreateDeviceId(): string {
   window.localStorage.setItem(KEY, generated);
   return generated;
 }
+
+export function withDeviceHeader(
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    ...headers,
+    "x-device-id": getOrCreateDeviceId(),
+  };
+}

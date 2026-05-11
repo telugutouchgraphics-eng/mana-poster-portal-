@@ -1,6 +1,7 @@
 import { adminDb } from "@/lib/firebase/admin";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
 import { roundCurrency } from "@/lib/server/earnings";
+import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
 export interface CreatorProfileRecord {
   creatorPublicId: string;
@@ -238,7 +239,7 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     pendingInvites: creatorProfiles.filter((item) => item.status === "pending_invite").length,
     totalPosters: posters.length,
     pendingPosters: posters.filter((item) => item.status === "pending").length,
-    approvedPosters: posters.filter((item) => item.status === "approved").length,
+    approvedPosters: posters.filter((item) => isApprovedEquivalentStatus(item.status)).length,
     rejectedPosters: posters.filter((item) => item.status === "rejected").length,
   };
 
@@ -294,7 +295,7 @@ export function buildCategoryPerformance(
       pendingCount: 0,
     };
     current.totalUploads += 1;
-    if (poster.status === "approved") {
+    if (isApprovedEquivalentStatus(poster.status)) {
       current.approvedCount += 1;
     } else if (poster.status === "rejected") {
       current.rejectedCount += 1;
@@ -359,7 +360,7 @@ function buildInternalLeaderboards(
           creatorEarnings: 0,
         };
         current.totalUploads += 1;
-        if (poster.status === "approved") {
+        if (isApprovedEquivalentStatus(poster.status)) {
           current.approvedCount += 1;
         }
         current.creatorEarnings += poster.creatorEarnings;
@@ -499,7 +500,7 @@ export function buildCreatorVisibility(
         status: profile.status,
         assignedCategoryCount: profile.assignedCategories.length,
         totalUploads: creatorPosters.length,
-        approvedCount: creatorPosters.filter((item) => item.status === "approved").length,
+        approvedCount: creatorPosters.filter((item) => isApprovedEquivalentStatus(item.status)).length,
         pendingCount: creatorPosters.filter((item) => item.status === "pending").length,
         lastUploadAt: creatorPosters.reduce(
           (latest, item) => (item.createdAt > latest ? item.createdAt : latest),

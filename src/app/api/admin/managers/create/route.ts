@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import { requireRole } from "@/lib/server/auth";
+import { assertManagedRoleAssignmentAllowed, requireRole } from "@/lib/server/auth";
+import { buildPortalLoginUrl, generatePortalPasswordResetLink } from "@/lib/server/auth-links";
 import { makeManagerPublicId } from "@/lib/server/manager-id";
 import {
   isAppRole,
@@ -11,14 +13,13 @@ import {
 } from "@/lib/server/role-utils";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
-
-const PERMANENT_ADMIN_EMAIL = "telugutouchgraphics@gmail.com";
+import { generateManagedPassword } from "@/lib/server/password";
+import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
 
 const requestSchema = z.object({
   name: z.string().trim().min(2),
   email: z.string().trim().email(),
   phone: z.string().trim().min(8).max(20),
-  password: z.string().min(8).max(64),
 });
 
 export async function POST(req: NextRequest) {
@@ -32,22 +33,17 @@ export async function POST(req: NextRequest) {
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
     const normalizedEmail = payload.email.toLowerCase();
-
-    if (normalizedEmail === PERMANENT_ADMIN_EMAIL) {
-      return NextResponse.json(
-        { ok: false, error: "This permanent admin email cannot be assigned as manager." },
-        { status: 409 }
-      );
-    }
+    const authEmail = buildRoleAuthEmail(normalizedEmail, "manager");
+    const seedPassword = await generateManagedPassword(adminDb, "manager");
 
     let managerUid: string;
     try {
-      const existing = await adminAuth.getUserByEmail(normalizedEmail);
+      const existing = await adminAuth.getUserByEmail(authEmail);
       managerUid = existing.uid;
     } catch {
       const created = await adminAuth.createUser({
-        email: normalizedEmail,
-        password: payload.password,
+        email: authEmail,
+        password: seedPassword,
         displayName: payload.name,
       });
       managerUid = created.uid;
@@ -60,12 +56,15 @@ export async function POST(req: NextRequest) {
       normalizeRoles(userSnap.data()?.roles),
       typeof legacyRole === "string" && isAppRole(legacyRole) ? [legacyRole] : []
     );
+    assertManagedRoleAssignmentAllowed(normalizedEmail, existingRoles, "manager");
     const mergedRoles = mergeRoles(existingRoles, ["manager"]);
     const nextPrimaryRole = pickPrimaryRole(mergedRoles);
 
     await adminAuth.updateUser(managerUid, {
-      password: payload.password,
+      password: seedPassword,
       displayName: payload.name,
+      disabled: false,
+      email: authEmail,
     });
     await adminAuth.setCustomUserClaims(managerUid, {
       role: nextPrimaryRole,
@@ -84,11 +83,13 @@ export async function POST(req: NextRequest) {
             roles: mergedRoles,
             managerStatus: "active",
             email: normalizedEmail,
+            authEmail,
             name: payload.name,
             phone: payload.phone,
             updatedAt: now,
             createdAt: userSnap.exists ? userSnap.data()?.createdAt ?? now : now,
             managerAssignedByUid: actor.uid,
+            loginPassword: FieldValue.delete(),
           },
           { merge: true }
         );
@@ -118,16 +119,19 @@ export async function POST(req: NextRequest) {
           roles: mergedRoles,
           managerStatus: "active",
           email: normalizedEmail,
+          authEmail,
           name: payload.name,
           phone: payload.phone,
           updatedAt: now,
           createdAt: userSnap.exists ? userSnap.data()?.createdAt ?? now : now,
           managerAssignedByUid: actor.uid,
+          loginPassword: FieldValue.delete(),
         },
         { merge: true }
       );
       return nextPublicId;
     });
+    const recoveryResetLink = await generatePortalPasswordResetLink(authEmail, "manager");
 
     await writeAuditLog({
       actorUid: actor.uid,
@@ -147,6 +151,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       managerUid,
       managerPublicId,
+      loginLink: buildPortalLoginUrl("manager"),
+      initialPassword: seedPassword,
+      recoveryResetLink,
+      setupLink: recoveryResetLink,
       email: normalizedEmail,
       name: payload.name,
     });

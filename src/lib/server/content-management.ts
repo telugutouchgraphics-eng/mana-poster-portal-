@@ -1,4 +1,16 @@
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
+import type { LandingPageRecord } from "@/lib/types/landing-page";
+import { randomUUID } from "crypto";
+
+function buildStorageUploadMetadata(downloadToken: string, createdAt: number) {
+  return {
+    cacheControl: "public,max-age=31536000",
+    metadata: {
+      firebaseStorageDownloadTokens: downloadToken,
+      createdAt: String(createdAt),
+    },
+  };
+}
 
 export interface AppBannerRecord {
   id: string;
@@ -9,6 +21,19 @@ export interface AppBannerRecord {
   ctaLabel: string;
   ctaTarget: string;
   placement: string;
+  active: boolean;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WebsitePosterRecord {
+  id: string;
+  category: string;
+  categoryId?: string;
+  categoryLabel?: string;
+  imageUrl: string;
+  imagePath: string;
   active: boolean;
   sortOrder: number;
   createdAt: number;
@@ -32,23 +57,40 @@ export interface AdminPushNotificationRecord {
   id: string;
   title: string;
   message: string;
+  titleKey: string;
+  bodyKey: string;
   imageUrl: string;
   imagePath: string;
   route: string;
-  audience: "all_users";
-  status: "sent" | "failed";
+  audience: "all_users" | "creators_only";
+  category: string;
+  status: "scheduled" | "sent" | "failed" | "processing";
+  targetCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  scheduledFor: number | null;
   errorMessage?: string;
   createdAt: number;
   updatedAt: number;
-  sentAt: number;
+  sentAt: number | null;
+  expiresAt: number | null;
   createdByUid: string;
   createdByEmail: string;
 }
+
+export type LandingPageConfigRecord = LandingPageRecord;
 
 export async function loadAppBanners(): Promise<AppBannerRecord[]> {
   const snap = await adminDb.collection("appBanners").get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<AppBannerRecord, "id">) }))
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || (b.updatedAt - a.updatedAt));
+}
+
+export async function loadWebsitePosters(): Promise<WebsitePosterRecord[]> {
+  const snap = await adminDb.collection("websitePosters").get();
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<WebsitePosterRecord, "id">) }))
     .sort((a, b) => (a.sortOrder - b.sortOrder) || (b.updatedAt - a.updatedAt));
 }
 
@@ -60,7 +102,11 @@ export async function loadCreatorAnnouncements(): Promise<CreatorAnnouncementRec
 }
 
 export async function loadAdminPushNotifications(): Promise<AdminPushNotificationRecord[]> {
-  const snap = await adminDb.collection("adminPushNotifications").limit(50).get();
+  const snap = await adminDb
+    .collection("adminPushNotifications")
+    .orderBy("createdAt", "desc")
+    .limit(100)
+    .get();
   return snap.docs
     .map((doc) => ({
       id: doc.id,
@@ -69,19 +115,37 @@ export async function loadAdminPushNotifications(): Promise<AdminPushNotificatio
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export async function loadLandingPageConfig(): Promise<LandingPageConfigRecord | null> {
+  const snap = await adminDb.collection("websiteConfig").doc("landingPage").get();
+  if (!snap.exists) {
+    return null;
+  }
+  return snap.data() as LandingPageConfigRecord;
+}
+
 export async function uploadAdminAsset(buffer: Buffer, contentType: string, path: string) {
   const bucket = adminStorage.bucket();
   const file = bucket.file(path);
+  const downloadToken = randomUUID();
+  const createdAt = Date.now();
   await file.save(buffer, {
     resumable: false,
     contentType,
     metadata: {
-      cacheControl: "public,max-age=31536000",
+      ...buildStorageUploadMetadata(downloadToken, createdAt),
     },
   });
-  const [imageUrl] = await file.getSignedUrl({
-    action: "read",
-    expires: "2491-01-01",
-  });
+  const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(
+    bucket.name,
+  )}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
   return { filePath: path, imageUrl };
+}
+
+export async function deleteAdminAsset(path?: string | null) {
+  const normalized = typeof path === "string" ? path.trim() : "";
+  if (!normalized) {
+    return;
+  }
+  const bucket = adminStorage.bucket();
+  await bucket.file(normalized).delete({ ignoreNotFound: true });
 }

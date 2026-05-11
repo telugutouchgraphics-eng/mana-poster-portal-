@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { CreatorMyUploadsBoard } from "@/components/creators/creator-my-uploads-board";
 
 export default function CreatorPerformancePage() {
-  redirect("/creator/dashboard/upload");
+  return <CreatorMyUploadsBoard />;
 }

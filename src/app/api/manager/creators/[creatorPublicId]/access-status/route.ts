@@ -11,6 +11,7 @@ import {
 } from "@/lib/server/role-utils";
 import { AppRole } from "@/lib/types/roles";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -27,14 +28,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
 
-    const creatorRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
-    const creatorSnap = await creatorRef.get();
-    if (!creatorSnap.exists) {
-      return NextResponse.json(
-        { ok: false, error: "Creator not found." },
-        { status: 404 }
-      );
-    }
+    const creatorSnap = await assertCreatorInScope(actor, creatorPublicId);
+    const creatorRef = creatorSnap.ref;
 
     const creatorData = creatorSnap.data()!;
     const authUid = String(creatorData.authUid ?? "").trim();

@@ -3,7 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
+import { DashboardAutoTranslate } from "@/components/i18n/dashboard-auto-translate";
+
+const BRAND_TAGLINE = "Your Daily Telugu Poster App";
 
 interface DashboardNavItem {
   href: string;
@@ -16,6 +19,7 @@ interface PortalDashboardShellProps {
   badge: string;
   title: string;
   description: string;
+  welcomeName?: string | null;
   navItems: DashboardNavItem[];
   actions?: ReactNode;
   children: ReactNode;
@@ -25,122 +29,190 @@ export function PortalDashboardShell({
   badge,
   title,
   description,
+  welcomeName,
   navItems,
   actions,
   children,
 }: PortalDashboardShellProps) {
   const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const activeHref =
+    navItems
+      .filter(
+        (item) =>
+          pathname === item.href ||
+          (item.href !== "/" && pathname.startsWith(`${item.href}/`)),
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 
   return (
-    <main className="min-h-screen w-full px-3 py-4 sm:px-5 lg:px-6 xl:px-8">
-      <div className="grid min-h-[calc(100vh-2rem)] gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
-          <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-purple)] text-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-            <div className="border-b border-white/12 px-5 py-5">
-              <div className="flex items-center gap-3">
-                <div className="overflow-hidden rounded-2xl bg-white p-1.5">
-                  <Image
-                    src="/mana-poster-logo.png"
-                    alt="Mana Poster"
-                    width={42}
-                    height={42}
-                    className="h-10 w-10 object-contain"
-                    priority
-                  />
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-violet-100">
-                    {badge}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-white/92">Mana Poster</p>
-                </div>
-              </div>
-              <h1 className="mt-3 text-2xl font-bold leading-tight">{title}</h1>
-              <p className="mt-2 text-sm leading-6 text-violet-100/90">{description}</p>
-            </div>
+    <DashboardAutoTranslate>
+      <main className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(109,40,217,0.10),transparent_34%),radial-gradient(circle_at_top_right,rgba(37,211,102,0.08),transparent_28%)] px-3 py-3 sm:px-4 lg:px-6 xl:px-8">
+        <div className="grid min-h-[calc(100vh-1.5rem)] gap-4 lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)] xl:gap-6">
+          {mobileNavOpen ? (
+            <button
+              type="button"
+              aria-label="Close navigation menu"
+              onClick={() => setMobileNavOpen(false)}
+              className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden"
+            />
+          ) : null}
 
-            <nav className="hidden flex-1 space-y-2 overflow-y-auto px-4 py-4 lg:block">
-              {navItems.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (pathname.startsWith(`${item.href}/`) && item.href !== "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`group block rounded-2xl border px-4 py-3 transition ${
-                      active
-                        ? "border-white bg-white text-slate-900"
-                        : "border-white/12 bg-transparent text-white/92 hover:border-white/24 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={`mt-1 h-2.5 w-2.5 flex-none rounded-full transition ${
-                          active ? "bg-[var(--portal-green)]" : "bg-white/45 group-hover:bg-white/70"
-                        }`}
+          <aside
+            className={`fixed inset-y-0 left-0 z-50 w-[min(88vw,340px)] -translate-x-full transition-transform duration-200 lg:static lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100vh-2rem)] lg:w-auto lg:translate-x-0 ${
+              mobileNavOpen ? "translate-x-0" : ""
+            }`}
+          >
+            <div className="flex h-full flex-col overflow-hidden rounded-r-[30px] border border-[var(--portal-border)] bg-white/96 text-slate-900 shadow-[0_20px_50px_rgba(15,23,42,0.16)] backdrop-blur lg:rounded-[30px] lg:shadow-sm">
+              <div className="px-4 py-4 sm:px-4 sm:py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="overflow-hidden rounded-2xl border border-[var(--portal-border)] bg-white p-1 shadow-sm">
+                      <Image
+                        src="/mana-poster-logo.png"
+                        alt="Mana Poster Ai"
+                        width={42}
+                        height={42}
+                        className="h-10 w-10 object-contain"
+                        priority
                       />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">{item.label}</p>
-                        {item.hint ? (
-                          <p
-                            className={`mt-1 text-xs leading-5 ${
-                              active ? "text-slate-600" : "text-violet-100/78"
-                            }`}
-                          >
-                            {item.hint}
-                          </p>
-                        ) : null}
-                      </div>
                     </div>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </aside>
-
-        <section className="min-w-0">
-          <div className="-mt-1 mb-4 overflow-x-auto lg:hidden">
-            <div className="flex min-w-max gap-2 pb-2">
-              {navItems.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (pathname.startsWith(`${item.href}/`) && item.href !== "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
-                        : "border-[var(--portal-border)] bg-white text-slate-700"
-                    }`}
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-black uppercase tracking-[0.28em] text-[var(--portal-purple)]">
+                        {badge}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-black text-slate-950">
+                        Mana Poster Ai
+                      </p>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {BRAND_TAGLINE}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close navigation menu"
+                    onClick={() => setMobileNavOpen(false)}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--portal-border)] bg-white text-lg font-semibold text-slate-700 shadow-sm lg:hidden"
                   >
-                    {item.shortLabel ?? item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
+                    <span aria-hidden="true">✕</span>
+                  </button>
+                </div>
+                <h1 className="mt-4 break-words text-xl font-black leading-tight text-slate-950 sm:text-2xl">
+                  {title}
+                </h1>
+              </div>
 
-          <header className="rounded-[28px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--portal-purple)]">
+              <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-4">
+                {navItems.map((item) => {
+                  const active = activeHref === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileNavOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`group block rounded-2xl border px-3 py-3 transition ${
+                        active
+                          ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white shadow-[0_10px_24px_rgba(109,40,217,0.20)]"
+                          : "border-transparent text-slate-700 hover:border-[var(--portal-border)] hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`h-2.5 w-2.5 flex-none rounded-full transition ${
+                            active
+                              ? "bg-white"
+                              : "bg-slate-300 group-hover:bg-slate-500"
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-bold leading-5">
+                            {item.label}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </aside>
+
+          <section className="min-w-0 overflow-x-hidden">
+            <header className="rounded-[28px] border border-[var(--portal-border)] bg-white/92 px-4 py-4 shadow-sm backdrop-blur sm:px-5 sm:py-5">
+              <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+                <button
+                  type="button"
+                  aria-label="Open navigation menu"
+                  aria-expanded={mobileNavOpen}
+                  onClick={() => setMobileNavOpen(true)}
+                  className="inline-flex min-h-11 items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm"
+                >
+                  <span aria-hidden="true" className="text-lg leading-none">
+                    ☰
+                  </span>
+                  <span>Menu</span>
+                </button>
+                <p className="max-w-[45vw] truncate text-right text-sm font-semibold text-slate-600">
                   {badge}
                 </p>
-                <h2 className="mt-2 text-3xl font-bold text-slate-950">{title}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
               </div>
-              {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-            </div>
-          </header>
 
-          <div className="mt-6 space-y-6">{children}</div>
-        </section>
-      </div>
-    </main>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[var(--portal-purple)]">
+                    {badge}
+                  </p>
+                  <h2
+                    data-no-auto-translate={welcomeName ? "true" : undefined}
+                    className="mt-2 break-words text-2xl font-black leading-tight text-slate-950 sm:text-3xl"
+                  >
+                    {welcomeName ? welcomeName : title}
+                  </h2>
+                  <p className="mt-2 break-words text-base font-bold text-slate-800 sm:text-lg">
+                    {title}
+                  </p>
+                  {description ? (
+                    <p className="mt-2 max-w-3xl break-words text-sm leading-6 text-slate-600">
+                      {description}
+                    </p>
+                  ) : null}
+                </div>
+                {actions ? (
+                  <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    {actions}
+                  </div>
+                ) : null}
+              </div>
+              <nav className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 lg:hidden">
+                {navItems.map((item) => {
+                  const active = activeHref === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`min-h-10 min-w-max rounded-full border px-3 py-2 text-xs font-bold transition ${
+                        active
+                          ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
+                          : "border-[var(--portal-border)] bg-white text-slate-700"
+                      }`}
+                    >
+                      {item.shortLabel ?? item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </header>
+
+            <div className="mt-5 space-y-5 pb-6 sm:mt-6 sm:space-y-6">
+              {children}
+            </div>
+          </section>
+        </div>
+      </main>
+    </DashboardAutoTranslate>
   );
 }
 
@@ -170,15 +242,21 @@ export function DashboardStatCard({
   } as const;
 
   return (
-    <article className="rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+    <article className="rounded-[24px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-bold ${badgeMap[tone]}`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          {label}
+        </p>
+        <span
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${badgeMap[tone]}`}
+        >
           {label.slice(0, 1)}
         </span>
       </div>
-      <p className={`mt-3 text-3xl font-bold ${toneMap[tone]}`}>{value}</p>
-      <p className="mt-2 text-sm text-slate-600">{hint}</p>
+      <p className={`mt-3 break-words text-3xl font-black ${toneMap[tone]}`}>
+        {value}
+      </p>
+      <p className="mt-2 break-words text-sm text-slate-600">{hint}</p>
     </article>
   );
 }

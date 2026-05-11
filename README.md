@@ -76,6 +76,18 @@ Open:
 - `/manager/dashboard`
 - `/creator/dashboard`
 
+## Repo Scope
+
+This repository is only for the Mana Poster web portals.
+
+- Admin portal: `admin.manaposter.in`
+- Creator portal: `creator.manaposter.in`
+- Next.js pages, APIs, dashboard UI, portal docs
+
+Mobile app work does not belong in this repo.
+
+- Mobile app repo: `C:\Users\telug\mana_poster`
+
 ## Deployment
 
 - Portal deploy checklist: `PORTAL_LAUNCH_CHECKLIST.md`

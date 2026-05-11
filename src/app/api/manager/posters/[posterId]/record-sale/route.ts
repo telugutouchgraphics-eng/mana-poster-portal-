@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { assertPosterInScope } from "@/lib/server/manager-scope";
 import { splitRevenue } from "@/lib/server/earnings";
 import { writeAuditLog } from "@/lib/server/audit-log";
 
@@ -29,6 +30,7 @@ export async function POST(
         throw new Error("Poster not found.");
       }
       const poster = posterSnap.data() as Record<string, unknown>;
+      await assertPosterInScope(actor, poster);
       if (String(poster.status ?? "") !== "approved") {
         throw new Error("Only approved posters can record earnings.");
       }

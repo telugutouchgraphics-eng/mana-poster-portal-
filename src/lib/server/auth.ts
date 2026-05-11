@@ -1,12 +1,39 @@
 import { DecodedIdToken } from "firebase-admin/auth";
 import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { requireOtpSession } from "@/lib/server/otp-auth";
 import { AppRole } from "@/lib/types/roles";
-import { isAppRole, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
+import { isAppRole, mergeRoles, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
 
-const PERMANENT_ADMIN_EMAILS = new Set<string>([
-  "telugutouchgraphics@gmail.com",
-]);
+const PERMANENT_PORTAL_EMAILS = new Set<string>();
+
+export function isPermanentPortalEmail(email?: string | null): boolean {
+  return Boolean(email && PERMANENT_PORTAL_EMAILS.has(email.toLowerCase()));
+}
+
+export function assertManagedRoleAssignmentAllowed(
+  email: string,
+  existingRoles: AppRole[],
+  nextRole: AppRole,
+) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (isPermanentPortalEmail(normalizedEmail)) {
+    throw new Error("This account is protected and cannot be reassigned.");
+  }
+  const portalRoles: AppRole[] = ["admin", "manager", "creator"];
+  const existingPortalRoles = existingRoles.filter((role) =>
+    portalRoles.includes(role),
+  );
+  if (
+    existingPortalRoles.length > 0 &&
+    !existingPortalRoles.includes(nextRole)
+  ) {
+    throw new Error(
+      `This email is already assigned as ${existingPortalRoles.join(", ")}.`,
+    );
+  }
+  return;
+}
 
 export interface RequestUser {
   uid: string;
@@ -25,11 +52,6 @@ function extractBearerToken(req: NextRequest): string | null {
 }
 
 async function resolveRoles(uid: string, decoded: DecodedIdToken): Promise<AppRole[]> {
-  const email = decoded.email?.toLowerCase();
-  if (email && PERMANENT_ADMIN_EMAILS.has(email)) {
-    return ["admin"];
-  }
-
   const rolesClaim = normalizeRoles((decoded as unknown as { roles?: unknown }).roles);
   if (rolesClaim.length > 0) {
     return rolesClaim;
@@ -53,6 +75,12 @@ async function resolveRoles(uid: string, decoded: DecodedIdToken): Promise<AppRo
   return ["user"];
 }
 
+export function resolveVisibleRoles(email: string | undefined, docRoles: AppRole[], fallbackRoles: AppRole[]): AppRole[] {
+  const baseRoles = docRoles.length > 0 ? mergeRoles(docRoles, fallbackRoles) : fallbackRoles;
+  void email;
+  return baseRoles;
+}
+
 export async function requireAuth(req: NextRequest): Promise<RequestUser> {
   const token = extractBearerToken(req);
   if (!token) {
@@ -61,11 +89,26 @@ export async function requireAuth(req: NextRequest): Promise<RequestUser> {
 
   const decoded = await adminAuth.verifyIdToken(token);
   const roles = await resolveRoles(decoded.uid, decoded);
+  const role = pickPrimaryRole(roles);
+  if (roles.some((item) => item === "admin" || item === "manager" || item === "creator")) {
+    await requireOtpSession(decoded.uid);
+  }
+  if (role === "creator") {
+    const deviceId = String(req.headers.get("x-device-id") ?? "").trim();
+    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+    const activeDeviceId = String(userSnap.data()?.activeDeviceId ?? "").trim();
+    if (activeDeviceId.length > 0 && deviceId.length === 0) {
+      throw new Error("Session expired. Device verification is required.");
+    }
+    if (activeDeviceId.length > 0 && activeDeviceId !== deviceId) {
+      throw new Error("Session expired. This creator account is active on another device.");
+    }
+  }
   return {
     uid: decoded.uid,
     email: decoded.email,
     roles,
-    role: pickPrimaryRole(roles),
+    role,
     decoded,
   };
 }

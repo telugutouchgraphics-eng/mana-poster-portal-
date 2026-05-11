@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppRole } from "@/lib/types/roles";
 import { useAuth } from "@/components/auth/auth-provider";
+import { withDeviceHeader } from "@/lib/client/device-id";
 
 interface RoleGateProps {
   allowed: AppRole[];
@@ -27,10 +28,11 @@ export function RoleGate({ allowed, children }: RoleGateProps) {
         return;
       }
       setVerifying(true);
+      setError(null);
       try {
         const token = await user.getIdToken();
         const response = await fetch("/api/auth/me", {
-          headers: { authorization: `Bearer ${token}` },
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
         });
         const data = (await response.json()) as {
           role?: AppRole;
@@ -52,6 +54,8 @@ export function RoleGate({ allowed, children }: RoleGateProps) {
         setRoles(fetchedRoles);
         if (!allowed.some((role) => fetchedRoles.includes(role))) {
           setError("Access denied for this role.");
+        } else {
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {

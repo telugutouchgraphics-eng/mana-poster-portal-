@@ -10,10 +10,11 @@ import {
 } from "@/lib/server/role-utils";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
+import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
 
 const requestSchema = z.object({
   token: z.string().min(10),
-  password: z.string().min(8).max(64),
+  password: z.string().min(6).max(64),
 });
 
 export async function POST(req: NextRequest) {
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     const email = invite.email as string;
+    const authEmail = String(invite.authEmail ?? buildRoleAuthEmail(email, "creator")).trim().toLowerCase();
     const name = invite.name as string;
     const creatorPublicId = invite.creatorPublicId as string;
 
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
     let existingRoles: ReturnType<typeof normalizeRoles> = [];
     let nextPrimaryRole: "admin" | "manager" | "creator" | "user" = "creator";
     try {
-      const existing = await adminAuth.getUserByEmail(email);
+      const existing = await adminAuth.getUserByEmail(authEmail);
       authUserUid = existing.uid;
       const existingUserDoc = await adminDb.collection("users").doc(authUserUid).get();
       const legacyRole = existingUserDoc.data()?.role;
@@ -65,17 +67,6 @@ export async function POST(req: NextRequest) {
         normalizeRoles(existingUserDoc.data()?.roles),
         typeof legacyRole === "string" && isAppRole(legacyRole) ? [legacyRole] : []
       );
-      const hasAdminRole =
-        existingRoles.includes("admin") || existingUserDoc.data()?.role === "admin";
-      if (hasAdminRole) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "This email is already bound to admin account and cannot be used as creator.",
-          },
-          { status: 409 }
-        );
-      }
       const merged = mergeRoles(existingRoles, ["creator"]);
       nextPrimaryRole = pickPrimaryRole(merged);
       await adminAuth.updateUser(authUserUid, {
@@ -84,7 +75,7 @@ export async function POST(req: NextRequest) {
       });
     } catch {
       const created = await adminAuth.createUser({
-        email,
+        email: authEmail,
         password: payload.password,
         displayName: name,
       });
@@ -110,6 +101,7 @@ export async function POST(req: NextRequest) {
           role: nextPrimaryRole,
           roles: mergedRoles,
           email,
+          authEmail,
           name,
           phone: invite.phone,
           creatorPublicId,
@@ -135,6 +127,7 @@ export async function POST(req: NextRequest) {
         {
           creatorPublicId,
           email,
+          authEmail,
           status: "active",
           authUid: authUserUid,
           updatedAt: now,

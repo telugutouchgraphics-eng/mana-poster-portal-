@@ -2,6 +2,8 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { portalLanguage, t } from "@/lib/i18n";
 
 interface ManagerRow {
   uid: string;
@@ -10,6 +12,12 @@ interface ManagerRow {
   name: string;
   phone: string;
   managerStatus: string;
+}
+
+interface ManagerCredentialReveal {
+  initialPassword: string;
+  loginLink: string;
+  recoveryResetLink?: string;
 }
 
 function displayManagerId(row: ManagerRow): string {
@@ -21,21 +29,85 @@ function displayManagerId(row: ManagerRow): string {
 
 export function ManagerTable() {
   const { user } = useAuth();
+  const { language } = useDashboardLanguage();
   const [rows, setRows] = useState<ManagerRow[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [passwordResult, setPasswordResult] = useState<Record<string, string>>({});
+  const [credentialResult, setCredentialResult] = useState<Record<string, ManagerCredentialReveal>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const isTelugu = language === "telugu";
+  const copy = {
+    loginRequired: isTelugu ? "లాగిన్ రిక్వైర్డ్." : "Login required.",
+    unableLoad: isTelugu ? "మేనేజర్స్ లోడ్ చేయలేకపోయాం." : "Unable to load managers.",
+    unableStatus: isTelugu ? "మేనేజర్ స్టేటస్ చేంజ్ చేయలేకపోయాం." : "Unable to change manager status.",
+    unablePassword: isTelugu ? "పాస్‌వర్డ్ రీసెట్ చేయలేకపోయాం." : "Unable to reset password.",
+    unableDevice: isTelugu ? "డివైస్ రీసెట్ చేయలేకపోయాం." : "Unable to reset device.",
+    title: isTelugu ? "మేనేజర్స్" : "Managers",
+    search: isTelugu ? "సెర్చ్ మేనేజర్" : "Search manager",
+    allStatuses: isTelugu ? "ఆల్ స్టేటసెస్" : "All statuses",
+    active: isTelugu ? "యాక్టివ్" : "Active",
+    inactive: isTelugu ? "ఇనాక్టివ్" : "Inactive",
+    refresh: isTelugu ? "రిఫ్రెష్" : "Refresh",
+    loading: isTelugu ? "లోడింగ్ మేనేజర్స్..." : "Loading managers...",
+    empty: isTelugu ? "మేనేజర్స్ దొరకలేదు." : "No managers found.",
+    open: isTelugu ? "ఓపెన్" : "Open",
+    close: isTelugu ? "క్లోజ్" : "Close",
+    deactivate: isTelugu ? "డియాక్టివేట్" : "Deactivate",
+    activate: isTelugu ? "యాక్టివేట్" : "Activate",
+    resetPassword: isTelugu ? "రీసెట్ పాస్‌వర్డ్" : "Reset password",
+    resetDevice: isTelugu ? "రీసెట్ డివైస్" : "Reset device",
+    loginEmail: isTelugu ? "లాగిన్ ఇమెయిల్" : "Login email",
+    initialPassword: isTelugu ? "సిస్టమ్ పాస్వర్డ్" : "System password",
+    loginUrl: isTelugu ? "లాగిన్ URL" : "Login URL",
+    recoveryLink: isTelugu ? "ఇమెయిల్ రికవరీ లింక్" : "Email recovery link",
+    credentialsCopied: isTelugu ? "లాగిన్ వివరాలు కాపీ అయ్యాయి" : "Login details copied to clipboard",
+    manager: isTelugu ? "మేనేజర్" : "Manager",
+    contact: isTelugu ? "కాంటాక్ట్" : "Contact",
+    status: isTelugu ? "స్టేటస్" : "Status",
+    actions: isTelugu ? "యాక్షన్స్" : "Actions",
+  };
+
+  const lang = portalLanguage(language);
+  Object.assign(copy, {
+    loginRequired: t("manager.table.loginRequired", lang),
+    unableLoad: t("manager.table.unableLoad", lang),
+    unableStatus: t("manager.table.unableStatus", lang),
+    unablePassword: t("manager.table.unablePassword", lang),
+    unableDevice: t("manager.table.unableDevice", lang),
+    title: t("manager.table.title", lang),
+    search: t("manager.table.search", lang),
+    allStatuses: t("manager.table.allStatuses", lang),
+    active: t("manager.table.active", lang),
+    inactive: t("manager.table.inactive", lang),
+    refresh: t("manager.table.refresh", lang),
+    loading: t("manager.table.loading", lang),
+    empty: t("manager.table.empty", lang),
+    open: t("manager.table.open", lang),
+    close: t("manager.table.close", lang),
+    deactivate: t("manager.table.deactivate", lang),
+    activate: t("manager.table.activate", lang),
+    resetPassword: t("manager.table.resetPassword", lang),
+    resetDevice: t("manager.table.resetDevice", lang),
+    loginEmail: t("manager.table.loginEmail", lang),
+    initialPassword: t("manager.table.initialPassword", lang),
+    loginUrl: t("manager.table.loginUrl", lang),
+    recoveryLink: t("manager.table.recoveryLink", lang),
+    credentialsCopied: t("manager.table.credentialsCopied", lang),
+    manager: t("manager.table.manager", lang),
+    contact: t("manager.table.contact", lang),
+    status: t("manager.table.status", lang),
+    actions: t("manager.table.actions", lang),
+  });
 
   const authHeader = useCallback(async () => {
     const token = await user?.getIdToken();
     if (!token) {
-      throw new Error("Login required.");
+      throw new Error(copy.loginRequired);
     }
     return { authorization: `Bearer ${token}` };
-  }, [user]);
+  }, [copy.loginRequired, user]);
 
   const loadManagers = useCallback(async () => {
     setLoading(true);
@@ -52,15 +124,15 @@ export function ManagerTable() {
         error?: string;
       };
       if (!response.ok || !data.ok || !data.managers) {
-        throw new Error(data.error ?? "Unable to load managers.");
+        throw new Error(data.error ?? copy.unableLoad);
       }
       setRows(data.managers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load managers.");
+      setError(err instanceof Error ? err.message : copy.unableLoad);
     } finally {
       setLoading(false);
     }
-  }, [authHeader, query, status]);
+  }, [authHeader, copy.unableLoad, query, status]);
 
   useEffect(() => {
     if (!user) {
@@ -85,11 +157,11 @@ export function ManagerTable() {
       );
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to change manager status.");
+        throw new Error(data.error ?? copy.unableStatus);
       }
       await loadManagers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to change manager status.");
+      setError(err instanceof Error ? err.message : copy.unableStatus);
     }
   }
 
@@ -105,20 +177,39 @@ export function ManagerTable() {
       );
       const data = (await response.json()) as {
         ok: boolean;
-        temporaryPassword?: string;
+        initialPassword?: string;
+        loginLink?: string;
+        recoveryResetLink?: string;
+        resetLink?: string;
         error?: string;
       };
-      if (!response.ok || !data.ok || !data.temporaryPassword) {
-        throw new Error(data.error ?? "Unable to reset password.");
+      if (!response.ok || !data.ok || !data.initialPassword) {
+        throw new Error(data.error ?? copy.unablePassword);
       }
-      setPasswordResult((prev) => ({
+      const newPassword = data.initialPassword;
+      const loginLink = data.loginLink ?? "";
+      const recoveryResetLink = data.recoveryResetLink ?? data.resetLink;
+      setCredentialResult((prev) => ({
         ...prev,
-        [managerUid]: data.temporaryPassword!,
+        [managerUid]: {
+          initialPassword: newPassword,
+          loginLink,
+          recoveryResetLink,
+        },
       }));
-      await navigator.clipboard.writeText(data.temporaryPassword);
+      const row = rows.find((r) => r.uid === managerUid);
+      const clipLines = [
+        `${copy.loginEmail}: ${row?.email ?? ""}`,
+        `${copy.initialPassword}: ${newPassword}`,
+        `${copy.loginUrl}: ${loginLink}`,
+      ];
+      if (recoveryResetLink) {
+        clipLines.push(`${copy.recoveryLink}: ${recoveryResetLink}`);
+      }
+      await navigator.clipboard.writeText(clipLines.join("\n"));
       await loadManagers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reset password.");
+      setError(err instanceof Error ? err.message : copy.unablePassword);
     }
   }
 
@@ -134,11 +225,11 @@ export function ManagerTable() {
       );
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to reset device.");
+        throw new Error(data.error ?? copy.unableDevice);
       }
       await loadManagers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reset device.");
+      setError(err instanceof Error ? err.message : copy.unableDevice);
     }
   }
 
@@ -150,17 +241,14 @@ export function ManagerTable() {
   }
 
   return (
-    <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-      <h2 className="text-lg font-semibold text-slate-900">Managers</h2>
-      <p className="mt-1 text-sm text-slate-600">
-        Search managers, activate/deactivate, reset password and reset device lock.
-      </p>
+    <section className="px-1 py-2">
+      <h2 className="text-lg font-semibold text-slate-900">{copy.title}</h2>
 
       <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search manager"
+          placeholder={copy.search}
           className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
         <select
@@ -168,15 +256,15 @@ export function ManagerTable() {
           onChange={(e) => setStatus(e.target.value)}
           className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{copy.allStatuses}</option>
+          <option value="active">{copy.active}</option>
+          <option value="inactive">{copy.inactive}</option>
         </select>
         <button
           onClick={() => void loadManagers()}
           className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
         >
-          Refresh
+          {copy.refresh}
         </button>
       </div>
 
@@ -186,27 +274,120 @@ export function ManagerTable() {
         </p>
       ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
+      <div className="mt-4 space-y-3 lg:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+            {copy.loading}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+            {copy.empty}
+          </div>
+        ) : (
+          rows.map((row) => (
+            <div
+              key={`mobile-${row.uid}`}
+              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p data-no-auto-translate="true" className="truncate text-base font-semibold text-slate-900">
+                    {row.name}
+                  </p>
+                  <p data-no-auto-translate="true" className="mt-1 truncate font-mono text-[11px] text-slate-500">
+                    ID: {displayManagerId(row)}
+                  </p>
+                </div>
+                <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
+                  {row.managerStatus}
+                </span>
+              </div>
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                <p data-no-auto-translate="true" className="break-all">
+                  {row.email}
+                </p>
+                <p className="mt-1">{row.phone}</p>
+              </div>
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={() => toggleExpanded(row.uid)}
+                  className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                >
+                  {expandedRows[row.uid] ? copy.close : copy.open}
+                </button>
+                {expandedRows[row.uid] ? (
+                  <>
+                    <button
+                      onClick={() =>
+                        void toggleStatus(
+                          row.uid,
+                          row.managerStatus === "active" ? "inactive" : "active"
+                        )
+                      }
+                      className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                    >
+                      {row.managerStatus === "active" ? copy.deactivate : copy.activate}
+                    </button>
+                    <button
+                      onClick={() => void resetPassword(row.uid)}
+                      className="w-full rounded-xl bg-[var(--portal-green)] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                    >
+                      {copy.resetPassword}
+                    </button>
+                    <button
+                      onClick={() => void resetDevice(row.uid)}
+                      className="w-full rounded-xl bg-[var(--portal-purple)] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
+                    >
+                      {copy.resetDevice}
+                    </button>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700">
+                      <p data-no-auto-translate="true">{copy.loginEmail}: {row.email}</p>
+                      <p data-no-auto-translate="true" className="mt-1 break-all">
+                        {copy.initialPassword}:{" "}
+                        {credentialResult[row.uid]?.initialPassword ?? "-"}
+                      </p>
+                      <p className="mt-1 break-all">
+                        {copy.loginUrl}: {credentialResult[row.uid]?.loginLink ?? "-"}
+                      </p>
+                      <p className="mt-1 break-all">
+                        {copy.recoveryLink}:{" "}
+                        {credentialResult[row.uid]?.recoveryResetLink ?? "-"}
+                      </p>
+                    </div>
+                    {credentialResult[row.uid] ? (
+                      <p className="text-xs font-semibold text-emerald-700">
+                        {copy.credentialsCopied}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="mt-4 hidden overflow-x-auto lg:block">
         <table className="min-w-[920px] w-full text-sm">
           <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             <tr>
-              <th className="px-4 py-3">Manager</th>
-              <th className="px-4 py-3">Contact</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Actions</th>
+              <th className="px-4 py-3">{copy.manager}</th>
+              <th className="px-4 py-3">{copy.contact}</th>
+              <th className="px-4 py-3">{copy.status}</th>
+              <th className="px-4 py-3">{copy.actions}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
-                  Loading managers...
+                  {copy.loading}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
-                  No managers found.
+                  {copy.empty}
                 </td>
               </tr>
             ) : (
@@ -214,13 +395,13 @@ export function ManagerTable() {
                 <Fragment key={row.uid}>
                   <tr key={`${row.uid}-summary`} className="border-t border-slate-100/80 align-top">
                     <td className="px-4 py-4">
-                      <p className="font-semibold text-slate-900">{row.name}</p>
-                      <p className="font-mono text-xs text-slate-600">
+                      <p data-no-auto-translate="true" className="font-semibold text-slate-900">{row.name}</p>
+                      <p data-no-auto-translate="true" className="font-mono text-xs text-slate-600">
                         ID: {displayManagerId(row)}
                       </p>
                     </td>
                     <td className="px-4 py-4 text-slate-700">
-                      <p className="break-all">{row.email}</p>
+                      <p data-no-auto-translate="true" className="break-all">{row.email}</p>
                       <p>{row.phone}</p>
                     </td>
                     <td className="px-4 py-4">
@@ -233,7 +414,7 @@ export function ManagerTable() {
                         onClick={() => toggleExpanded(row.uid)}
                         className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                       >
-                        {expandedRows[row.uid] ? "Close" : "Open"}
+                        {expandedRows[row.uid] ? copy.close : copy.open}
                       </button>
                     </td>
                   </tr>
@@ -250,24 +431,38 @@ export function ManagerTable() {
                             }
                             className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
                           >
-                            {row.managerStatus === "active" ? "Deactivate" : "Activate"}
+                            {row.managerStatus === "active" ? copy.deactivate : copy.activate}
                           </button>
                           <button
                             onClick={() => void resetPassword(row.uid)}
                             className="whitespace-nowrap rounded-xl bg-[var(--portal-green)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
                           >
-                            Reset password
+                            {copy.resetPassword}
                           </button>
                           <button
                             onClick={() => void resetDevice(row.uid)}
                             className="whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
                           >
-                            Reset device
+                            {copy.resetDevice}
                           </button>
                         </div>
-                        {passwordResult[row.uid] ? (
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                          <p data-no-auto-translate="true">{copy.loginEmail}: {row.email}</p>
+                          <p data-no-auto-translate="true" className="mt-1 break-all">
+                            {copy.initialPassword}:{" "}
+                            {credentialResult[row.uid]?.initialPassword ?? "-"}
+                          </p>
+                          <p className="mt-1 break-all">
+                            {copy.loginUrl}: {credentialResult[row.uid]?.loginLink ?? "-"}
+                          </p>
+                          <p className="mt-1 break-all">
+                            {copy.recoveryLink}:{" "}
+                            {credentialResult[row.uid]?.recoveryResetLink ?? "-"}
+                          </p>
+                        </div>
+                        {credentialResult[row.uid] ? (
                           <p className="mt-3 text-xs font-semibold text-emerald-700">
-                            Temp password copied
+                            {copy.credentialsCopied}
                           </p>
                         ) : null}
                       </td>

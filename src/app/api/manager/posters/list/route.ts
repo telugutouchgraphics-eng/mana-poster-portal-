@@ -1,11 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { loadScopedCreatorIds } from "@/lib/server/manager-scope";
+
+type PhotoShape =
+  | "circle"
+  | "scallop_circle"
+  | "soft_burst"
+  | "badge"
+  | "square"
+  | "rounded_square"
+  | "vertical_rectangle"
+  | "oval"
+  | "flower"
+  | "blob"
+  | "wave_bottom"
+  | "arch"
+  | "diagonal_cut"
+  | "diamond"
+  | "hexagon"
+  | "parallelogram"
+  | "sunburst"
+  | "transparent_bottom_fade"
+  | "transparent_clean"
+  | "transparent_soft_round"
+  | "transparent_sharp_round";
+
+type PhotoEdgeStyle = "soft_fade" | "sharp" | "bottom_fade" | "feather";
+type PhotoFrameStyle = "none" | "inner_shadow" | "white_outline" | "glow_edge" | "double_border";
+
+const photoShapes = new Set<string>([
+  "circle",
+  "scallop_circle",
+  "soft_burst",
+  "badge",
+  "square",
+  "rounded_square",
+  "vertical_rectangle",
+  "oval",
+  "flower",
+  "blob",
+  "wave_bottom",
+  "arch",
+  "diagonal_cut",
+  "diamond",
+  "hexagon",
+  "parallelogram",
+  "sunburst",
+  "transparent_bottom_fade",
+  "transparent_clean",
+  "transparent_soft_round",
+  "transparent_sharp_round",
+]);
 
 interface PosterPersonalization {
-  photoShape: "circle" | "rounded" | "square" | "hexagon" | "pill";
+  photoShape: PhotoShape;
   photoRenderMode: "cutout" | "original";
-  edgeStyle: "soft_fade" | "sharp";
+  edgeStyle: PhotoEdgeStyle;
+  photoFrameStyle: PhotoFrameStyle;
   showSafeAreas: boolean;
   photoX: number;
   photoY: number;
@@ -14,7 +66,6 @@ interface PosterPersonalization {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
-  showWhatsapp: boolean;
   sampleName: string;
 }
 
@@ -53,6 +104,7 @@ const defaultPersonalization: PosterPersonalization = {
   photoShape: "circle",
   photoRenderMode: "cutout",
   edgeStyle: "soft_fade",
+  photoFrameStyle: "none",
   showSafeAreas: true,
   photoX: 78,
   photoY: 42,
@@ -61,7 +113,6 @@ const defaultPersonalization: PosterPersonalization = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
-  showWhatsapp: true,
   sampleName: "User Name",
 };
 
@@ -72,13 +123,7 @@ function parsePersonalization(input: unknown): PosterPersonalization {
   const raw = input as Record<string, unknown>;
   const shape = String(raw.photoShape ?? defaultPersonalization.photoShape);
   const photoShape: PosterPersonalization["photoShape"] =
-    shape === "circle" ||
-    shape === "rounded" ||
-    shape === "square" ||
-    shape === "hexagon" ||
-    shape === "pill"
-      ? shape
-      : defaultPersonalization.photoShape;
+    photoShapes.has(shape) ? (shape as PhotoShape) : defaultPersonalization.photoShape;
   const numberInRange = (
     value: unknown,
     fallback: number,
@@ -94,7 +139,20 @@ function parsePersonalization(input: unknown): PosterPersonalization {
   return {
     photoShape,
     photoRenderMode: raw.photoRenderMode === "original" ? "original" : defaultPersonalization.photoRenderMode,
-    edgeStyle: raw.edgeStyle === "sharp" ? "sharp" : defaultPersonalization.edgeStyle,
+    edgeStyle:
+      raw.edgeStyle === "sharp" ||
+      raw.edgeStyle === "soft_fade" ||
+      raw.edgeStyle === "bottom_fade" ||
+      raw.edgeStyle === "feather"
+        ? (raw.edgeStyle as PhotoEdgeStyle)
+        : defaultPersonalization.edgeStyle,
+    photoFrameStyle:
+      raw.photoFrameStyle === "inner_shadow" ||
+      raw.photoFrameStyle === "white_outline" ||
+      raw.photoFrameStyle === "glow_edge" ||
+      raw.photoFrameStyle === "double_border"
+        ? (raw.photoFrameStyle as PhotoFrameStyle)
+        : defaultPersonalization.photoFrameStyle,
     showSafeAreas:
       typeof raw.showSafeAreas === "boolean"
         ? raw.showSafeAreas
@@ -109,10 +167,6 @@ function parsePersonalization(input: unknown): PosterPersonalization {
         ? raw.showBottomStrip
         : defaultPersonalization.showBottomStrip,
     stripHeight: numberInRange(raw.stripHeight, defaultPersonalization.stripHeight, 8, 40),
-    showWhatsapp:
-      typeof raw.showWhatsapp === "boolean"
-        ? raw.showWhatsapp
-        : defaultPersonalization.showWhatsapp,
     sampleName:
       typeof raw.sampleName === "string" && raw.sampleName.trim().length > 0
         ? raw.sampleName.trim()
@@ -122,10 +176,12 @@ function parsePersonalization(input: unknown): PosterPersonalization {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin", "manager"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") ?? "pending").trim();
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const scopedCreatorIds = await loadScopedCreatorIds(actor);
+    const scopedCreatorIdSet = scopedCreatorIds ? new Set(scopedCreatorIds) : null;
 
     const baseQuery = adminDb.collection("creatorPosters");
     const posterSnap =
@@ -171,6 +227,9 @@ export async function GET(req: NextRequest) {
     const posters: PosterListItem[] = posterDocs
       .map((item) => {
         const creatorPublicId = String(item.data.creatorPublicId ?? "").trim();
+        if (scopedCreatorIdSet && !scopedCreatorIdSet.has(creatorPublicId)) {
+          return null;
+        }
         const creator = creatorMap.get(creatorPublicId) ?? {};
         return {
           id: String(item.id),
@@ -208,6 +267,7 @@ export async function GET(req: NextRequest) {
           updatedAt: Number(item.data.updatedAt ?? 0),
         };
       })
+      .filter((item): item is PosterListItem => item !== null)
       .filter((item) => {
         if (!q) {
           return true;

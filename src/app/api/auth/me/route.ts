@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { requireAuth } from "@/lib/server/auth";
+import { requireAuth, resolveVisibleRoles } from "@/lib/server/auth";
 import { normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
 
 export async function GET(req: NextRequest) {
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const userSnap = await adminDb.collection("users").doc(user.uid).get();
     const data = userSnap.data();
     const docRoles = normalizeRoles(data?.roles);
-    const roles = docRoles.length > 0 ? docRoles : user.roles;
+    const roles = resolveVisibleRoles(user.email, docRoles, user.roles);
     return NextResponse.json({
       ok: true,
       uid: user.uid,

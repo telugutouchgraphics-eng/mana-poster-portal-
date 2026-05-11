@@ -21,7 +21,7 @@ export function DashboardTabSidebar({
   onChangeTab,
 }: DashboardTabSidebarProps) {
   return (
-    <aside className="lg:sticky lg:top-6 lg:h-fit">
+    <aside className="min-w-0 lg:sticky lg:top-6 lg:h-fit">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-600">
           {title}
@@ -35,7 +35,7 @@ export function DashboardTabSidebar({
               <button
                 key={tab.id}
                 onClick={() => onChangeTab(tab.id)}
-                className={`min-w-max rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
+                className={`min-h-11 min-w-max rounded-xl border px-3 py-2 text-left text-sm font-semibold transition lg:w-full ${
                   active
                     ? "border-orange-300 bg-orange-50 text-orange-700"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
@@ -50,4 +50,3 @@ export function DashboardTabSidebar({
     </aside>
   );
 }
-

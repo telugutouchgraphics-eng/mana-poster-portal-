@@ -9,9 +9,14 @@ export async function GET(req: NextRequest) {
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim().toLowerCase();
     const format = (url.searchParams.get("format") ?? "json").trim().toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+    const pageSize = Math.min(
+      50,
+      Math.max(1, Number(url.searchParams.get("pageSize") ?? 10) || 10),
+    );
     const snapshot = await loadPortalAnalyticsSnapshot();
 
-    const rows = snapshot.payouts
+    const filteredRows = snapshot.payouts
       .filter((item) => (status === "all" ? true : item.status.toLowerCase() === status))
       .filter((item) => {
         if (!q) return true;
@@ -23,7 +28,7 @@ export async function GET(req: NextRequest) {
     if (format === "csv") {
       const lines = [
         "creatorPublicId,amount,status,note,createdAt",
-        ...rows.map((item) =>
+        ...filteredRows.map((item) =>
           [
             item.creatorPublicId,
             item.amount,
@@ -42,7 +47,20 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ ok: true, payouts: rows });
+    const total = filteredRows.length;
+    const start = (page - 1) * pageSize;
+    const rows = filteredRows.slice(start, start + pageSize);
+
+    return NextResponse.json({
+      ok: true,
+      payouts: rows,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load payouts.";
     const status = message === "Forbidden" ? 403 : 400;

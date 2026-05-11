@@ -9,6 +9,13 @@ export interface DynamicEventCategoryDef extends CatalogCategoryDef {
   durationDays?: number;
 }
 
+export interface FloatingDynamicEventCategoryDef extends CatalogCategoryDef {
+  month: number;
+  weekOfMonth: number;
+  weekdayOfMonth: number;
+  durationDays?: number;
+}
+
 export const CSV_FIXED_DYNAMIC_EVENT_CATEGORIES: DynamicEventCategoryDef[] = [
   { id: 'bhogi', label: 'Bhogi', month: 1, day: 13 },
   { id: 'kanuma', label: 'Kanuma', month: 1, day: 15 },
@@ -258,6 +265,51 @@ export const CSV_FIXED_DYNAMIC_EVENT_CATEGORIES: DynamicEventCategoryDef[] = [
   { id: 'tripuraneni_ramaswamy_vardhanthi', label: 'Tripuraneni Ramaswamy Vardhanthi', month: 1, day: 16 },
   { id: 'rayaprolu_subba_rao_jayanthi', label: 'Rayaprolu Subba Rao Jayanthi', month: 3, day: 8 },
   { id: 'rayaprolu_subba_rao_vardhanthi', label: 'Rayaprolu Subba Rao Vardhanthi', month: 6, day: 30 },
+  { id: 'national_petroleum_day', label: 'National Petroleum Day', month: 1, day: 9 },
+  { id: 'world_poetry_day', label: 'World Poetry Day', month: 3, day: 21 },
+  { id: 'world_creativity_and_innovation_day', label: 'World Creativity and Innovation Day', month: 4, day: 21 },
+  { id: 'international_dance_day', label: 'International Dance Day', month: 4, day: 29 },
+  { id: 'world_telecommunications_day', label: 'World Telecommunication Day', month: 5, day: 17 },
+  { id: 'world_social_media_day', label: 'World Social Media Day', month: 6, day: 30 },
+  { id: 'world_music_day', label: 'World Music Day', month: 6, day: 21 },
+  { id: 'world_skill_day', label: 'World Youth Skills Day', month: 7, day: 15 },
+  { id: 'national_library_day', label: 'National Library Day', month: 8, day: 12 },
+  { id: 'world_elephant_day', label: 'World Elephant Day', month: 8, day: 12 },
+  { id: 'world_senior_citizens_day', label: 'World Senior Citizens Day', month: 8, day: 21 },
+  { id: 'national_media_day', label: 'National Media Day', month: 9, day: 16 },
+  { id: 'world_heart_day', label: 'World Heart Day', month: 9, day: 29 },
+  { id: 'world_post_day', label: 'World Post Day', month: 10, day: 9 },
+  { id: 'world_diabetes_day', label: 'World Diabetes Day', month: 11, day: 14 },
+  { id: 'world_children_day', label: 'World Children’s Day', month: 11, day: 20 },
+  { id: 'christmas_eve', label: 'Christmas Eve', month: 12, day: 24 },
+  { id: 'christmas_new_year_week', label: 'Christmas New Year Week Celebrations', month: 12, day: 26, durationDays: 6 },
+  { id: 'world_hepatitis_day', label: 'World Hepatitis Day', month: 7, day: 28 },
+  { id: 'world_rabies_day', label: 'World Rabies Day', month: 9, day: 28 },
+  { id: 'international_day_of_older_persons', label: 'International Day of Older Persons', month: 10, day: 1 },
+  { id: 'road_safety_week', label: 'National Road Safety Week', month: 1, day: 11, durationDays: 7 },
+  { id: 'international_customs_day', label: 'International Customs Day', month: 1, day: 26 },
+  { id: 'world_sparrow_day', label: 'World Sparrow Day', month: 3, day: 20 },
+  { id: 'fire_service_day', label: 'National Fire Service Day', month: 4, day: 14 },
+  { id: 'world_bee_day', label: 'World Bee Day', month: 5, day: 20 },
+  { id: 'international_day_of_yoga_for_women_usage', label: 'Women Yoga Awareness Day Usage', month: 6, day: 21 },
+  { id: 'world_food_safety_day', label: 'World Food Safety Day', month: 6, day: 7 },
+  { id: 'world_nature_conservation_day', label: 'World Nature Conservation Day', month: 7, day: 28 },
+  { id: 'world_mosquito_day', label: 'World Mosquito Day', month: 8, day: 20 },
+  { id: 'world_suicide_prevention_day', label: 'World Suicide Prevention Day', month: 9, day: 10 },
+  { id: 'world_stroke_day', label: 'World Stroke Day', month: 10, day: 29 },
+  { id: 'national_epilepsy_day', label: 'National Epilepsy Day', month: 11, day: 17 },
+  { id: 'world_hindu_council_day', label: 'World Hindu Council Day', month: 8, day: 29 },
+];
+
+export const CSV_FLOATING_DYNAMIC_EVENT_CATEGORIES: FloatingDynamicEventCategoryDef[] = [
+  { id: 'mothers_day', label: 'Mother\'s Day', month: 5, weekOfMonth: 2, weekdayOfMonth: 0 },
+  { id: 'fathers_day', label: 'Father\'s Day', month: 6, weekOfMonth: 3, weekdayOfMonth: 0 },
+  { id: 'friendship_day', label: 'Friendship Day', month: 8, weekOfMonth: 1, weekdayOfMonth: 0 },
+  { id: 'world_laughter_day', label: 'World Laughter Day', month: 5, weekOfMonth: 1, weekdayOfMonth: 0 },
+  { id: 'world_first_aid_day', label: 'World First Aid Day', month: 9, weekOfMonth: 2, weekdayOfMonth: 6 },
+  { id: 'world_pangolin_day', label: 'World Pangolin Day', month: 2, weekOfMonth: 3, weekdayOfMonth: 6 },
+  { id: 'world_river_day', label: 'World Rivers Day', month: 9, weekOfMonth: 4, weekdayOfMonth: 0 },
+  { id: 'world_habitat_day', label: 'World Habitat Day', month: 10, weekOfMonth: 1, weekdayOfMonth: 1 },
 ];
 
 export const CSV_LUNAR_PLACEHOLDER_CATEGORIES: CatalogCategoryDef[] = [
@@ -297,4 +349,18 @@ export const CSV_LUNAR_PLACEHOLDER_CATEGORIES: CatalogCategoryDef[] = [
   { id: 'anjaneya_swamy_jayanti_usage', label: 'Anjaneya Swamy Jayanti usage' },
   { id: 'sri_narasimha_jayanti_usage', label: 'Sri Narasimha Jayanti usage' },
   { id: 'devotional_karthika_masam_start_usage', label: 'Devotional Karthika Masam start usage' },
+  { id: 'ugadi_panchanga_sravanam', label: 'Ugadi Panchanga Sravanam' },
+  { id: 'polala_amma_vratam', label: 'Polala Amavasya' },
+  { id: 'atla_taddi', label: 'Atla Taddi' },
+  { id: 'naga_panchami', label: 'Naga Panchami' },
+  { id: 'datta_jayanthi', label: 'Datta Jayanthi' },
+  { id: 'guru_pournima', label: 'Guru Pournima' },
+  { id: 'kubera_puja', label: 'Kubera Puja' },
+  { id: 'tulasi_vivaham', label: 'Tulasi Vivaham' },
+  { id: 'bhishma_ekadashi', label: 'Bhishma Ekadashi' },
+  { id: 'sri_panchami_vasanth_panchami', label: 'Vasanth Panchami' },
+  { id: 'chaitra_pournami', label: 'Chaitra Pournami' },
+  { id: 'onam', label: 'Onam' },
+  { id: 'karwa_chauth', label: 'Karwa Chauth' },
+  { id: 'dev_diwali', label: 'Dev Diwali' },
 ];

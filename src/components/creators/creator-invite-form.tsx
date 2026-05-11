@@ -6,8 +6,14 @@ import { useAuth } from "@/components/auth/auth-provider";
 interface InviteResponse {
   ok: boolean;
   error?: string;
+  code?: string;
   creatorPublicId?: string;
+  existingStatus?: string;
+  existingName?: string;
+  loginEmail?: string;
   loginLink?: string;
+  initialPassword?: string;
+  setupLink?: string;
   whatsappMessage?: string;
 }
 
@@ -43,6 +49,46 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
         }),
       });
       const data = (await response.json()) as InviteResponse;
+      if (
+        response.status === 409 &&
+        data.code === "creator_access_exists_inactive" &&
+        data.creatorPublicId
+      ) {
+        const shouldReactivate = window.confirm(
+          data.error ??
+            "Creator access already exists for this email or phone number. Do you want to reactivate it instead?",
+        );
+        if (!shouldReactivate) {
+          return;
+        }
+        const reactivateResponse = await fetch(
+          `/api/manager/creators/${encodeURIComponent(data.creatorPublicId)}/access-status`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: "active" }),
+          },
+        );
+        const reactivateData = (await reactivateResponse.json()) as {
+          ok: boolean;
+          error?: string;
+        };
+        if (!reactivateResponse.ok || !reactivateData.ok) {
+          throw new Error(reactivateData.error ?? "Unable to reactivate creator access.");
+        }
+        setResult({
+          ok: true,
+          creatorPublicId: data.creatorPublicId,
+        });
+        setError(null);
+        setName("");
+        setEmail("");
+        setPhone("");
+        return;
+      }
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Invite generation failed.");
       }
@@ -59,9 +105,10 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
 
   return (
     <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-      <h3 className="text-xl font-bold text-slate-950">Grant Creator Access</h3>
+      <h3 className="text-xl font-semibold text-slate-950">Grant Creator Access</h3>
       <p className="mt-2 text-sm text-slate-600">
-        {actorLabel} creator ki unique ID generate చేసి direct login link share cheyyachu.
+        {actorLabel} can grant access with the creator&apos;s normal email, phone, and system-generated
+        creator@ password; login uses the same email plus OTP.
       </p>
 
       <form onSubmit={handleInvite} className="mt-6 grid gap-4 md:grid-cols-3">
@@ -92,7 +139,7 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
           disabled={busy}
           className="md:col-span-3 rounded-2xl bg-[var(--portal-green)] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:opacity-60"
         >
-          {busy ? "Generating link..." : "Generate Creator Login Link"}
+          {busy ? "Creating creator..." : "Create Creator Access"}
         </button>
       </form>
 
@@ -107,12 +154,32 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
           <p className="font-semibold text-emerald-900">
             Creator created: {result.creatorPublicId}
           </p>
-          <p className="mt-2 break-all text-emerald-800">Login link: {result.loginLink}</p>
-          <p className="mt-2 whitespace-pre-wrap text-emerald-800">
-            WhatsApp message:
-            {"\n"}
-            {result.whatsappMessage}
-          </p>
+          {result.loginLink ? (
+            <>
+              <p className="mt-2 text-emerald-800">
+                Login email (type this on the login page):{" "}
+                <span data-no-auto-translate="true" className="font-medium">
+                  {result.loginEmail ?? "-"}
+                </span>
+              </p>
+              <p data-no-auto-translate="true" className="mt-2 break-all text-emerald-800">
+                System password (copy exactly): {result.initialPassword}
+              </p>
+              <p className="mt-2 break-all text-emerald-800">Login URL: {result.loginLink}</p>
+              <p className="mt-2 break-all text-emerald-800 text-xs">
+                Optional password-change / setup link: {result.setupLink}
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-emerald-800">
+                WhatsApp message:
+                {"\n"}
+                {result.whatsappMessage}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-emerald-800">
+              Existing creator access was reactivated successfully.
+            </p>
+          )}
         </div>
       ) : null}
     </section>

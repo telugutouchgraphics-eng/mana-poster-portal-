@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuth } from "@/lib/server/auth";
+import { clearOtpSessionCookie } from "@/lib/server/otp-auth";
 
 const requestSchema = z.object({
   deviceId: z.string().trim().min(8).max(128),
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await clearOtpSessionCookie();
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Logout failed.";

@@ -7,7 +7,7 @@ export default function AdminCreatorsPage() {
       <CreatorInviteForm actorLabel="Admin" />
       <CreatorAccessTable
         title="Creator Access Management"
-        subtitle="Create creators, assign categories, control access, and mark payouts."
+        subtitle="Create creators, review bank details, control access, and manage payout stages."
         showPayoutActions
       />
     </section>

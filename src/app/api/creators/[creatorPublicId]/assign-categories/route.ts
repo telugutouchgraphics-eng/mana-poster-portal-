@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRole } from "@/lib/server/auth";
-import { adminDb } from "@/lib/firebase/admin";
 import { isValidCategoryId } from "@/lib/server/categories";
+import { isValidManualEventCategoryId } from "@/lib/server/manual-event-categories";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -19,7 +20,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { creatorPublicId } = await params;
     const payload = requestSchema.parse(await req.json());
     const uniqueIds = Array.from(new Set(payload.categoryIds));
-    const invalidId = uniqueIds.find((id) => !isValidCategoryId(id));
+    const invalidIds = await Promise.all(
+      uniqueIds.map(async (id) => ({
+        id,
+        valid: isValidCategoryId(id) || (await isValidManualEventCategoryId(id)),
+      })),
+    );
+    const invalidId = invalidIds.find((item) => !item.valid)?.id;
     if (invalidId) {
       return NextResponse.json(
         { ok: false, error: `Invalid category id: ${invalidId}` },
@@ -27,14 +34,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    const creatorRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
-    const creatorSnap = await creatorRef.get();
-    if (!creatorSnap.exists) {
-      return NextResponse.json(
-        { ok: false, error: "Creator not found." },
-        { status: 404 }
-      );
-    }
+    const creatorSnap = await assertCreatorInScope(actor, creatorPublicId);
+    const creatorRef = creatorSnap.ref;
 
     await creatorRef.set(
       {

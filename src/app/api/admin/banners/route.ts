@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { loadAppBanners, uploadAdminAsset } from "@/lib/server/content-management";
 
+const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
+
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
@@ -33,6 +35,9 @@ export async function POST(req: NextRequest) {
     }
     if (!(image instanceof File)) {
       return NextResponse.json({ ok: false, error: "Banner image is required." }, { status: 400 });
+    }
+    if (image.size > MAX_IMAGE_UPLOAD_BYTES) {
+      return NextResponse.json({ ok: false, error: "Image must be 500 KB or smaller." }, { status: 400 });
     }
 
     const now = Date.now();

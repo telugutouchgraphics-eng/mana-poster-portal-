@@ -44,3 +44,6 @@ vercel_test_env.txt
 next-env.d.ts
 
 .vercel
+
+# Firebase local cache
+.firebase/

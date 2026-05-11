@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { CompetitionHub } from "@/components/competitions/competition-hub";
 
 export default function AdminCompetitionsPage() {
-  redirect("/admin/dashboard/creators");
+  return <CompetitionHub mode="admin" />;
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 import { writeAuditLog } from "@/lib/server/audit-log";
 
 interface Params {
@@ -11,14 +12,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const actor = await requireRole(req, ["manager", "admin"]);
     const { creatorPublicId } = await params;
-    const creatorRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
-    const creatorSnap = await creatorRef.get();
-    if (!creatorSnap.exists) {
-      return NextResponse.json(
-        { ok: false, error: "Creator not found." },
-        { status: 404 }
-      );
-    }
+    const creatorSnap = await assertCreatorInScope(actor, creatorPublicId);
 
     const authUid = creatorSnap.data()?.authUid as string | undefined;
     if (authUid) {

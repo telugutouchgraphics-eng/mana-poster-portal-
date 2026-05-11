@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
-import { adminDb } from "@/lib/firebase/admin";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 import { generateInviteToken, hashInviteToken } from "@/lib/server/invite-token";
+import { buildCreatorActivationLink, buildPortalLoginUrl } from "@/lib/server/auth-links";
+import { generateManagedPassword } from "@/lib/server/password";
+import { FieldValue } from "firebase-admin/firestore";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -11,14 +15,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const actor = await requireRole(req, ["admin", "manager"]);
     const { creatorPublicId } = await params;
-    const creatorRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
-    const creatorSnap = await creatorRef.get();
-    if (!creatorSnap.exists) {
-      return NextResponse.json(
-        { ok: false, error: "Creator not found." },
-        { status: 404 }
-      );
-    }
+    const creatorSnap = await assertCreatorInScope(actor, creatorPublicId);
+    const creatorRef = creatorSnap.ref;
 
     const creator = creatorSnap.data()!;
     if (creator.status === "blocked") {
@@ -35,7 +33,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const email = String(creator.email ?? "").toLowerCase();
     const name = String(creator.name ?? "Creator");
     const phone = String(creator.phone ?? "");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const authUid = String(creator.authUid ?? "").trim();
+    const loginLink = buildPortalLoginUrl("creator");
+    const setupLink = buildCreatorActivationLink(token);
 
     await adminDb.runTransaction(async (tx) => {
       tx.set(inviteRef, {
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         creatorRef,
         {
           status: "pending_invite",
+          ...(authUid.length > 0 ? { status: "active" } : {}),
           updatedAt: now,
         },
         { merge: true }
@@ -64,26 +65,69 @@ export async function POST(req: NextRequest, { params }: Params) {
         {
           creatorPublicId,
           email,
-          status: "pending_invite",
+          status: authUid.length > 0 ? "active" : "pending_invite",
           updatedAt: now,
         },
         { merge: true }
       );
     });
 
-    const loginLink = `${appUrl}/creator/access?token=${encodeURIComponent(token)}`;
-    const whatsappMessage = [
+    if (authUid.length > 0) {
+      const seedPassword = await generateManagedPassword(adminDb, "creator");
+      await adminAuth.updateUser(authUid, { password: seedPassword, disabled: false });
+      await adminDb.collection("users").doc(authUid).set(
+        {
+          loginPassword: FieldValue.delete(),
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      await creatorRef.set(
+        {
+          loginPassword: FieldValue.delete(),
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      const whatsappMessage = [
+        `Hi ${name},`,
+        `Mana Poster Ai Creator access refreshed.`,
+        `Creator ID: ${creatorPublicId}`,
+        `Login URL: ${loginLink}`,
+        `Login with this email: ${email}`,
+        `New system password (copy exactly): ${seedPassword}`,
+        `Steps: open login → enter email + password → Send OTP → enter the 6-digit OTP from this email.`,
+        `(Optional setup / password change link: ${setupLink})`,
+      ].join("\n");
+
+      return NextResponse.json({
+        ok: true,
+        creatorPublicId,
+        loginLink,
+        loginEmail: email,
+        initialPassword: seedPassword,
+        setupLink,
+        whatsappMessage,
+      });
+    }
+
+    const whatsappMessageInvite = [
       `Hi ${name},`,
-      `Mana Poster Creator access link regenerated.`,
+      `Mana Poster Ai Creator access refreshed.`,
       `Creator ID: ${creatorPublicId}`,
-      `Login link: ${loginLink}`,
+      `Login URL: ${loginLink}`,
+      `Login email once account is activated: ${email}`,
+      `Complete setup link: ${setupLink}`,
+      `Open the setup link first if the creator has not activated login yet.`,
     ].join("\n");
 
     return NextResponse.json({
       ok: true,
       creatorPublicId,
       loginLink,
-      whatsappMessage,
+      setupLink,
+      whatsappMessage: whatsappMessageInvite,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to regenerate link.";
@@ -91,3 +135,4 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
+

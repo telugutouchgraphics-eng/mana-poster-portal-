@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { buildPortalLoginUrl, generatePortalPasswordResetLink } from "@/lib/server/auth-links";
+import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
+import { generateManagedPassword } from "@/lib/server/password";
 
 interface Params {
   params: Promise<{ managerUid: string }>;
-}
-
-function generateTemporaryPassword() {
-  const token = Math.random().toString(36).slice(2, 8);
-  const digits = String(Math.floor(Math.random() * 9000) + 1000);
-  return `Mp@${token}${digits}`;
 }
 
 function hasManagerRole(data: Record<string, unknown> | undefined): boolean {
@@ -37,10 +34,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    const temporaryPassword = generateTemporaryPassword();
+    const authEmail = String(userSnap.data()?.authEmail ?? "").trim().toLowerCase();
+    const email = String(userSnap.data()?.email ?? "").trim().toLowerCase();
+    const resolvedAuthEmail = authEmail || buildRoleAuthEmail(email, "manager");
+    const seedPassword = await generateManagedPassword(adminDb, "manager");
     await adminAuth.updateUser(managerUid, {
-      password: temporaryPassword,
+      password: seedPassword,
       disabled: false,
+      email: resolvedAuthEmail,
     });
     await userRef.set(
       {
@@ -49,10 +50,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       { merge: true }
     );
+    const recoveryResetLink = await generatePortalPasswordResetLink(resolvedAuthEmail, "manager");
 
     return NextResponse.json({
       ok: true,
-      temporaryPassword,
+      loginEmail: email,
+      initialPassword: seedPassword,
+      loginLink: buildPortalLoginUrl("manager"),
+      recoveryResetLink,
+      resetLink: recoveryResetLink,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to reset manager password.";

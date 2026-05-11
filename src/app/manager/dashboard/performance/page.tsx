@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { PerformanceDashboard } from "@/components/performance/performance-dashboard";
 
 export default function ManagerPerformancePage() {
-  redirect("/manager/dashboard/reviews");
+  return <PerformanceDashboard mode="manager" />;
 }

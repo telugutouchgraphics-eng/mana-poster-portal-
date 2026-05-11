@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
-import { requireCreatorAccessContext } from "@/lib/server/creator-dashboard";
-import { requireRole } from "@/lib/server/auth";
-import { loadCreatorAnnouncements } from "@/lib/server/content-management";
+import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
+import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
+import {
+  isApprovedEquivalentStatus,
+  isVisiblePosterStatus,
+} from "@/lib/server/poster-status";
 import {
   buildCategoryPerformance,
   buildCreatorCompetition,
@@ -11,6 +15,7 @@ import {
   loadPortalAnalyticsSnapshot,
 } from "@/lib/server/dashboard-metrics";
 import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
+import { buildCreatorUploadWindow, getIstDayKey } from "@/lib/server/ist-schedule";
 
 function dayKey(epochMs: number): string {
   const date = new Date(epochMs);
@@ -22,13 +27,12 @@ function dayKey(epochMs: number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await requireRole(req, ["creator", "admin"]);
-    const actorUserSnap = await adminDb.collection("users").doc(actor.uid).get();
-    const actorCreatorId = String(actorUserSnap.data()?.creatorPublicId ?? "").trim();
-    if (actor.role === "admin" && actorCreatorId.length === 0) {
+    const creator = await resolveCreatorReadContext(req);
+    if (!creator) {
       return NextResponse.json({
         ok: true,
         previewOnly: true,
+        requiresAsCreator: true,
         profile: null,
         assignedCategories: [],
         stats: {
@@ -58,12 +62,13 @@ export async function GET(req: NextRequest) {
         posters: [],
       });
     }
-
-    const creator = await requireCreatorAccessContext(req);
     const now = Date.now();
     const today = dayKey(now);
+    const uploadWindow = buildCreatorUploadWindow(now);
+    const todayUploadDayKey = getIstDayKey(now);
     const analytics = await loadPortalAnalyticsSnapshot();
     const competitions = await loadCompetitions();
+    const banners = await loadAppBanners();
     const announcements = (await loadCreatorAnnouncements())
       .filter((item) => item.active)
       .filter((item) => item.startAt <= now && item.endAt >= now)
@@ -85,21 +90,42 @@ export async function GET(req: NextRequest) {
         title: String(doc.data().title ?? "Untitled"),
         categoryId: String(doc.data().categoryId ?? ""),
         categoryLabel: String(doc.data().categoryLabel ?? ""),
+        mediaType: String(doc.data().mediaType ?? "image"),
         imageUrl: String(doc.data().imageUrl ?? ""),
+        videoUrl: String(doc.data().videoUrl ?? ""),
         status: String(doc.data().status ?? "pending"),
         reviewComment: String(doc.data().reviewComment ?? ""),
         createdAt: Number(doc.data().createdAt ?? 0),
+        uploadDayKey: String(doc.data().uploadDayKey ?? ""),
+        publishAt: Number(doc.data().publishAt ?? 0),
+        performanceWindowEndAt: Number(doc.data().performanceWindowEndAt ?? 0),
       }))
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
+    const visiblePosters = posters.filter((item) => isVisiblePosterStatus(item.status));
 
-    const todayUploads = posters.filter((item) => dayKey(item.createdAt) === today).length;
-    const approvedCount = posters.filter((item) => item.status === "approved").length;
+    const todayUploadsByCategory = Object.values(
+      visiblePosters
+        .filter((item) => item.uploadDayKey === todayUploadDayKey)
+        .reduce<Record<string, (typeof posters)[number]>>((acc, item) => {
+          const current = acc[item.categoryId];
+          if (!current || item.createdAt > current.createdAt) {
+            acc[item.categoryId] = item;
+          }
+          return acc;
+        }, {}),
+    );
+
+    const todayUploads = visiblePosters.filter((item) => dayKey(item.createdAt) === today).length;
+    const approvedCount = posters.filter((item) => isApprovedEquivalentStatus(item.status)).length;
     const rejectedCount = posters.filter((item) => item.status === "rejected").length;
     const pendingCount = posters.filter((item) => item.status === "pending").length;
 
+    const manualCategories = await listManualEventCategories();
     const categoryMap = Object.fromEntries(
-      CREATOR_ASSIGNABLE_CATEGORIES.map((item) => [item.id, item.label])
+      [...CREATOR_ASSIGNABLE_CATEGORIES, ...manualCategories.map((item) => ({ id: item.id, label: item.label }))].map(
+        (item) => [item.id, item.label],
+      ),
     );
 
     const assignedCategories = creator.assignedCategories.map((categoryId) => ({
@@ -127,13 +153,13 @@ export async function GET(req: NextRequest) {
       .filter((item) => item.creatorPublicId === creator.creatorPublicId)
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 12);
-    const activeCompetitions = buildCompetitionSnapshots(
+    const activeCompetitions = (await buildCompetitionSnapshots(
       competitions,
       analytics.posters,
       analytics.creatorProfiles,
-    )
+    ))
       .map((snapshot) => {
-        const mine = snapshot.leaders.find(
+        const mine = snapshot.leaderboard.find(
           (leader) => leader.creatorPublicId === creator.creatorPublicId,
         );
         return {
@@ -141,15 +167,15 @@ export async function GET(req: NextRequest) {
           title: snapshot.competition.title,
           description: snapshot.competition.description,
           rewardNote: snapshot.competition.rewardNote,
-          status: snapshot.competition.status,
+          status: snapshot.phase,
           creatorCount: snapshot.creatorCount,
           myRank: mine?.rank ?? null,
           myApprovedCount: mine?.approvedCount ?? 0,
           myUploads: mine?.totalUploads ?? 0,
-          leaders: snapshot.leaders.slice(0, 5),
+          leaders: snapshot.leaderboard.slice(0, 5),
         };
       })
-      .filter((item) => item.status === "active" || item.status === "draft")
+      .filter((item) => item.status !== "completed")
       .slice(0, 4);
 
     return NextResponse.json({
@@ -160,6 +186,8 @@ export async function GET(req: NextRequest) {
         email: creator.email,
       },
       assignedCategories,
+      uploadWindow,
+      todayUploadsByCategory,
       stats: {
         totalUploads: posters.length,
         todayUploads,
@@ -174,9 +202,17 @@ export async function GET(req: NextRequest) {
       categoryPerformance,
       competition,
       activeCompetitions,
+      liveBanners: banners
+        .filter((item) => item.active)
+        .filter(
+          (item) =>
+            item.placement === "creator_overview_banner" ||
+            item.placement === "home_category_banner",
+        )
+        .slice(0, 5),
       announcements,
       transactions,
-      posters,
+      posters: visiblePosters,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load creator dashboard.";

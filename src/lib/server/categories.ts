@@ -1,6 +1,8 @@
 import {
   CSV_FIXED_DYNAMIC_EVENT_CATEGORIES,
+  CSV_FLOATING_DYNAMIC_EVENT_CATEGORIES,
   CSV_LUNAR_PLACEHOLDER_CATEGORIES,
+  type FloatingDynamicEventCategoryDef,
 } from "./dynamic-event-catalog";
 import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
 
@@ -11,13 +13,25 @@ export interface CategoryDef {
 
 export interface VisibleCategoryDef extends CategoryDef {
   isBlinking?: boolean;
+  isDynamic?: boolean;
+  eventDateLabel?: string;
+  eventStartAt?: number;
+  eventEndAt?: number;
+}
+
+function formatEventDateLabel(month: number, day: number): string {
+  return new Date(2026, month - 1, day).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+  });
 }
 
 // Flutter app HomeScreen static category set ki aligned.
 export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "all", label: "All" },
-  { id: "good_night", label: "Good Night" },
   { id: "good_morning", label: "Good Morning" },
+  { id: "good_afternoon", label: "Good Afternoon" },
+  { id: "good_night", label: "Good Night" },
   { id: "motivational", label: "Motivational" },
   { id: "love_quotes", label: "Love Quotes" },
   { id: "today_special", label: "Today Special" },
@@ -56,7 +70,13 @@ const WEEKDAY_DYNAMIC_CATEGORIES: Array<
 ];
 
 const DYNAMIC_EVENT_CATEGORIES = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES;
+const FLOATING_DYNAMIC_EVENT_CATEGORIES = CSV_FLOATING_DYNAMIC_EVENT_CATEGORIES;
 const LUNAR_DYNAMIC_CATEGORIES: CategoryDef[] = CSV_LUNAR_PLACEHOLDER_CATEGORIES;
+const EVENT_DYNAMIC_CATEGORY_IDS = new Set<string>([
+  ...DYNAMIC_EVENT_CATEGORIES.map((item) => item.id),
+  ...FLOATING_DYNAMIC_EVENT_CATEGORIES.map((item) => item.id),
+  ...LUNAR_DYNAMIC_CATEGORIES.map((item) => item.id),
+]);
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -70,6 +90,36 @@ function plusDays(date: Date, days: number): Date {
 
 function isDateInRange(date: Date, start: Date, end: Date): boolean {
   return date.getTime() >= start.getTime() && date.getTime() <= end.getTime();
+}
+
+function endOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+}
+
+function nthWeekdayOfMonth(
+  year: number,
+  month: number,
+  weekdayOfMonth: number,
+  weekOfMonth: number,
+): Date | null {
+  if (weekOfMonth < 1 || weekOfMonth > 5) {
+    return null;
+  }
+  const firstDay = new Date(year, month - 1, 1);
+  const offset = (weekdayOfMonth - firstDay.getDay() + 7) % 7;
+  const day = 1 + offset + (weekOfMonth - 1) * 7;
+  const candidate = new Date(year, month - 1, day);
+  if (candidate.getMonth() !== month - 1) {
+    return null;
+  }
+  return candidate;
+}
+
+function resolveFloatingEventStart(
+  event: FloatingDynamicEventCategoryDef,
+  year: number,
+): Date | null {
+  return nthWeekdayOfMonth(year, event.month, event.weekdayOfMonth, event.weekOfMonth);
 }
 
 function uniqueById(items: CategoryDef[]): CategoryDef[] {
@@ -105,6 +155,35 @@ export function getVisibleAssignableCategories(
         id: event.id,
         label: event.label,
         isBlinking: isDateInRange(today, blinkingStart, eventEnd),
+        isDynamic: true,
+        eventDateLabel: formatEventDateLabel(event.month, event.day),
+        eventStartAt: eventStart.getTime(),
+        eventEndAt: endOfDay(eventEnd).getTime(),
+      },
+    ];
+  });
+
+  const visibleFloatingDynamicEvents = FLOATING_DYNAMIC_EVENT_CATEGORIES.flatMap((event) => {
+    const eventStart = resolveFloatingEventStart(event, today.getFullYear());
+    if (!eventStart) {
+      return [];
+    }
+    const visibleStart = plusDays(eventStart, -daysBeforeDashboard);
+    const blinkingStart = plusDays(eventStart, -blinkingDays);
+    const durationDays = Math.max(1, event.durationDays ?? 1);
+    const eventEnd = plusDays(eventStart, durationDays - 1);
+    if (!isDateInRange(today, visibleStart, eventEnd)) {
+      return [];
+    }
+    return [
+      {
+        id: event.id,
+        label: event.label,
+        isBlinking: isDateInRange(today, blinkingStart, eventEnd),
+        isDynamic: true,
+        eventDateLabel: formatEventDateLabel(event.month, eventStart.getDate()),
+        eventStartAt: eventStart.getTime(),
+        eventEndAt: endOfDay(eventEnd).getTime(),
       },
     ];
   });
@@ -132,6 +211,10 @@ export function getVisibleAssignableCategories(
         id: event.id,
         label: event.label,
         isBlinking: isDateInRange(today, blinkingStart, eventEnd),
+        isDynamic: true,
+        eventDateLabel: formatEventDateLabel(resolved.month, resolved.day),
+        eventStartAt: eventStart.getTime(),
+        eventEndAt: endOfDay(eventEnd).getTime(),
       },
     ];
   });
@@ -139,11 +222,25 @@ export function getVisibleAssignableCategories(
   const todayWeekday = ((today.getDay() + 6) % 7) + 1;
   const visibleWeekday = WEEKDAY_DYNAMIC_CATEGORIES.filter(
     (item) => item.weekday === todayWeekday,
-  ).map((item) => ({ id: item.id, label: item.label }));
+  ).map((item) => ({
+    id: item.id,
+    label: item.label,
+    isDynamic: true,
+    eventDateLabel: today.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+    }),
+    eventStartAt: today.getTime(),
+    eventEndAt: endOfDay(today).getTime(),
+  }));
 
   return uniqueById([
-    ...PERMANENT_CREATOR_CATEGORIES,
+    ...PERMANENT_CREATOR_CATEGORIES.map((item) => ({
+      ...item,
+      isDynamic: false,
+    })),
     ...visibleDynamicEvents,
+    ...visibleFloatingDynamicEvents,
     ...resolvedLunarEvents,
     ...visibleWeekday,
   ]);
@@ -154,9 +251,68 @@ export const CREATOR_ASSIGNABLE_CATEGORIES: CategoryDef[] = uniqueById([
   ...DYNAMIC_META_CATEGORIES,
   ...WEEKDAY_DYNAMIC_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
   ...DYNAMIC_EVENT_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
+  ...FLOATING_DYNAMIC_EVENT_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
   ...LUNAR_DYNAMIC_CATEGORIES,
 ]);
 
 export function isValidCategoryId(id: string): boolean {
   return CREATOR_ASSIGNABLE_CATEGORIES.some((category) => category.id === id);
+}
+
+export function getVisibleDynamicCategoryById(
+  categoryId: string,
+  now: Date = new Date(),
+  daysBeforeEvent = 2,
+  daysBeforeDashboard = 7,
+  blinkingDays = daysBeforeEvent,
+): VisibleCategoryDef | null {
+  const normalized = categoryId.trim();
+  if (!normalized) {
+    return null;
+  }
+  return (
+    getVisibleAssignableCategories(now, daysBeforeEvent, daysBeforeDashboard, blinkingDays)
+      .find((item) => item.id === normalized && item.isDynamic) ?? null
+  );
+}
+
+export function getWeekdayForCategoryId(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
+  const normalized = categoryId.trim();
+  return WEEKDAY_DYNAMIC_CATEGORIES.find((item) => item.id === normalized)?.weekday ?? null;
+}
+
+export function pruneInactiveAssignedCategories(
+  assignedCategories: string[],
+  now: Date = new Date(),
+  daysBeforeEvent = 2,
+  daysBeforeDashboard = 7,
+  blinkingDays = daysBeforeEvent,
+): { assignedCategories: string[]; removedCategoryIds: string[] } {
+  const visibleDynamicCategoryIds = new Set(
+    getVisibleAssignableCategories(now, daysBeforeEvent, daysBeforeDashboard, blinkingDays)
+      .filter((item) => item.isDynamic)
+      .map((item) => item.id),
+  );
+
+  const keptCategoryIds: string[] = [];
+  const removedCategoryIds: string[] = [];
+
+  for (const categoryId of assignedCategories) {
+    if (!EVENT_DYNAMIC_CATEGORY_IDS.has(categoryId)) {
+      keptCategoryIds.push(categoryId);
+      continue;
+    }
+
+    if (visibleDynamicCategoryIds.has(categoryId)) {
+      keptCategoryIds.push(categoryId);
+      continue;
+    }
+
+    removedCategoryIds.push(categoryId);
+  }
+
+  return {
+    assignedCategories: keptCategoryIds,
+    removedCategoryIds,
+  };
 }
