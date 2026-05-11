@@ -9,7 +9,7 @@ import {
 } from "firebase/auth";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { getClientAuth, isFirebaseClientConfigured } from "@/lib/firebase/client";
-import { getOrCreateDeviceId } from "@/lib/client/device-id";
+import { getOrCreateDeviceId, withDeviceHeader } from "@/lib/client/device-id";
 
 const BRAND_TAGLINE = "Your Daily Telugu Poster App";
 
@@ -162,10 +162,10 @@ const LOGIN_COPY: Record<"english" | "telugu", LoginCopy> = {
 async function registerDevice(idToken: string) {
   const response = await fetch("/api/auth/register-device", {
     method: "POST",
-    headers: {
+    headers: withDeviceHeader({
       "content-type": "application/json",
       authorization: `Bearer ${idToken}`,
-    },
+    }),
     body: JSON.stringify({
       deviceId: getOrCreateDeviceId(),
       platform: "web",
@@ -192,10 +192,10 @@ async function registerDevice(idToken: string) {
 async function logoutDevice(idToken: string) {
   await fetch("/api/auth/logout-device", {
     method: "POST",
-    headers: {
+    headers: withDeviceHeader({
       "content-type": "application/json",
       authorization: `Bearer ${idToken}`,
-    },
+    }),
     body: JSON.stringify({
       deviceId: getOrCreateDeviceId(),
     }),

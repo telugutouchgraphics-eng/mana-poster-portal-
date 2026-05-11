@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       limit: 25,
       windowMs: 10 * 60 * 1000,
     });
-    const user = await requireAuth(req);
+    const user = await requireAuth(req, { skipCreatorDeviceBinding: true });
     const payload = requestSchema.parse(await req.json());
     const now = Date.now();
 
