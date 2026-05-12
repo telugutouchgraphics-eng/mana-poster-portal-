@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { CompetitionHub } from "@/components/competitions/competition-hub";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
@@ -30,6 +31,18 @@ type LiveCompetitionItem = {
 
 export default function CreatorOverviewPage() {
   const { user } = useAuth();
+  const { language } = useDashboardLanguage();
+  const isTelugu = language === "telugu";
+  const copy = {
+    liveMarquee: isTelugu ? "లైవ్ · లైవ్ · లైవ్" : "LIVE · LIVE · LIVE",
+    firstPrize: (amount: number) =>
+      isTelugu ? `1వ బహుమతి ₹${amount}` : `1st Prize Rs.${amount}`,
+    upload: isTelugu ? "అప్లోడ్ చేయండి" : "Upload",
+    bannerFallbackAlt: isTelugu ? "ఓవర్వ్యూ బానర్" : "Overview banner",
+    bannerPending: isTelugu
+      ? "ఇంకా ఓవర్వ్యూ బానర్ అందుబాటులో లేదు."
+      : "No overview banner is available yet.",
+  };
   const searchParams = useSearchParams();
   const asCreatorParam = searchParams.get("asCreator")?.trim();
   const [banner, setBanner] = useState<OverviewBanner | null>(null);
@@ -87,11 +100,11 @@ export default function CreatorOverviewPage() {
                   className="flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-sm"
                 >
                   <span className="text-xs font-black uppercase tracking-[0.2em] text-white/80">
-                    LIVE LIVE LIVE
+                    {copy.liveMarquee}
                   </span>
                   <span className="text-sm font-black">{item.competition.title}</span>
                   <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-                    1st Prize Rs.{firstPrize}
+                    {copy.firstPrize(firstPrize)}
                   </span>
                   {uploadCategoryId ? (
                     <Link
@@ -102,7 +115,7 @@ export default function CreatorOverviewPage() {
                       }
                       className="rounded-full bg-white px-4 py-1.5 text-xs font-black text-rose-700 transition hover:bg-rose-50"
                     >
-                      Upload
+                      {copy.upload}
                     </Link>
                   ) : null}
                 </div>
@@ -118,13 +131,13 @@ export default function CreatorOverviewPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={banner.imageUrl}
-              alt={banner.title || "Overview banner"}
+              alt={banner.title || copy.bannerFallbackAlt}
               className="h-auto max-h-[420px] w-full object-cover"
             />
           </div>
         ) : (
           <div className="flex min-h-[260px] w-full items-center justify-center bg-[var(--portal-surface-soft)] px-6 text-center text-sm font-semibold text-slate-500">
-            No overview banner is available yet.
+            {copy.bannerPending}
           </div>
         )}
       </div>

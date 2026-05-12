@@ -5,8 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { DashboardAutoTranslate } from "@/components/i18n/dashboard-auto-translate";
+import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 
-const BRAND_TAGLINE = "Your Daily Telugu Poster App";
+const BRAND_TAGLINE_EN = "Your Daily Telugu Poster App";
+const BRAND_TAGLINE_TE = "మీ దైనందిన తెలుగు పోస్టర్ యాప్";
 
 interface DashboardNavItem {
   href: string;
@@ -35,6 +37,12 @@ export function PortalDashboardShell({
   children,
 }: PortalDashboardShellProps) {
   const pathname = usePathname();
+  const { language } = useDashboardLanguage();
+  const isTelugu = language === "telugu";
+  const brandTagline = isTelugu ? BRAND_TAGLINE_TE : BRAND_TAGLINE_EN;
+  const menuLabel = isTelugu ? "మెనూ" : "Menu";
+  const openNavLabel = isTelugu ? "నావిగేషన్ మెనూ తెరవండి" : "Open navigation menu";
+  const closeNavLabel = isTelugu ? "నావిగేషన్ మెనూ మూసివేయండి" : "Close navigation menu";
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const activeHref =
     navItems
@@ -52,7 +60,7 @@ export function PortalDashboardShell({
           {mobileNavOpen ? (
             <button
               type="button"
-              aria-label="Close navigation menu"
+              aria-label={closeNavLabel}
               onClick={() => setMobileNavOpen(false)}
               className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden"
             />
@@ -85,13 +93,13 @@ export function PortalDashboardShell({
                         Mana Poster Ai
                       </p>
                       <p className="mt-1 truncate text-xs text-slate-500">
-                        {BRAND_TAGLINE}
+                        {brandTagline}
                       </p>
                     </div>
                   </div>
                   <button
                     type="button"
-                    aria-label="Close navigation menu"
+                    aria-label={closeNavLabel}
                     onClick={() => setMobileNavOpen(false)}
                     className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--portal-border)] bg-white text-lg font-semibold text-slate-700 shadow-sm lg:hidden"
                   >
@@ -144,7 +152,7 @@ export function PortalDashboardShell({
               <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
                 <button
                   type="button"
-                  aria-label="Open navigation menu"
+                  aria-label={openNavLabel}
                   aria-expanded={mobileNavOpen}
                   onClick={() => setMobileNavOpen(true)}
                   className="inline-flex min-h-11 items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm"
@@ -152,7 +160,7 @@ export function PortalDashboardShell({
                   <span aria-hidden="true" className="text-lg leading-none">
                     ☰
                   </span>
-                  <span>Menu</span>
+                  <span>{menuLabel}</span>
                 </button>
                 <p className="max-w-[45vw] truncate text-right text-sm font-semibold text-slate-600">
                   {badge}

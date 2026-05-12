@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 
@@ -94,19 +95,93 @@ function parseDatetimeInput(value: string): number {
   return value ? new Date(value).getTime() : 0;
 }
 
-function phaseLabel(phase: CompetitionPhase): string {
+function localizedPhaseLabel(phase: CompetitionPhase, useTelugu: boolean): string {
   switch (phase) {
     case "submission_open":
-      return "Submission Open";
+      return useTelugu ? "సబ్మిషన్ తెరిచి ఉంది" : "Submission Open";
     case "countdown":
-      return "Review Countdown";
+      return useTelugu ? "రివ్యూ కౌంట్‌డౌన్" : "Review Countdown";
     case "live":
-      return "Live on App";
+      return useTelugu ? "యాప్‌లో లైవ్" : "Live on App";
     case "completed":
-      return "Completed";
+      return useTelugu ? "పూర్తయింది" : "Completed";
     default:
-      return "Upcoming";
+      return useTelugu ? "రాబోతోంది" : "Upcoming";
   }
+}
+
+function hubMoneyPrefix(useTelugu: boolean) {
+  return useTelugu ? "₹" : "Rs.";
+}
+
+function competitionHubTexts(mode: "admin" | "creator", creatorTelugu: boolean) {
+  const t = mode === "creator" && creatorTelugu;
+  const admin = mode === "admin";
+  const money = hubMoneyPrefix(t);
+  return {
+    loginRequired: t ? "లాగిన్ అవసరం." : "Login required.",
+    loadFailed: t ? "పోటీలు లోడ్ చేయలేకపోయాం." : "Unable to load competitions.",
+    eyebrow: t ? "ఈవెంట్ పోటీలు" : "Event Competitions",
+    heroTitle: admin
+      ? "Live event leaderboard with deadline-based poster uploads"
+      : t
+        ? "డెడ్‌లైన్ ఆధారంగా లైవ్ ఈవెంట్ లీడర్‌బోర్డ్ మరియు పోస్టర్ అప్‌లోడ్స్"
+        : "Live event leaderboard with deadline-based poster uploads",
+    heroSubtitle: admin
+      ? "Create only the next 10 days event competitions, set prize money, and track one joyful full-screen live board."
+      : t
+        ? "లైవ్ ఈవెంట్స్‌ను చూసి ర్యాంక్ల మార్పులను గమనించండి, అప్లోడ్ కస్టమైజేషన్ ఫ్లోలోకి నేరుగా వెళ్లండి."
+        : "Follow live events, watch rank changes, and jump directly into the same upload customization flow.",
+    statLive: t ? "లైవ్" : "Live",
+    statOpen: t ? "సబ్మిషన్ ఓపెన్" : "Open",
+    statAll: t ? "మొత్తం" : "All",
+    tabLive: t ? "లైవ్ బోర్డ్" : "Live Board",
+    tabAll: t ? "అన్ని పోటీలు" : "All Competitions",
+    loading: t ? "పోటీలు లోడ్ అవుతున్నాయి..." : "Loading competitions...",
+    emptyLive: t ? "ప్రస్తుతం యాక్టివ్ లేదా త్వరలోని పోటీలు లేవు." : "No active or upcoming competitions right now.",
+    emptyAll: t ? "ఇంకా ఏ పోటీలూ రికార్డు చేయబడలేదు." : "No competitions created yet.",
+    phase: (phase: CompetitionPhase) => localizedPhaseLabel(phase, t),
+    money,
+    compactDescFallback: t
+      ? "ఈ కార్డులో మరిన్ని వివరాలు ఉన్నాయి."
+      : "Competition details available inside this event card.",
+    creators: t ? "క్రియేటర్లు" : "Creators",
+    sharesWord: t ? "షేర్లు" : "shares",
+    winners: t ? "గెలుపొందినవారు" : "Winners",
+    eventDayPrefix: t ? "ఈవెంట్: " : "Event: ",
+    card: {
+      descFallback: t
+        ? "క్రియేటర్ పోస్టర్ అప్‌లోడ్స్ మరియు లైవ్ షేర్ ర్యాంకింగ్‌ కోసం ఈవెంట్ పోటీ."
+        : "Event competition for creator poster uploads and live share rankings.",
+      submissionStart: t ? "సబ్మిషన్ ప్రారంభం" : "Submission Start",
+      deadline: t ? "చివరి తేదీ" : "Deadline",
+      eventDay: t ? "ఈవెంట్ రోజు" : "Event Day",
+      creatorCount: t ? "క్రియేటర్ల సంఖ్య" : "Creator Count",
+      totalShares: t ? "మొత్తం షేర్లు" : "Total Shares",
+      totalDownloads: t ? "మొత్తం డౌన్‌లోడ్లు" : "Total Downloads",
+      myRank: t ? "నా ర్యాంకు" : "My Rank",
+      myShares: t ? "నా షేర్లు" : "My Shares",
+      myDownloads: t ? "నా డౌన్‌లోడ్లు" : "My Downloads",
+      prizeLabel: t ? "బహుమతి" : "Prize",
+      prizeNotSet: t ? "నిర్ణయించలేదు" : "Not set",
+      top25: t ? "టాప్ 25 లైవ్ ర్యాంకింగ్" : "Top 25 Live Ranking",
+      thRank: t ? "ర్యాంకు" : "Rank",
+      thCreator: t ? "క్రియేటర్" : "Creator",
+      thShares: t ? "షేర్లు" : "Shares",
+      thDownloads: t ? "డౌన్‌లోడ్లు" : "Downloads",
+      thPrize: t ? "బహుమతి" : "Prize",
+      leaderboardEmpty: t
+        ? "ఈవెంట్ రోజుకు లైవ్ షేర్లు ఇంకా మొదలుకాలేదు లేదా ఆమోదం పొందిన పోస్టర్లు లేవు."
+        : "Event day live shares have not started yet or approved posters are not available.",
+      prizeHighlights: t ? "బహుమతి వివరాలు" : "Prize Highlights",
+      prizeTiersMissing: t ? "బహుమతి మెట్లకు నమోదు లేదు." : "Prize tiers not configured.",
+      winnerPreview: t ? "గెలుపొందినవారు" : "Winner Preview",
+      winnersPending: t ? "గెలుపొందినవారిని ఇంకా నిర్ణయించలేదు." : "Top winners are not decided yet.",
+      rankLine: (n: number) => (t ? `ర్యాంకు #${n}` : `Rank #${n}`),
+      prizePending: t ? "బహుమతి పెండింగ్" : "Prize pending",
+      sharesCount: (n: number) => (t ? `${n} షేర్లు` : `${n} shares`),
+    },
+  };
 }
 
 function phaseTone(phase: CompetitionPhase): string {
@@ -162,6 +237,12 @@ function CoinIcon() {
 
 export function CompetitionHub({ mode }: CompetitionHubProps) {
   const { user } = useAuth();
+  const { language } = useDashboardLanguage();
+  const creatorTelugu = mode === "creator" && language === "telugu";
+  const texts = useMemo(
+    () => competitionHubTexts(mode, creatorTelugu),
+    [mode, creatorTelugu],
+  );
   const searchParams = useSearchParams();
   const [competitions, setCompetitions] = useState<CompetitionItem[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -187,7 +268,7 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error("Login required.");
+        throw new Error(texts.loginRequired);
       }
       const endpoint =
         mode === "admin"
@@ -201,7 +282,7 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
       });
       const data = (await response.json()) as CompetitionResponse;
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to load competitions.");
+        throw new Error(data.error ?? texts.loadFailed);
       }
       setCompetitions(data.competitions ?? []);
       setCategories(data.categories ?? []);
@@ -209,12 +290,12 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
       setError(
         fetchError instanceof Error
           ? fetchError.message
-          : "Unable to load competitions.",
+          : texts.loadFailed,
       );
     } finally {
       setLoading(false);
     }
-  }, [mode, user, searchParams]);
+  }, [mode, user, searchParams, texts.loginRequired, texts.loadFailed]);
 
   useEffect(() => {
     if (!user) return;
@@ -298,28 +379,24 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/75">
-              Event Competitions
+              {texts.eyebrow}
             </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-              Live event leaderboard with deadline-based poster uploads
-            </h2>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{texts.heroTitle}</h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/90 sm:text-base">
-              {mode === "admin"
-                ? "Create only the next 10 days event competitions, set prize money, and track one joyful full-screen live board."
-                : "Follow live events, watch rank changes, and jump directly into the same upload customization flow."}
+              {texts.heroSubtitle}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <HeroStat label="Live" value={String(liveCompetitions.filter((item) => item.phase === "live").length)} />
-            <HeroStat label="Open" value={String(liveCompetitions.filter((item) => item.phase === "submission_open").length)} />
-            <HeroStat label="All" value={String(competitions.length)} />
+            <HeroStat label={texts.statLive} value={String(liveCompetitions.filter((item) => item.phase === "live").length)} />
+            <HeroStat label={texts.statOpen} value={String(liveCompetitions.filter((item) => item.phase === "submission_open").length)} />
+            <HeroStat label={texts.statAll} value={String(competitions.length)} />
           </div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <TabButton active={tab === "live"} onClick={() => setTab("live")} label="Live Board" />
-        <TabButton active={tab === "all"} onClick={() => setTab("all")} label="All Competitions" />
+        <TabButton active={tab === "live"} onClick={() => setTab("live")} label={texts.tabLive} />
+        <TabButton active={tab === "all"} onClick={() => setTab("all")} label={texts.tabAll} />
       </div>
 
       {error ? (
@@ -506,17 +583,17 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
 
       {loading ? (
         <div className="rounded-[28px] border border-[var(--portal-border)] bg-white px-5 py-8 text-center text-sm text-slate-500">
-          Loading competitions...
+          {texts.loading}
         </div>
       ) : null}
 
       {!loading && tab === "live" ? (
         <div className="space-y-5">
           {liveCompetitions.length === 0 ? (
-            <EmptyState text="No active or upcoming competitions right now." />
+            <EmptyState text={texts.emptyLive} />
           ) : (
             liveCompetitions.map((item) => (
-              <CompetitionCard key={item.competition.id} item={item} mode={mode} />
+              <CompetitionCard key={item.competition.id} item={item} mode={mode} card={texts.card} phaseLabel={texts.phase} moneyPrefix={texts.money} />
             ))
           )}
         </div>
@@ -525,10 +602,15 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
       {!loading && tab === "all" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {competitions.length === 0 ? (
-            <EmptyState text="No competitions created yet." />
+            <EmptyState text={texts.emptyAll} />
           ) : (
             competitions.map((item) => (
-              <CompactCompetitionCard key={`all-${item.competition.id}`} item={item} />
+              <CompactCompetitionCard
+                key={`all-${item.competition.id}`}
+                item={item}
+                phaseLabel={texts.phase}
+                compact={texts}
+              />
             ))
           )}
         </div>
@@ -601,9 +683,15 @@ function EmptyState({ text }: { text: string }) {
 function CompetitionCard({
   item,
   mode,
+  card,
+  phaseLabel,
+  moneyPrefix,
 }: {
   item: CompetitionItem;
   mode: "admin" | "creator";
+  card: ReturnType<typeof competitionHubTexts>["card"];
+  phaseLabel: (phase: CompetitionPhase) => string;
+  moneyPrefix: string;
 }) {
   return (
     <article className="overflow-hidden rounded-[30px] border border-[var(--portal-border)] bg-white shadow-sm">
@@ -624,7 +712,7 @@ function CompetitionCard({
               {item.competition.title}
             </h3>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-              {item.competition.description || "Event competition for creator poster uploads and live share rankings."}
+              {item.competition.description || card.descFallback}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {item.categoryLabels.map((label) => (
@@ -639,12 +727,12 @@ function CompetitionCard({
           </div>
 
           <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:w-[340px]">
-            <MiniMetric label="Submission Start" value={formatDateTime(item.competition.submissionStartAt)} />
-            <MiniMetric label="Deadline" value={formatDateTime(item.competition.submissionEndAt)} />
-            <MiniMetric label="Event Day" value={formatDateTime(item.competition.liveAt)} />
-            <MiniMetric label="Creator Count" value={String(item.creatorCount)} />
-            <MiniMetric label="Total Shares" value={String(item.totalShares)} />
-            <MiniMetric label="Total Downloads" value={String(item.totalDownloads)} />
+            <MiniMetric label={card.submissionStart} value={formatDateTime(item.competition.submissionStartAt)} />
+            <MiniMetric label={card.deadline} value={formatDateTime(item.competition.submissionEndAt)} />
+            <MiniMetric label={card.eventDay} value={formatDateTime(item.competition.liveAt)} />
+            <MiniMetric label={card.creatorCount} value={String(item.creatorCount)} />
+            <MiniMetric label={card.totalShares} value={String(item.totalShares)} />
+            <MiniMetric label={card.totalDownloads} value={String(item.totalDownloads)} />
           </div>
         </div>
       </div>
@@ -652,12 +740,12 @@ function CompetitionCard({
       {mode === "creator" && item.myEntry ? (
         <div className="border-t border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-4 sm:px-6">
           <div className="grid gap-3 md:grid-cols-4">
-            <MiniMetric label="My Rank" value={`#${item.myEntry.rank}`} tone={rankTone(item.myEntry.rank)} />
-            <MiniMetric label="My Shares" value={String(item.myEntry.shares)} />
-            <MiniMetric label="My Downloads" value={String(item.myEntry.downloads)} />
+            <MiniMetric label={card.myRank} value={`#${item.myEntry.rank}`} tone={rankTone(item.myEntry.rank)} />
+            <MiniMetric label={card.myShares} value={String(item.myEntry.shares)} />
+            <MiniMetric label={card.myDownloads} value={String(item.myEntry.downloads)} />
             <MiniMetric
-              label="Prize"
-              value={item.myEntry.prizeAmount > 0 ? `Rs.${item.myEntry.prizeAmount}` : "Not set"}
+              label={card.prizeLabel}
+              value={item.myEntry.prizeAmount > 0 ? `${moneyPrefix}${item.myEntry.prizeAmount}` : card.prizeNotSet}
             />
           </div>
         </div>
@@ -666,26 +754,24 @@ function CompetitionCard({
       <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] sm:px-6">
         <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
           <div className="border-b border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3">
-            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">
-              Top 25 Live Ranking
-            </h4>
+            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">{card.top25}</h4>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full bg-white text-sm">
               <thead className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Rank</th>
-                  <th className="px-4 py-3">Creator</th>
-                  <th className="px-4 py-3">Shares</th>
-                  <th className="px-4 py-3">Downloads</th>
-                  <th className="px-4 py-3">Prize</th>
+                  <th className="px-4 py-3">{card.thRank}</th>
+                  <th className="px-4 py-3">{card.thCreator}</th>
+                  <th className="px-4 py-3">{card.thShares}</th>
+                  <th className="px-4 py-3">{card.thDownloads}</th>
+                  <th className="px-4 py-3">{card.thPrize}</th>
                 </tr>
               </thead>
               <tbody>
                 {item.leaderboard.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                      Event day live shares have not started yet or approved posters are not available.
+                      {card.leaderboardEmpty}
                     </td>
                   </tr>
                 ) : (
@@ -709,7 +795,7 @@ function CompetitionCard({
                         {row.prizeAmount > 0 ? (
                           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                             <CoinIcon />
-                            <span>Rs.</span>
+                            <span>{moneyPrefix}</span>
                             <span>{row.prizeAmount}</span>
                           </span>
                         ) : (
@@ -726,12 +812,10 @@ function CompetitionCard({
 
         <div className="space-y-4">
           <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
-            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">
-              Prize Highlights
-            </h4>
+            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">{card.prizeHighlights}</h4>
             <div className="mt-4 space-y-2">
               {item.competition.rewardTiers.length === 0 ? (
-                <p className="text-sm text-slate-500">Prize tiers not configured.</p>
+                <p className="text-sm text-slate-500">{card.prizeTiersMissing}</p>
               ) : (
                 item.competition.rewardTiers.slice(0, 10).map((tier) => (
                   <div key={`${item.competition.id}-reward-${tier.rank}`} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3">
@@ -739,7 +823,10 @@ function CompetitionCard({
                       <MedalIcon />
                       {tier.label}
                     </span>
-                    <span className="text-sm font-black text-slate-900">Rs.{tier.amount}</span>
+                    <span className="text-sm font-black text-slate-900">
+                      {moneyPrefix}
+                      {tier.amount}
+                    </span>
                   </div>
                 ))
               )}
@@ -747,24 +834,22 @@ function CompetitionCard({
           </div>
 
           <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
-            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">
-              Winner Preview
-            </h4>
+            <h4 className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">{card.winnerPreview}</h4>
             <div className="mt-4 space-y-2">
               {item.winners.length === 0 ? (
-                <p className="text-sm text-slate-500">Top winners are not decided yet.</p>
+                <p className="text-sm text-slate-500">{card.winnersPending}</p>
               ) : (
                 item.winners.map((winner) => (
                   <div key={`${item.competition.id}-winner-${winner.creatorPublicId}`} className={`rounded-2xl border px-4 py-3 ${rankTone(winner.rank)}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-black">{winner.creatorName}</p>
-                        <p className="text-xs opacity-75">Rank #{winner.rank}</p>
+                        <p className="text-xs opacity-75">{card.rankLine(winner.rank)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-black">{winner.shares} shares</p>
+                        <p className="text-sm font-black">{card.sharesCount(winner.shares)}</p>
                         <p className="text-xs opacity-75">
-                          {winner.prizeAmount > 0 ? `Rs.${winner.prizeAmount}` : "Prize pending"}
+                          {winner.prizeAmount > 0 ? `${moneyPrefix}${winner.prizeAmount}` : card.prizePending}
                         </p>
                       </div>
                     </div>
@@ -779,7 +864,15 @@ function CompetitionCard({
   );
 }
 
-function CompactCompetitionCard({ item }: { item: CompetitionItem }) {
+function CompactCompetitionCard({
+  item,
+  phaseLabel,
+  compact,
+}: {
+  item: CompetitionItem;
+  phaseLabel: (phase: CompetitionPhase) => string;
+  compact: ReturnType<typeof competitionHubTexts>;
+}) {
   return (
     <article className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -792,7 +885,7 @@ function CompactCompetitionCard({ item }: { item: CompetitionItem }) {
       </div>
       <h3 className="mt-4 text-xl font-black text-slate-950">{item.competition.title}</h3>
       <p className="mt-2 text-sm leading-7 text-slate-600">
-        {item.competition.description || "Competition details available inside this event card."}
+        {item.competition.description || compact.compactDescFallback}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {item.categoryLabels.map((label) => (
@@ -802,9 +895,9 @@ function CompactCompetitionCard({ item }: { item: CompetitionItem }) {
         ))}
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <MiniMetric label="Creators" value={String(item.creatorCount)} />
-        <MiniMetric label="Shares" value={String(item.totalShares)} />
-        <MiniMetric label="Winners" value={item.winners.length > 0 ? item.winners.map((winner) => `#${winner.rank}`).join(", ") : "-"} />
+        <MiniMetric label={compact.creators} value={String(item.creatorCount)} />
+        <MiniMetric label={compact.card.thShares} value={String(item.totalShares)} />
+        <MiniMetric label={compact.winners} value={item.winners.length > 0 ? item.winners.map((winner) => `#${winner.rank}`).join(", ") : "-"} />
       </div>
       {item.winners.length > 0 ? (
         <div className="mt-4 space-y-2">
@@ -812,11 +905,16 @@ function CompactCompetitionCard({ item }: { item: CompetitionItem }) {
             <div key={`${item.competition.id}-allwinner-${winner.creatorPublicId}`} className={`flex items-center justify-between rounded-2xl border px-4 py-3 ${rankTone(winner.rank)}`}>
               <div>
                 <p className="text-sm font-black">{winner.creatorName}</p>
-                <p className="text-xs opacity-75">Event: {formatDateTime(item.competition.liveAt)}</p>
+                <p className="text-xs opacity-75">
+                  {compact.eventDayPrefix}
+                  {formatDateTime(item.competition.liveAt)}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-black">#{winner.rank}</p>
-                <p className="text-xs opacity-75">{winner.prizeAmount > 0 ? `Rs.${winner.prizeAmount}` : "-"}</p>
+                <p className="text-xs opacity-75">
+                  {winner.prizeAmount > 0 ? `${compact.money}${winner.prizeAmount}` : "-"}
+                </p>
               </div>
             </div>
           ))}
