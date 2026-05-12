@@ -18,8 +18,6 @@ import { getNextIstMidnight, getNextIstWeekdayStart } from "@/lib/server/ist-sch
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-
 const payloadSchema = z.object({
   title: z.string().trim().min(1).max(120),
   categoryId: z.string().trim().min(1),
@@ -53,14 +51,13 @@ function resolveFileExtension(file: File): string {
 async function resolveAdminPosterSchedule(
   categoryId: string,
   now: number,
-  uploadSource: string | undefined,
+  _uploadSource: string | undefined,
 ) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(now, weekday);
-    const publishAt = uploadSource === "upload_posters" ? scheduledStart : 0;
     return {
-      publishAt,
+      publishAt: 0,
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
@@ -97,10 +94,8 @@ async function resolveAdminPosterSchedule(
   }
   const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
   const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
-  const dynamicPublishAt =
-    eventStartAt > 0 ? Math.max(eventStartAt - THREE_DAYS_MS, now) : 0;
   return {
-    publishAt: uploadSource === "upload_posters" ? dynamicPublishAt : 0,
+    publishAt: 0,
     eventStartAt,
     eventEndAt,
     dynamicCategoryId: dynamicSchedule?.id ?? "",

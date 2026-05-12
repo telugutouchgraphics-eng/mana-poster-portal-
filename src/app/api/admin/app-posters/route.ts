@@ -20,8 +20,6 @@ import { getNextIstMidnight, getNextIstWeekdayStart } from "@/lib/server/ist-sch
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
   /** FormData.get returns null when missing; Zod .default only runs for undefined. */
@@ -167,14 +165,15 @@ async function buildAdminAppPosterCategories() {
 async function resolveAdminPosterSchedule(
   categoryId: string,
   now: number,
-  uploadSource: "app_posters" | "upload_posters" = "app_posters",
+  _uploadSource: "app_posters" | "upload_posters" = "app_posters",
 ) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(now, weekday);
-    const publishAt = uploadSource === "app_posters" ? 0 : scheduledStart;
     return {
-      publishAt,
+      // Always 0 so approved admin posters appear in the app immediately.
+      // Week timing is stored on eventStartAt / eventEndAt.
+      publishAt: 0,
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
@@ -213,10 +212,10 @@ async function resolveAdminPosterSchedule(
   }
   const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
   const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
-  const dynamicPublishAt =
-    eventStartAt > 0 ? Math.max(eventStartAt - THREE_DAYS_MS, now) : 0;
   return {
-    publishAt: uploadSource === "app_posters" ? 0 : dynamicPublishAt,
+    // Same as app_posters tab: do not hide uploads until "event - 3 days".
+    // Flutter feed gates on publishAt; delayed publish hid Upload-tab posters.
+    publishAt: 0,
     eventStartAt,
     eventEndAt,
     dynamicCategoryId: dynamicSchedule?.id ?? "",
