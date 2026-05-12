@@ -26,6 +26,7 @@ interface AdminCategory {
 
 interface AdminPoster {
   id: string;
+  title?: string;
   categoryId: string;
   categoryLabel: string;
   mediaType?: string;
@@ -338,6 +339,7 @@ export default function AdminUploadStudioPage() {
   const [dashboard, setDashboard] = useState<AdminAppPostersResponse | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [editingPosterId, setEditingPosterId] = useState<string | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileMeta, setFileMeta] = useState<ImageMeta | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -542,25 +544,42 @@ export default function AdminUploadStudioPage() {
       }
       const uploadFile = await preparePosterFileForUpload(file);
       const body = new FormData();
-      body.set("categoryId", categoryId);
-      body.set("uploadSource", "upload_posters");
-      body.set("media", uploadFile);
-      body.set(
-        "personalizationConfig",
-        JSON.stringify(clampPhotoSafeArea(personalization, fileMeta)),
-      );
-      const response = await fetch("/api/admin/app-posters", {
-        method: "POST",
-        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-        body,
-      });
+      const safeConfig = JSON.stringify(clampPhotoSafeArea(personalization, fileMeta));
+      let response: Response;
+      if (editingPosterId) {
+        const title = `Admin ${activeCategory?.label ?? categoryId}`;
+        body.set("title", title);
+        body.set("categoryId", categoryId);
+        body.set("media", uploadFile);
+        body.set("personalizationConfig", safeConfig);
+        response = await fetch(`/api/admin/app-posters/${editingPosterId}`, {
+          method: "PATCH",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+          body,
+        });
+      } else {
+        body.set("categoryId", categoryId);
+        body.set("uploadSource", "upload_posters");
+        body.set("media", uploadFile);
+        body.set("personalizationConfig", safeConfig);
+        response = await fetch("/api/admin/app-posters", {
+          method: "POST",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+          body,
+        });
+      }
       const data = await readUploadResponse(response);
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? t("creator.upload.uploadFailed", portalLanguage(language)));
       }
-      setUploadMessage("Poster uploaded and approved. It will appear in the app after refresh.");
+      setUploadMessage(
+        editingPosterId
+          ? "Poster updated and approved. It will appear in the app after refresh."
+          : "Poster uploaded and approved. It will appear in the app after refresh.",
+      );
       setCustomizeOpen(false);
       setFile(null);
+      setEditingPosterId(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -708,6 +727,31 @@ export default function AdminUploadStudioPage() {
     fileInputRef.current?.click();
   }
 
+  async function handleDeletePoster(posterId: string) {
+    const ok = window.confirm("Delete this upload permanently?");
+    if (!ok) return;
+    try {
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+      }
+      const response = await fetch(`/api/admin/app-posters/${posterId}`, {
+        method: "DELETE",
+        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to delete poster.");
+      }
+      if (editingPosterId === posterId) {
+        setEditingPosterId(null);
+      }
+      await loadDashboard(true);
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
+    }
+  }
+
   return (
     <>
       {error ? (
@@ -833,6 +877,20 @@ export default function AdminUploadStudioPage() {
                 <h4 className="mt-2 text-lg font-bold text-slate-950">
                   {activeCategory?.label ?? customizationCopy.selectCategory}
                 </h4>
+                {editingPosterId ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+                      Editing recent upload
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPosterId(null)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
                 {activeCategoryUpload ? (
                   <div className="mt-3 space-y-1 text-sm text-slate-600">
                     <span
@@ -938,7 +996,11 @@ export default function AdminUploadStudioPage() {
                     disabled={uploadBusy || !file || !categoryId}
                     className="rounded-xl bg-[var(--portal-green)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {uploadBusy ? customizationCopy.uploading : customizationCopy.upload}
+                    {uploadBusy
+                      ? customizationCopy.uploading
+                      : editingPosterId
+                        ? "Update"
+                        : customizationCopy.upload}
                   </button>
                 </div>
 
@@ -950,6 +1012,87 @@ export default function AdminUploadStudioPage() {
               </div>
             </div>
           </form>
+
+          <section className="mt-6 rounded-[28px] border border-[var(--portal-border)] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
+                  Recent uploads
+                </p>
+                <h4 className="mt-2 text-lg font-bold text-slate-950">Latest posters</h4>
+              </div>
+            </div>
+
+            {(dashboard?.posters ?? []).length === 0 ? (
+              <p className="mt-4 text-sm text-slate-600">No uploads yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {(dashboard?.posters ?? []).slice(0, 12).map((poster) => (
+                  <div
+                    key={poster.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-14 w-14 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                        {isVideoPoster(poster) ? (
+                          <video
+                            src={poster.videoUrl}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={poster.imageUrl}
+                            alt={poster.title ?? poster.categoryLabel ?? poster.categoryId}
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">
+                          {poster.categoryLabel || poster.categoryId}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">{formatDate(poster.createdAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}
+                      >
+                        {poster.status === "approved"
+                          ? customizationCopy.accepted
+                          : poster.status === "rejected"
+                            ? customizationCopy.rejected
+                            : customizationCopy.pending}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPosterId(poster.id);
+                          setCategoryId(poster.categoryId);
+                          setUploadMessage(null);
+                          openCustomizationPicker(poster.categoryId);
+                        }}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeletePoster(poster.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </article>
       </section>
 

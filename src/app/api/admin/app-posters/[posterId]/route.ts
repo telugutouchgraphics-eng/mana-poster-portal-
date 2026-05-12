@@ -140,6 +140,18 @@ export async function PATCH(
       title: formData.get("title"),
       categoryId: formData.get("categoryId"),
     });
+    let personalizationConfig: unknown = undefined;
+    const personalizationRaw = formData.get("personalizationConfig");
+    if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
+      try {
+        personalizationConfig = JSON.parse(personalizationRaw);
+      } catch {
+        return NextResponse.json(
+          { ok: false, error: "Unable to parse personalization config." },
+          { status: 400 },
+        );
+      }
+    }
 
     const manualCategory = await getManualEventCategoryById(parsed.categoryId);
     const category =
@@ -222,6 +234,7 @@ export async function PATCH(
         dynamicCategoryLabel: schedule.dynamicCategoryLabel,
         performanceWindowStartAt: schedule.publishAt || updatedAt,
         performanceWindowEndAt: (schedule.publishAt || updatedAt) + 24 * 60 * 60 * 1000,
+        ...(personalizationConfig != null ? { personalizationConfig } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(imageUrl ? { imageUrl } : {}),
         ...(typeof imagePath === "string" ? { imagePath } : {}),
