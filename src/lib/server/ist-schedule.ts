@@ -31,6 +31,10 @@ export function getNextIstMidnight(epochMs: number): number {
   return getIstStartOfDay(epochMs) + DAY_MS;
 }
 
+/**
+ * IST midnight at the start of the target weekday.
+ * If today is already that weekday, returns today's midnight (same day), not next week's.
+ */
 export function getNextIstWeekdayStart(
   epochMs: number,
   weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7,
@@ -39,7 +43,7 @@ export function getNextIstWeekdayStart(
   const shifted = shiftedDate(startOfDay);
   const todayWeekday = ((shifted.getUTCDay() + 6) % 7) + 1;
   let daysAhead = weekday - todayWeekday;
-  if (daysAhead <= 0) {
+  if (daysAhead < 0) {
     daysAhead += 7;
   }
   return startOfDay + daysAhead * DAY_MS;
