@@ -8,18 +8,18 @@ import {
   getVisibleDynamicCategoryById,
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
-import {
-  getManualAppPublishAt,
-  getManualEventCategoryById,
-} from "@/lib/server/manual-event-categories";
+import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
 import {
   getNextIstMidnight,
   getNextIstWeekdayStart,
   getPosterPublishAt,
 } from "@/lib/server/ist-schedule";
+import {
+  resolveFeedPublishAtMs,
+  resolveManualFeedPublishAtMs,
+} from "@/lib/server/poster-feed-schedule";
 
 const APPROVAL_REWARD_AMOUNT = 10;
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 const payloadSchema = z.object({
   status: z.enum(["approved", "rejected", "archived", "deleted"]),
@@ -31,7 +31,7 @@ async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedA
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(uploadedAt, weekday);
     return {
-      publishAt: Math.max(scheduledStart, approvedAt),
+      publishAt: resolveFeedPublishAtMs(scheduledStart, approvedAt),
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
     };
@@ -54,27 +54,15 @@ async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedA
       };
     }
     return {
-      publishAt: Math.max(getManualAppPublishAt(item.startAt), approvedAt),
+      publishAt: resolveManualFeedPublishAtMs(item.startAt, approvedAt),
       eventStartAt: item.startAt,
       eventEndAt: item.endAt,
     };
   }
   const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
   const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
-  const dynamicPublishAt =
-    eventStartAt > 0 ? Math.max(eventStartAt - THREE_DAYS_MS, approvedAt) : approvedAt;
-
-  if (eventStartAt > uploadedAt) {
-    return {
-      publishAt: dynamicPublishAt,
-      eventStartAt,
-      eventEndAt,
-    };
-  }
-
-  const delayedPublishAt = getNextIstMidnight(getNextIstMidnight(uploadedAt));
   return {
-    publishAt: Math.max(delayedPublishAt, approvedAt),
+    publishAt: resolveFeedPublishAtMs(eventStartAt, approvedAt),
     eventStartAt,
     eventEndAt,
   };

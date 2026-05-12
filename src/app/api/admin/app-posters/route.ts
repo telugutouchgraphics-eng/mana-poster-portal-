@@ -16,6 +16,10 @@ import {
 } from "@/lib/server/manual-event-categories";
 import { uploadAdminAsset } from "@/lib/server/content-management";
 import { getNextIstMidnight, getNextIstWeekdayStart } from "@/lib/server/ist-schedule";
+import {
+  resolveFeedPublishAtMs,
+  resolveManualFeedPublishAtMs,
+} from "@/lib/server/poster-feed-schedule";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -162,18 +166,12 @@ async function buildAdminAppPosterCategories() {
   ];
 }
 
-async function resolveAdminPosterSchedule(
-  categoryId: string,
-  now: number,
-  _uploadSource: "app_posters" | "upload_posters" = "app_posters",
-) {
+async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(now, weekday);
     return {
-      // Always 0 so approved admin posters appear in the app immediately.
-      // Week timing is stored on eventStartAt / eventEndAt.
-      publishAt: 0,
+      publishAt: resolveFeedPublishAtMs(scheduledStart, now),
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
@@ -200,10 +198,8 @@ async function resolveAdminPosterSchedule(
         dynamicCategoryLabel: "",
       };
     }
-    // Manual Firestore categories: do not delay app feed by publishAt — the
-    // calendar JSON repo does not drive these chips; gating hid admin uploads.
     return {
-      publishAt: 0,
+      publishAt: resolveManualFeedPublishAtMs(item.startAt, now),
       eventStartAt: item.startAt,
       eventEndAt: item.endAt,
       dynamicCategoryId: item.id,
@@ -213,9 +209,7 @@ async function resolveAdminPosterSchedule(
   const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
   const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
   return {
-    // Same as app_posters tab: do not hide uploads until "event - 3 days".
-    // Flutter feed gates on publishAt; delayed publish hid Upload-tab posters.
-    publishAt: 0,
+    publishAt: resolveFeedPublishAtMs(eventStartAt, now),
     eventStartAt,
     eventEndAt,
     dynamicCategoryId: dynamicSchedule?.id ?? "",
@@ -342,7 +336,7 @@ export async function POST(req: NextRequest) {
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const now = Date.now();
-    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, now, parsed.uploadSource);
+    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, now);
     const posterRef = adminDb.collection("creatorPosters").doc();
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);
     const storageFolder = resolveAdminPosterStorageFolder(parsed.uploadSource);

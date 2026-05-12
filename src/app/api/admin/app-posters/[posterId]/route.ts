@@ -15,6 +15,10 @@ import {
 } from "@/lib/server/categories";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
 import { getNextIstMidnight, getNextIstWeekdayStart } from "@/lib/server/ist-schedule";
+import {
+  resolveFeedPublishAtMs,
+  resolveManualFeedPublishAtMs,
+} from "@/lib/server/poster-feed-schedule";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -48,16 +52,12 @@ function resolveFileExtension(file: File): string {
   return "png";
 }
 
-async function resolveAdminPosterSchedule(
-  categoryId: string,
-  now: number,
-  _uploadSource: string | undefined,
-) {
+async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(now, weekday);
     return {
-      publishAt: 0,
+      publishAt: resolveFeedPublishAtMs(scheduledStart, now),
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
@@ -85,7 +85,7 @@ async function resolveAdminPosterSchedule(
       };
     }
     return {
-      publishAt: 0,
+      publishAt: resolveManualFeedPublishAtMs(item.startAt, now),
       eventStartAt: item.startAt,
       eventEndAt: item.endAt,
       dynamicCategoryId: item.id,
@@ -95,7 +95,7 @@ async function resolveAdminPosterSchedule(
   const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
   const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
   return {
-    publishAt: 0,
+    publishAt: resolveFeedPublishAtMs(eventStartAt, now),
     eventStartAt,
     eventEndAt,
     dynamicCategoryId: dynamicSchedule?.id ?? "",
@@ -209,8 +209,7 @@ export async function PATCH(
     }
 
     const updatedAt = Date.now();
-    const uploadSource = existing.storageFolderKey ?? existing.createdBySurface;
-    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, updatedAt, uploadSource);
+    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, updatedAt);
     await posterRef.set(
       {
         title: parsed.title,
