@@ -8,6 +8,7 @@ interface RawDashboardAdminDoc {
   email?: string;
   name?: string;
   phone?: string;
+  loginPassword?: string;
   dashboardAdminStatus?: string;
   dashboardAdminManaged?: boolean;
   createdAt?: number;
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
         email: String(item.email ?? ""),
         name: String(item.name ?? ""),
         phone: String(item.phone ?? ""),
+        loginPassword: String(item.loginPassword ?? ""),
         dashboardAdminStatus: String(item.dashboardAdminStatus ?? "active"),
         createdAt: Number(item.createdAt ?? 0),
         updatedAt: Number(item.updatedAt ?? 0),

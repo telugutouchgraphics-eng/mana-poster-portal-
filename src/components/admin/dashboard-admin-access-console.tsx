@@ -14,6 +14,7 @@ interface DashboardAdminAccessRow {
   email: string;
   name: string;
   phone: string;
+  loginPassword: string;
   dashboardAdminStatus: string;
   createdAt: number;
   updatedAt: number;
@@ -26,7 +27,7 @@ interface CreateDashboardAdminResponse {
   email?: string;
   name?: string;
   loginLink?: string;
-  setupLink?: string;
+  initialPassword?: string;
   existingUser?: boolean;
 }
 
@@ -265,7 +266,7 @@ export function DashboardAdminAccessConsole() {
           </p>
           <h3 className="mt-2 text-2xl font-bold text-slate-950">Give full dashboard access to admins</h3>
           <p className="mt-2 text-sm leading-7 text-slate-600">
-            Enter admin details. A secure setup link will be generated instead of a shared password.
+            Enter admin details. The system will generate a password for email + password + OTP login.
           </p>
 
           <form onSubmit={handleCreateAdmin} className="mt-6 grid gap-4 md:grid-cols-3">
@@ -311,12 +312,12 @@ export function DashboardAdminAccessConsole() {
               <p className="font-semibold text-emerald-900">{createResult.name} access ready</p>
               <p className="mt-1">Dashboard ID: {createResult.dashboardAdminLoginId}</p>
               <p className="mt-1">Login email: {createResult.email}</p>
+              <p className="mt-1">System password: {createResult.initialPassword}</p>
               <p className="mt-1 break-all">Login link: {createResult.loginLink}</p>
-              <p className="mt-1 break-all">Setup link: {createResult.setupLink}</p>
               <p className="mt-1 text-emerald-700">
                 {createResult.existingUser
-                  ? "Existing account access was refreshed. Use the setup link to set a new password."
-                  : "New dashboard admin should use the setup link to set a password securely."}
+                  ? "Existing account access was refreshed with this system password."
+                  : "New dashboard admin should use this email and system password, then verify OTP."}
               </p>
             </div>
           ) : null}
@@ -374,6 +375,7 @@ export function DashboardAdminAccessConsole() {
                   <div className="mt-3 grid gap-2 text-xs text-slate-600">
                     <p>Dashboard ID: {row.dashboardAdminLoginId || "-"}</p>
                     <p>Phone: {row.phone || "-"}</p>
+                    <p>System password: {row.loginPassword || "-"}</p>
                     <p>{selfRow ? "Current login" : "Managed admin"}</p>
                   </div>
                   <button
@@ -397,6 +399,7 @@ export function DashboardAdminAccessConsole() {
                 <th className="px-4 py-3">Dashboard ID</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
@@ -404,13 +407,13 @@ export function DashboardAdminAccessConsole() {
             <tbody>
               {rowsBusy ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                     Loading dashboard admin access...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                     No dashboard admin access records found.
                   </td>
                 </tr>
@@ -426,6 +429,7 @@ export function DashboardAdminAccessConsole() {
                       <td className="px-4 py-4 text-slate-700">{row.dashboardAdminLoginId || "-"}</td>
                       <td className="px-4 py-4 text-slate-700">{row.email}</td>
                       <td className="px-4 py-4 text-slate-700">{row.phone || "-"}</td>
+                      <td className="px-4 py-4 font-mono text-xs text-slate-700">{row.loginPassword || "-"}</td>
                       <td className="px-4 py-4">
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${

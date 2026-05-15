@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { assertManagedRoleAssignmentAllowed, requireRole } from "@/lib/server/auth";
-import { buildPortalLoginUrl, generatePortalPasswordResetLink } from "@/lib/server/auth-links";
+import { buildPortalLoginUrl } from "@/lib/server/auth-links";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import { isAppRole, mergeRoles, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
@@ -94,7 +93,9 @@ export async function POST(req: NextRequest) {
 
     await adminAuth.updateUser(adminUid, {
       email: authEmail,
+      password: seedPassword,
       displayName: payload.name,
+      disabled: false,
     });
     await adminAuth.setCustomUserClaims(adminUid, {
       role: nextPrimaryRole,
@@ -115,13 +116,12 @@ export async function POST(req: NextRequest) {
         dashboardAdminStatus: "active",
         dashboardAdminAssignedByUid: actor.uid,
         dashboardAdminAssignedAt: now,
-        loginPassword: FieldValue.delete(),
+        loginPassword: seedPassword,
         updatedAt: now,
         createdAt: userSnap.exists ? userSnap.data()?.createdAt ?? now : now,
       },
       { merge: true },
     );
-    const setupLink = await generatePortalPasswordResetLink(authEmail, "admin");
 
     await writeAuditLog({
       actorUid: actor.uid,
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       name: payload.name,
       dashboardAdminLoginId,
       loginLink: buildPortalLoginUrl("admin"),
-      setupLink,
+      initialPassword: seedPassword,
       existingUser,
     });
   } catch (error) {
