@@ -73,15 +73,15 @@ export function CreatorMyUploadsBoard() {
     loginRequired: isTelugu ? "లాగిన్ రిక్వైర్డ్." : "Login required.",
     unableUploads: isTelugu ? "అప్లోడ్స్ లోడ్ చేయలేకపోయాం." : "Unable to load uploads.",
     unablePerformance: isTelugu ? "పెర్ఫార్మెన్స్ లోడ్ చేయలేకపోయాం." : "Unable to load performance.",
-    myUploads: isTelugu ? "మై అప్లోడ్స్" : "My Uploads",
-    activeUploads: isTelugu ? "యాక్టివ్ అప్లోడ్స్" : "Active Uploads",
+    myUploads: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
+    activeUploads: isTelugu ? "లైవ్ పోస్టర్ పెర్ఫార్మెన్స్" : "Live Poster Performance",
     subtitle: isTelugu
-      ? "మేనేజర్ రివ్యూ స్టేటస్, 24 అవర్స్ పెర్ఫార్మెన్స్, ర్యాంక్ ఇక్కడ కనిపిస్తాయి."
-      : "Manager review status, 24 hour performance, and rank appear here.",
+      ? "అప్రూవ్ అయి లైవ్‌లో ఉన్న పోస్టర్ల షేర్స్, డౌన్‌లోడ్స్, ర్యాంక్ ఇక్కడ కనిపిస్తాయి."
+      : "Shares, downloads, and rank appear here for approved posters currently live in the app.",
     refreshing: isTelugu ? "రిఫ్రెష్ అవుతోంది..." : "Refreshing...",
     refresh: isTelugu ? "రిఫ్రెష్" : "Refresh",
     loading: isTelugu ? "అప్లోడ్స్ లోడింగ్..." : "Loading uploads...",
-    empty: isTelugu ? "కరెంట్‌గా యాక్టివ్ అప్లోడ్స్ లేవు." : "Active uploads are not available right now.",
+    empty: isTelugu ? "కరెంట్‌గా లైవ్ పెర్ఫార్మెన్స్ పోస్టర్లు లేవు." : "No live poster performance is available right now.",
     uploadedAt: isTelugu ? "అప్లోడ్ టైమ్" : "Uploaded",
     accepted: isTelugu ? "యాక్సెప్టెడ్" : "Accepted",
     rejected: isTelugu ? "రిజెక్టెడ్" : "Rejected",

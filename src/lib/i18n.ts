@@ -213,7 +213,6 @@ type TranslationKey =
   | "creator.upload.customization"
   | "creator.upload.uploading"
   | "creator.upload.upload"
-  | "creator.upload.alreadyUploadedToday"
   | "creator.upload.customize"
   | "creator.upload.previewPlacement"
   | "creator.upload.close"
@@ -457,7 +456,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "creator.upload.customization": "Customization",
     "creator.upload.uploading": "Uploading...",
     "creator.upload.upload": "Upload",
-    "creator.upload.alreadyUploadedToday": "Latest submission for this category today is shown below. You can upload more posters.",
     "creator.upload.customize": "Customize",
     "creator.upload.previewPlacement": "Preview Placement",
     "creator.upload.close": "Close",
@@ -700,7 +698,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "creator.upload.customization": "à°•à°¸à±à°Ÿà°®à±ˆà°œà±‡à°·à°¨à±",
     "creator.upload.uploading": "à°…à°ªà±â€Œà°²à±‹à°¡à± à°…à°µà±à°¤à±‹à°‚à°¦à°¿...",
     "creator.upload.upload": "à°…à°ªà±â€Œà°²à±‹à°¡à±",
-    "creator.upload.alreadyUploadedToday": "à°ˆ à°•à±‡à°Ÿà°—à°¿à°°à±€à°²à±‹ à°ˆà°°à±‹à°œà± à°’à°• à°ªà±‹à°¸à±à°Ÿà°°à± à°‡à°ªà±à°ªà°Ÿà°¿à°•à±‡ à°¸à°®à°°à±à°ªà°¿à°‚à°šà°¬à°¡à°¿à°‚à°¦à°¿. à°°à±‡à°ªà± à°®à°³à±à°²à±€ à°…à°ªà±â€Œà°²à±‹à°¡à± à°šà±‡à°¯à°µà°šà±à°šà±.",
     "creator.upload.customize": "à°•à°¸à±à°Ÿà°®à±ˆà°œà±",
     "creator.upload.previewPlacement": "à°ªà±à°°à°¿à°µà±à°¯à±‚ à°ªà±à°²à±‡à°¸à±â€Œà°®à±†à°‚à°Ÿà±",
     "creator.upload.close": "à°®à±‚à°¸à°¿à°µà±‡à°¯à°¿",

@@ -21,13 +21,13 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
     },
     {
       href: "/creator/dashboard/upload",
-      label: isTelugu ? "అప్లోడ్ పోస్టర్స్" : "Upload Posters",
+      label: isTelugu ? "అప్లోడ్ & రివ్యూ" : "Upload & Review",
       shortLabel: isTelugu ? "అప్లోడ్" : "Upload",
     },
     {
       href: "/creator/dashboard/performance",
-      label: isTelugu ? "మై అప్లోడ్స్" : "My Uploads",
-      shortLabel: isTelugu ? "మై అప్లోడ్స్" : "My Uploads",
+      label: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
+      shortLabel: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
     },
     {
       href: "/creator/dashboard/leaderboard",

@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
@@ -81,7 +81,6 @@ interface CreatorDashboardResponse {
     cutoffLabel: string;
     dayKey: string;
   };
-  todayUploadsByCategory?: CreatorPoster[];
   announcements?: Array<{
     id: string;
     title: string;
@@ -607,15 +606,7 @@ export default function CreatorUploadStudioPage() {
   const announcements = dashboard?.announcements ?? [];
   const reviewPosters = dashboard?.posters ?? [];
   const uploadWindow = dashboard?.uploadWindow;
-  const todayUploadsByCategory = useMemo(
-    () =>
-      Object.fromEntries(
-        (dashboard?.todayUploadsByCategory ?? []).map((item) => [item.categoryId, item]),
-      ) as Record<string, CreatorPoster>,
-    [dashboard?.todayUploadsByCategory],
-  );
   const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
-  const activeTodayUpload = categoryId ? (todayUploadsByCategory[categoryId] ?? null) : null;
   const activeEditPoster = editingPoster && editingPoster.categoryId === categoryId ? editingPoster : null;
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
@@ -663,9 +654,6 @@ export default function CreatorUploadStudioPage() {
     chooseReplacement: isTelugu
       ? "కొత్త ఫైల్ ఎంచుకుని అప్‌డేట్ చేయండి, లేదా కేటగిరీ మార్చి అప్‌డేట్ చేయండి."
       : "Choose a new file to replace it, or change the category and update.",
-    alreadyUploadedToday: isTelugu
-      ? "ఈ క్యాటగిరీలో టుడే లేటెస్ట్ సబ్మిషన్ క్రింద కనిపిస్తుంది. ఇంకా పోస్టర్లు అప్లోడ్ చేయొచ్చు."
-      : "Latest submission for this category today is shown below. You can upload more posters.",
     customize: isTelugu ? "కస్టమైజ్" : "Customize",
     previewPlacement: isTelugu ? "ప్రివ్యూ ప్లేస్‌మెంట్" : "Preview Placement",
     close: isTelugu ? "క్లోజ్" : "Close",
@@ -716,7 +704,6 @@ export default function CreatorUploadStudioPage() {
     customization: t("creator.upload.customization", lang),
     uploading: t("creator.upload.uploading", lang),
     upload: t("creator.upload.upload", lang),
-    alreadyUploadedToday: t("creator.upload.alreadyUploadedToday", lang),
     customize: t("creator.upload.customize", lang),
     previewPlacement: t("creator.upload.previewPlacement", lang),
     close: t("creator.upload.close", lang),
@@ -988,20 +975,6 @@ export default function CreatorUploadStudioPage() {
                       {customizationCopy.cancelEdit}
                     </button>
                   </div>
-                ) : activeTodayUpload ? (
-                  <div className="mt-3 space-y-1 text-sm text-slate-600">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(activeTodayUpload.status)}`}>
-                      {activeTodayUpload.status === "approved"
-                        ? customizationCopy.accepted
-                        : activeTodayUpload.status === "rejected"
-                          ? customizationCopy.rejected
-                          : customizationCopy.pending}
-                    </span>
-                    <p>{formatDate(activeTodayUpload.createdAt)}</p>
-                    {activeTodayUpload.reviewComment ? (
-                      <p className="text-rose-600">{customizationCopy.reason}: {activeTodayUpload.reviewComment}</p>
-                    ) : null}
-                  </div>
                 ) : null}
               </div>
               {file ? (
@@ -1097,12 +1070,6 @@ export default function CreatorUploadStudioPage() {
                         : customizationCopy.upload}
                   </button>
                 </div>
-
-                {activeTodayUpload ? (
-                  <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    {customizationCopy.alreadyUploadedToday}
-                  </p>
-                ) : null}
 
                 {uploadMessage ? (
                   <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
