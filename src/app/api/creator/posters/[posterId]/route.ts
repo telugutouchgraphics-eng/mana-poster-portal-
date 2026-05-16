@@ -162,6 +162,9 @@ export async function PATCH(
       eventEndAt: 0,
       performanceWindowStartAt: 0,
       performanceWindowEndAt: 0,
+      dashboardVisibleUntil: now + 24 * 60 * 60 * 1000,
+      dashboardHiddenAt: 0,
+      dashboardHiddenReason: "",
       updatedAt: now,
       reviewHistory: [
         ...(Array.isArray(poster.reviewHistory) ? poster.reviewHistory : []),
@@ -203,6 +206,7 @@ export async function PATCH(
         .where("creatorPublicId", "==", creator.creatorPublicId)
         .where("categoryId", "==", parsed.categoryId)
         .where("imageHash", "==", imageHash)
+        .limit(2)
         .get();
       const duplicate = duplicateSnap.docs.find((doc) => doc.id !== posterId);
       if (duplicate) {

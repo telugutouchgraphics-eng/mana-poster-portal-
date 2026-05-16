@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AppRole } from "@/lib/types/roles";
 import { useAuth } from "@/components/auth/auth-provider";
-import { withDeviceHeader } from "@/lib/client/device-id";
 
 interface RoleGateProps {
   allowed: AppRole[];
@@ -12,75 +11,22 @@ interface RoleGateProps {
 }
 
 export function RoleGate({ allowed, children }: RoleGateProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, roles } = useAuth();
   const router = useRouter();
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      if (!user) {
-        if (!loading) {
-          router.replace("/login");
-        }
-        return;
-      }
-      setVerifying(true);
-      setError(null);
-      try {
-        const token = await user.getIdToken();
-        const response = await fetch("/api/auth/me", {
-          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-        });
-        const data = (await response.json()) as {
-          role?: AppRole;
-          roles?: AppRole[];
-          error?: string;
-        };
-        const fetchedRoles =
-          Array.isArray(data.roles) && data.roles.length > 0
-            ? data.roles
-            : data.role
-            ? [data.role]
-            : [];
-        if (!response.ok || fetchedRoles.length === 0) {
-          throw new Error(data.error ?? "Unable to fetch role.");
-        }
-        if (cancelled) {
-          return;
-        }
-        setRoles(fetchedRoles);
-        if (!allowed.some((role) => fetchedRoles.includes(role))) {
-          setError("Access denied for this role.");
-        } else {
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Access check failed.");
-        }
-      } finally {
-        if (!cancelled) {
-          setVerifying(false);
-        }
-      }
+    if (!user && !loading) {
+      router.replace("/login");
     }
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, loading, router, allowed]);
+  }, [user, loading, router]);
 
-  const isBusy = loading || verifying;
+  const isBusy = loading;
   const isAllowed = roles.length > 0 && allowed.some((role) => roles.includes(role));
   const reason = useMemo(() => {
     if (isBusy) return "Checking access...";
-    if (error) return error;
     if (!isAllowed) return "You do not have permission.";
     return null;
-  }, [isBusy, error, isAllowed]);
+  }, [isBusy, isAllowed]);
 
   if (!isAllowed) {
     return (

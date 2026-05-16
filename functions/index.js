@@ -14,6 +14,8 @@ const { FieldValue } = admin.firestore;
 
 const EXPIRY_HOURS = 168;
 const EXPIRY_MS = EXPIRY_HOURS * 60 * 60 * 1000;
+const DASHBOARD_POSTER_RETENTION_HOURS = 24;
+const DASHBOARD_POSTER_RETENTION_MS = DASHBOARD_POSTER_RETENTION_HOURS * 60 * 60 * 1000;
 const PUSH_HISTORY_EXPIRY_HOURS = 24;
 const PUSH_HISTORY_EXPIRY_MS = PUSH_HISTORY_EXPIRY_HOURS * 60 * 60 * 1000;
 const STORAGE_PAGE_SIZE = 1000;
@@ -336,6 +338,98 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
   };
 }
 
+async function hideExpiredCreatorPostersFromDashboards(cutoffMs) {
+  let lastDocumentId = null;
+  let scanned = 0;
+  let hidden = 0;
+  let updateErrors = 0;
+
+  while (true) {
+    let query = db
+      .collection("creatorPosters")
+      .orderBy(FieldPath.documentId())
+      .limit(FIRESTORE_PAGE_SIZE)
+      .select(
+        "status",
+        "approvedAt",
+        "createdAt",
+        "dashboardHiddenAt",
+        "dashboardVisibleUntil",
+        "reviewHistory",
+      );
+
+    if (lastDocumentId) {
+      query = query.startAfter(lastDocumentId);
+    }
+
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      break;
+    }
+
+    for (const document of snapshot.docs) {
+      scanned += 1;
+      const data = document.data();
+      if (Number(data.dashboardHiddenAt ?? 0) > 0) {
+        continue;
+      }
+
+      const status = String(data.status ?? "").trim().toLowerCase();
+      if (status === "expired") {
+        continue;
+      }
+
+      const baseTime =
+        status === "approved"
+          ? Number(data.approvedAt ?? data.createdAt ?? 0)
+          : Number(data.createdAt ?? 0);
+      if (!Number.isFinite(baseTime) || baseTime <= 0 || baseTime > cutoffMs) {
+        continue;
+      }
+
+      try {
+        const hiddenAt = Date.now();
+        await document.ref.set(
+          {
+            dashboardHiddenAt: hiddenAt,
+            dashboardHiddenReason:
+              status === "approved"
+                ? "approved_dashboard_auto_cleanup_after_24_hours"
+                : "creator_upload_dashboard_auto_cleanup_after_24_hours",
+            dashboardVisibleUntil: baseTime + DASHBOARD_POSTER_RETENTION_MS,
+            updatedAt: hiddenAt,
+            reviewHistory: FieldValue.arrayUnion({
+              type: "dashboard_hidden",
+              actorRole: "system",
+              actorId: "cleanupExpiredStorageAssets",
+              actorName: "Scheduled Cleanup",
+              comment:
+                "Poster hidden from manager/creator dashboards after 24 hours while app visibility is preserved.",
+              createdAt: hiddenAt,
+            }),
+          },
+          { merge: true },
+        );
+        hidden += 1;
+      } catch (error) {
+        updateErrors += 1;
+        logger.error("Failed to hide creator poster from dashboards.", {
+          posterId: document.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    lastDocumentId = snapshot.docs[snapshot.docs.length - 1].id;
+  }
+
+  return {
+    scanned,
+    hidden,
+    updateErrors,
+  };
+}
+
 function createStats() {
   return {
     scanned: 0,
@@ -523,8 +617,10 @@ exports.cleanupExpiredStorageAssets = onSchedule(
   async () => {
     const startedAt = Date.now();
     const cutoffMs = startedAt - EXPIRY_MS;
+    const dashboardCutoffMs = startedAt - DASHBOARD_POSTER_RETENTION_MS;
     const bucket = storage.bucket();
     const expiredPosterSummary = await expireApprovedCreatorPosterContent(bucket, cutoffMs);
+    const dashboardPosterSummary = await hideExpiredCreatorPostersFromDashboards(dashboardCutoffMs);
     const { protectedPaths, creatorPosterDocs, websitePosterDocs } =
       await buildProtectedPathSet(bucket.name);
 
@@ -543,6 +639,7 @@ exports.cleanupExpiredStorageAssets = onSchedule(
         websitePosters: websitePosterDocs,
       },
       expiredCreatorPosterContent: expiredPosterSummary,
+      dashboardCreatorPosterCleanup: dashboardPosterSummary,
       prefixes: {},
       totals: createStats(),
       durationMs: 0,

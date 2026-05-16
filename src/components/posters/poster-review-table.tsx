@@ -57,7 +57,16 @@ interface PosterRow {
   personalizationConfig: PosterPersonalization;
   createdAt: number;
   updatedAt: number;
+  approvedAt: number;
+  dashboardVisibleUntil: number;
 }
+
+const REVIEW_TABS = [
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "all", label: "All" },
+] as const;
 
 function formatDate(epochMs: number): string {
   if (!epochMs) {
@@ -147,10 +156,7 @@ export function PosterReviewTable() {
     void loadPosters();
   }, [user, loadPosters]);
 
-  const pendingCount = useMemo(
-    () => rows.filter((row) => row.status === "pending").length,
-    [rows]
-  );
+  const currentListCount = useMemo(() => rows.length, [rows]);
 
   async function submitReview(
     posterId: string,
@@ -230,33 +236,43 @@ export function PosterReviewTable() {
           </p>
         </div>
         <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-          Pending in current list: {pendingCount}
+          Current list: {currentListCount}
         </span>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
+      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search creator / category / poster"
           className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        >
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="all">All</option>
-        </select>
         <button
           onClick={() => void loadPosters()}
           className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
         >
           Refresh
         </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {REVIEW_TABS.map((tab) => {
+          const active = status === tab.value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setStatus(tab.value)}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                active
+                  ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
+                  : "border-[var(--portal-border)] bg-white text-slate-700 hover:bg-[var(--portal-surface-soft)]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {error ? (
@@ -277,6 +293,7 @@ export function PosterReviewTable() {
         ) : (
           rows.map((row) => {
             const config = row.personalizationConfig;
+            const approved = row.status === "approved";
             return (
               <article
                 key={row.id}
@@ -370,6 +387,14 @@ export function PosterReviewTable() {
                       <p className="text-xs text-slate-600">
                         Uploaded: {formatDate(row.createdAt)}
                       </p>
+                      {approved ? (
+                        <p className="text-xs text-slate-600">
+                          Approved: {formatDate(row.approvedAt)}
+                          {row.dashboardVisibleUntil > 0
+                            ? ` | Dashboard until ${formatDate(row.dashboardVisibleUntil)}`
+                            : ""}
+                        </p>
+                      ) : null}
                       <p className="text-xs text-slate-600">
                         Sales {row.saleCount} | Gross Rs.{row.grossAmount} | Creator Rs.
                         {row.creatorEarnings} | Platform Rs.{row.platformEarnings}
@@ -388,42 +413,46 @@ export function PosterReviewTable() {
                     </span>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-1 md:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto_auto]">
-                    <input
-                      value={reviewCommentMap[row.id] ?? ""}
-                      onChange={(e) =>
-                        setReviewCommentMap((prev) => ({
-                          ...prev,
-                          [row.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="Review comment (optional)"
-                      className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[var(--portal-border-strong)]"
-                    />
-                    <button
-                      onClick={() => void submitReview(row.id, "approved")}
-                      disabled={busyMap[row.id]}
-                      className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:opacity-60"
-                    >
-                      {busyMap[row.id] ? "Updating..." : "Approve"}
-                    </button>
-                    <button
-                      onClick={() => void submitReview(row.id, "rejected")}
-                      disabled={busyMap[row.id]}
-                      className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                    >
-                      {busyMap[row.id] ? "Updating..." : "Reject"}
-                    </button>
-                  </div>
+                  {!approved ? (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-1 md:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto_auto]">
+                      <input
+                        value={reviewCommentMap[row.id] ?? ""}
+                        onChange={(e) =>
+                          setReviewCommentMap((prev) => ({
+                            ...prev,
+                            [row.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Review comment (optional)"
+                        className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[var(--portal-border-strong)]"
+                      />
+                      <button
+                        onClick={() => void submitReview(row.id, "approved")}
+                        disabled={busyMap[row.id]}
+                        className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:opacity-60"
+                      >
+                        {busyMap[row.id] ? "Updating..." : "Approve"}
+                      </button>
+                      <button
+                        onClick={() => void submitReview(row.id, "rejected")}
+                        disabled={busyMap[row.id]}
+                        className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                      >
+                        {busyMap[row.id] ? "Updating..." : "Reject"}
+                      </button>
+                    </div>
+                  ) : null}
 
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <button
-                      onClick={() => void submitReview(row.id, "archived")}
-                      disabled={busyMap[row.id]}
-                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
-                    >
-                      Archive
-                    </button>
+                    {!approved ? (
+                      <button
+                        onClick={() => void submitReview(row.id, "archived")}
+                        disabled={busyMap[row.id]}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+                      >
+                        Archive
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => void submitReview(row.id, "deleted")}
                       disabled={busyMap[row.id]}

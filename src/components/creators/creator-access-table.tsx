@@ -236,7 +236,14 @@ export function CreatorAccessTable({
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Category assignment failed.");
       }
-      await loadCreators();
+      const nextCategories = selectedMap[creatorPublicId] ?? [];
+      setRows((prev) =>
+        prev.map((row) =>
+          row.creatorPublicId === creatorPublicId
+            ? { ...row, assignedCategories: nextCategories }
+            : row,
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Category assignment failed.");
     }
@@ -291,7 +298,6 @@ export function CreatorAccessTable({
         clipLines.push(`Optional setup link: ${data.setupLink}`);
       }
       await navigator.clipboard.writeText(clipLines.join("\n"));
-      await loadCreators();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to regenerate link.");
     }
@@ -318,7 +324,11 @@ export function CreatorAccessTable({
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to update creator access.");
       }
-      await loadCreators();
+      setRows((prev) =>
+        prev.map((row) =>
+          row.creatorPublicId === creatorPublicId ? { ...row, status: nextStatus } : row,
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update creator access.");
     }
@@ -338,7 +348,6 @@ export function CreatorAccessTable({
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to reset creator device.");
       }
-      await loadCreators();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reset creator device.");
     }
@@ -381,7 +390,6 @@ export function CreatorAccessTable({
         clipLines.push(`Login URL: ${data.loginLink}`);
       }
       await navigator.clipboard.writeText(clipLines.join("\n"));
-      await loadCreators();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reset creator password.");
     }
@@ -1137,30 +1145,37 @@ export function CreatorAccessTable({
               </button>
             </div>
             <div className="max-h-none overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:px-5">
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
                 {categories.map((category) => {
                   const selected = (selectedMap[categoryModalFor] ?? []).includes(category.id);
                   return (
                     <label
                       key={category.id}
-                      className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${
+                      className={`grid cursor-pointer grid-cols-[18px_minmax(0,1fr)] items-center gap-3 px-3 py-3 text-sm transition first:rounded-t-2xl last:rounded-b-2xl ${
                         category.isDynamic
-                          ? "border-sky-200 bg-sky-50 text-sky-900"
-                          : "border-slate-200 bg-white text-slate-700"
-                      } ${category.isBlinking ? "ring-1 ring-emerald-300" : ""}`}
+                          ? "bg-sky-50 text-sky-900 hover:bg-sky-100"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      } ${category.isBlinking ? "ring-inset ring-1 ring-emerald-300" : ""}`}
                     >
                       <input
                         type="checkbox"
                         checked={selected}
                         onChange={() => toggleCategory(categoryModalFor, category.id)}
-                        className="mt-0.5"
+                        className="h-4 w-4 shrink-0"
                       />
-                      <span className="min-w-0 flex-1">
-                        <span className={`block ${category.isDynamic ? "font-semibold" : ""}`}>
+                      <span className="flex min-w-0 items-center justify-between gap-3">
+                        <span
+                          className={`min-w-0 flex-1 overflow-visible break-words text-left leading-5 ${
+                            category.isDynamic ? "font-semibold text-sky-950" : "font-semibold text-slate-900"
+                          }`}
+                          title={category.label}
+                        >
                           {category.label}
                         </span>
                         {category.eventDateLabel ? (
-                          <span className="mt-1 block text-xs text-slate-500">{category.eventDateLabel}</span>
+                          <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs text-slate-500">
+                            {category.eventDateLabel}
+                          </span>
                         ) : null}
                       </span>
                     </label>

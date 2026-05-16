@@ -26,6 +26,31 @@ type TranslationKey =
   | "admin.nav.landingAccess"
   | "admin.nav.landing"
   | "admin.nav.settings"
+  | "manualEventCategories.eyebrow"
+  | "manualEventCategories.title"
+  | "manualEventCategories.description"
+  | "manualEventCategories.categoryId"
+  | "manualEventCategories.autoIdPlaceholder"
+  | "manualEventCategories.autoIdHelp"
+  | "manualEventCategories.label"
+  | "manualEventCategories.labelPlaceholder"
+  | "manualEventCategories.startDate"
+  | "manualEventCategories.endDate"
+  | "manualEventCategories.saving"
+  | "manualEventCategories.update"
+  | "manualEventCategories.create"
+  | "manualEventCategories.clear"
+  | "manualEventCategories.existingTitle"
+  | "manualEventCategories.loading"
+  | "manualEventCategories.empty"
+  | "manualEventCategories.edit"
+  | "manualEventCategories.delete"
+  | "manualEventCategories.unableLoad"
+  | "manualEventCategories.unableSave"
+  | "manualEventCategories.created"
+  | "manualEventCategories.updated"
+  | "manualEventCategories.unableDelete"
+  | "manualEventCategories.deleted"
   | "manager.table.loginRequired"
   | "manager.table.unableLoad"
   | "manager.table.unableStatus"
@@ -266,6 +291,32 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "admin.nav.landingAccess": "Landing Access",
     "admin.nav.landing": "Landing",
     "admin.nav.settings": "Settings",
+    "manualEventCategories.eyebrow": "Event Categories",
+    "manualEventCategories.title": "Create manual event categories",
+    "manualEventCategories.description":
+      "These categories appear in dashboard lists 7 days early and can be used for manual event poster workflows.",
+    "manualEventCategories.categoryId": "Category ID",
+    "manualEventCategories.autoIdPlaceholder": "Auto generated from label",
+    "manualEventCategories.autoIdHelp": "The ID is generated automatically from the label.",
+    "manualEventCategories.label": "Label",
+    "manualEventCategories.labelPlaceholder": "Example Event 2026",
+    "manualEventCategories.startDate": "Start Date",
+    "manualEventCategories.endDate": "End Date",
+    "manualEventCategories.saving": "Saving...",
+    "manualEventCategories.update": "Update Event Category",
+    "manualEventCategories.create": "Create Event Category",
+    "manualEventCategories.clear": "Clear",
+    "manualEventCategories.existingTitle": "Existing manual event categories",
+    "manualEventCategories.loading": "Loading event categories...",
+    "manualEventCategories.empty": "No manual event categories yet.",
+    "manualEventCategories.edit": "Edit",
+    "manualEventCategories.delete": "Delete",
+    "manualEventCategories.unableLoad": "Unable to load event categories.",
+    "manualEventCategories.unableSave": "Unable to save event category.",
+    "manualEventCategories.created": "Event category created.",
+    "manualEventCategories.updated": "Event category updated.",
+    "manualEventCategories.unableDelete": "Unable to delete event category.",
+    "manualEventCategories.deleted": "Event category deleted.",
     "manager.table.loginRequired": "Login required.",
     "manager.table.unableLoad": "Unable to load managers.",
     "manager.table.unableStatus": "Unable to change manager status.",
@@ -508,6 +559,32 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "admin.nav.landingAccess": "à°²à°¾à°‚à°¡à°¿à°‚à°—à± à°¯à°¾à°•à±à°¸à±†à°¸à±",
     "admin.nav.landing": "à°²à°¾à°‚à°¡à°¿à°‚à°—à±",
     "admin.nav.settings": "à°¸à±†à°Ÿà±à°Ÿà°¿à°‚à°—à±à°¸à±",
+    "manualEventCategories.eyebrow": "ఈవెంట్ క్యాటగిరీలు",
+    "manualEventCategories.title": "మాన్యువల్ ఈవెంట్ క్యాటగిరీలు సృష్టించండి",
+    "manualEventCategories.description":
+      "ఈ క్యాటగిరీలు డాష్‌బోర్డ్ లిస్టుల్లో 7 రోజులు ముందుగా కనిపిస్తాయి. మాన్యువల్ ఈవెంట్ పోస్టర్ వర్క్‌ఫ్లోలకు ఉపయోగించవచ్చు.",
+    "manualEventCategories.categoryId": "క్యాటగిరీ ID",
+    "manualEventCategories.autoIdPlaceholder": "లేబుల్ నుంచి ఆటోమేటిక్‌గా సృష్టించబడుతుంది",
+    "manualEventCategories.autoIdHelp": "లేబుల్ ఆధారంగా ID ఆటోమేటిక్‌గా సృష్టించబడుతుంది.",
+    "manualEventCategories.label": "లేబుల్",
+    "manualEventCategories.labelPlaceholder": "ఉదాహరణ ఈవెంట్ 2026",
+    "manualEventCategories.startDate": "ప్రారంభ తేదీ",
+    "manualEventCategories.endDate": "ముగింపు తేదీ",
+    "manualEventCategories.saving": "సేవ్ అవుతోంది...",
+    "manualEventCategories.update": "ఈవెంట్ క్యాటగిరీ అప్‌డేట్ చేయండి",
+    "manualEventCategories.create": "ఈవెంట్ క్యాటగిరీ సృష్టించండి",
+    "manualEventCategories.clear": "క్లియర్",
+    "manualEventCategories.existingTitle": "ఇప్పటికే ఉన్న మాన్యువల్ ఈవెంట్ క్యాటగిరీలు",
+    "manualEventCategories.loading": "ఈవెంట్ క్యాటగిరీలు లోడ్ అవుతున్నాయి...",
+    "manualEventCategories.empty": "ఇంకా మాన్యువల్ ఈవెంట్ క్యాటగిరీలు లేవు.",
+    "manualEventCategories.edit": "ఎడిట్",
+    "manualEventCategories.delete": "డిలీట్",
+    "manualEventCategories.unableLoad": "ఈవెంట్ క్యాటగిరీలు లోడ్ చేయలేకపోయాం.",
+    "manualEventCategories.unableSave": "ఈవెంట్ క్యాటగిరీ సేవ్ చేయలేకపోయాం.",
+    "manualEventCategories.created": "ఈవెంట్ క్యాటగిరీ సృష్టించబడింది.",
+    "manualEventCategories.updated": "ఈవెంట్ క్యాటగిరీ అప్‌డేట్ అయింది.",
+    "manualEventCategories.unableDelete": "ఈవెంట్ క్యాటగిరీ డిలీట్ చేయలేకపోయాం.",
+    "manualEventCategories.deleted": "ఈవెంట్ క్యాటగిరీ డిలీట్ అయింది.",
     "manager.table.loginRequired": "à°²à°¾à°—à°¿à°¨à± à°…à°µà°¸à°°à°‚.",
     "manager.table.unableLoad": "à°®à±‡à°¨à±‡à°œà°°à±à°²à°¨à± à°²à±‹à°¡à± à°šà±‡à°¯à°²à±‡à°•à°ªà±‹à°¯à°¾à°‚.",
     "manager.table.unableStatus": "à°®à±‡à°¨à±‡à°œà°°à± à°¸à±à°Ÿà±‡à°Ÿà°¸à± à°®à°¾à°°à±à°šà°²à±‡à°•à°ªà±‹à°¯à°¾à°‚.",

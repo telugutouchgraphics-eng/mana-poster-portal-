@@ -14,7 +14,11 @@ import {
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
-import { getNextIstMidnight, getNextIstWeekdayStart } from "@/lib/server/ist-schedule";
+import {
+  getCreatorPosterPublishAt,
+  getNextIstMidnight,
+  getNextIstWeekdayStart,
+} from "@/lib/server/ist-schedule";
 import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
@@ -57,7 +61,7 @@ async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(now, weekday);
     return {
-      publishAt: resolveFeedPublishAtMs(scheduledStart, now),
+      publishAt: scheduledStart,
       eventStartAt: scheduledStart,
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
@@ -76,8 +80,9 @@ async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   if (!dynamicSchedule) {
     const item = await getManualEventCategoryById(categoryId);
     if (!item) {
+      const publishAt = getCreatorPosterPublishAt(now);
       return {
-        publishAt: 0,
+        publishAt,
         eventStartAt: 0,
         eventEndAt: 0,
         dynamicCategoryId: "",

@@ -45,7 +45,8 @@ export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "good_thoughts", label: "Good Thoughts" },
   { id: "bible", label: "Bible" },
   { id: "islam", label: "Islam" },
-  { id: "new", label: "New" },
+  { id: "jokes", label: "Jokes" },
+  { id: "new", label: "More" },
 ];
 
 const DYNAMIC_META_CATEGORIES: CategoryDef[] = [

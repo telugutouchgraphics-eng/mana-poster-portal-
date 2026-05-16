@@ -25,6 +25,15 @@ function dayKey(epochMs: number): string {
   return `${y}-${m}-${d}`;
 }
 
+const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+function isCreatorDashboardPosterVisible(item: { createdAt: number; status: string }, now: number): boolean {
+  if (!isVisiblePosterStatus(item.status)) {
+    return false;
+  }
+  return item.createdAt <= 0 || item.createdAt + DASHBOARD_RETENTION_MS > now;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const creator = await resolveCreatorReadContext(req);
@@ -99,10 +108,13 @@ export async function GET(req: NextRequest) {
         uploadDayKey: String(doc.data().uploadDayKey ?? ""),
         publishAt: Number(doc.data().publishAt ?? 0),
         performanceWindowEndAt: Number(doc.data().performanceWindowEndAt ?? 0),
+        dashboardHiddenAt: Number(doc.data().dashboardHiddenAt ?? 0),
       }))
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
-    const visiblePosters = posters.filter((item) => isVisiblePosterStatus(item.status));
+    const visiblePosters = posters.filter(
+      (item) => Number(item.dashboardHiddenAt ?? 0) <= 0 && isCreatorDashboardPosterVisible(item, now),
+    );
 
     const todayUploadsByCategory = Object.values(
       visiblePosters
@@ -117,9 +129,9 @@ export async function GET(req: NextRequest) {
     );
 
     const todayUploads = visiblePosters.filter((item) => dayKey(item.createdAt) === today).length;
-    const approvedCount = posters.filter((item) => isApprovedEquivalentStatus(item.status)).length;
-    const rejectedCount = posters.filter((item) => item.status === "rejected").length;
-    const pendingCount = posters.filter((item) => item.status === "pending").length;
+    const approvedCount = visiblePosters.filter((item) => isApprovedEquivalentStatus(item.status)).length;
+    const rejectedCount = visiblePosters.filter((item) => item.status === "rejected").length;
+    const pendingCount = visiblePosters.filter((item) => item.status === "pending").length;
 
     const manualCategories = await listManualEventCategories();
     const categoryMap = Object.fromEntries(
@@ -189,7 +201,7 @@ export async function GET(req: NextRequest) {
       uploadWindow,
       todayUploadsByCategory,
       stats: {
-        totalUploads: posters.length,
+        totalUploads: visiblePosters.length,
         todayUploads,
         approvedCount,
         rejectedCount,

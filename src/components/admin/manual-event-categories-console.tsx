@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { portalLanguage, t } from "@/lib/i18n";
 
 type ManualEventCategory = {
   id: string;
@@ -50,6 +52,7 @@ function formatRange(item: ManualEventCategory): string {
 
 export function ManualEventCategoriesConsole() {
   const { user } = useAuth();
+  const { language } = useDashboardLanguage();
   const [items, setItems] = useState<ManualEventCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -59,6 +62,34 @@ export function ManualEventCategoriesConsole() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const lang = portalLanguage(language);
+  const copy = {
+    eyebrow: t("manualEventCategories.eyebrow", lang),
+    title: t("manualEventCategories.title", lang),
+    description: t("manualEventCategories.description", lang),
+    categoryId: t("manualEventCategories.categoryId", lang),
+    autoIdPlaceholder: t("manualEventCategories.autoIdPlaceholder", lang),
+    autoIdHelp: t("manualEventCategories.autoIdHelp", lang),
+    label: t("manualEventCategories.label", lang),
+    labelPlaceholder: t("manualEventCategories.labelPlaceholder", lang),
+    startDate: t("manualEventCategories.startDate", lang),
+    endDate: t("manualEventCategories.endDate", lang),
+    saving: t("manualEventCategories.saving", lang),
+    update: t("manualEventCategories.update", lang),
+    create: t("manualEventCategories.create", lang),
+    clear: t("manualEventCategories.clear", lang),
+    existingTitle: t("manualEventCategories.existingTitle", lang),
+    loading: t("manualEventCategories.loading", lang),
+    empty: t("manualEventCategories.empty", lang),
+    edit: t("manualEventCategories.edit", lang),
+    delete: t("manualEventCategories.delete", lang),
+    unableLoad: t("manualEventCategories.unableLoad", lang),
+    unableSave: t("manualEventCategories.unableSave", lang),
+    created: t("manualEventCategories.created", lang),
+    updated: t("manualEventCategories.updated", lang),
+    unableDelete: t("manualEventCategories.unableDelete", lang),
+    deleted: t("manualEventCategories.deleted", lang),
+  };
 
   async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
     const token = await user?.getIdToken();
@@ -79,11 +110,11 @@ export function ManualEventCategoriesConsole() {
       const response = await authorizedFetch("/api/event-categories");
       const data = (await response.json()) as ResponseShape;
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to load event categories.");
+        throw new Error(data.error ?? copy.unableLoad);
       }
       setItems(data.categories ?? []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load event categories.");
+      setMessage(error instanceof Error ? error.message : copy.unableLoad);
     } finally {
       setLoading(false);
     }
@@ -129,13 +160,13 @@ export function ManualEventCategoriesConsole() {
           });
       const data = (await response.json()) as ResponseShape;
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to save event category.");
+        throw new Error(data.error ?? copy.unableSave);
       }
       setItems(data.categories ?? []);
-      setMessage(editingId ? "Event category updated." : "Event category created.");
+      setMessage(editingId ? copy.updated : copy.created);
       resetForm();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save event category.");
+      setMessage(error instanceof Error ? error.message : copy.unableSave);
     } finally {
       setBusy(false);
     }
@@ -150,15 +181,15 @@ export function ManualEventCategoriesConsole() {
       });
       const data = (await response.json()) as ResponseShape;
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to delete event category.");
+        throw new Error(data.error ?? copy.unableDelete);
       }
       setItems(data.categories ?? []);
       if (editingId === targetId) {
         resetForm();
       }
-      setMessage("Event category deleted.");
+      setMessage(copy.deleted);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to delete event category.");
+      setMessage(error instanceof Error ? error.message : copy.unableDelete);
     } finally {
       setBusy(false);
     }
@@ -168,31 +199,29 @@ export function ManualEventCategoriesConsole() {
     <section className="space-y-5">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">
-          Event Categories
+          {copy.eyebrow}
         </p>
         <h3 className="mt-2 text-2xl font-black text-slate-950">
-          Create manual event categories
+          {copy.title}
         </h3>
         <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
-          These categories appear in dashboard lists 7 days early and can be used for manual event poster workflows.
+          {copy.description}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>Category ID</span>
+            <span>{copy.categoryId}</span>
             <input
               value={id}
               onChange={(event) => setId(slugifyCategoryId(event.target.value))}
               disabled
-              placeholder="Auto generated from label"
+              placeholder={copy.autoIdPlaceholder}
               className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
             />
-            <p className="text-xs font-medium text-slate-500">
-              Label batti automatic ga create అవుతుంది.
-            </p>
+            <p className="text-xs font-medium text-slate-500">{copy.autoIdHelp}</p>
           </label>
           <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>Label</span>
+            <span>{copy.label}</span>
             <input
               value={label}
               onChange={(event) => {
@@ -202,12 +231,12 @@ export function ManualEventCategoriesConsole() {
                   setId(slugifyCategoryId(nextLabel));
                 }
               }}
-              placeholder="Example Event 2026"
+              placeholder={copy.labelPlaceholder}
               className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
             />
           </label>
           <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>Start Date</span>
+            <span>{copy.startDate}</span>
             <input
               type="date"
               value={startDate}
@@ -216,7 +245,7 @@ export function ManualEventCategoriesConsole() {
             />
           </label>
           <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>End Date</span>
+            <span>{copy.endDate}</span>
             <input
               type="date"
               value={endDate}
@@ -230,14 +259,14 @@ export function ManualEventCategoriesConsole() {
               disabled={busy || !id || !label || !startDate}
               className="rounded-2xl bg-[var(--portal-purple)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             >
-              {busy ? "Saving..." : editingId ? "Update Event Category" : "Create Event Category"}
+              {busy ? copy.saving : editingId ? copy.update : copy.create}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="rounded-2xl border border-[var(--portal-border)] px-5 py-3 text-sm font-bold text-slate-700"
             >
-              Clear
+              {copy.clear}
             </button>
           </div>
         </form>
@@ -248,15 +277,15 @@ export function ManualEventCategoriesConsole() {
       </article>
 
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <h4 className="text-xl font-black text-slate-950">Existing manual event categories</h4>
+        <h4 className="text-xl font-black text-slate-950">{copy.existingTitle}</h4>
         <div className="mt-5 space-y-3">
           {loading ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              Loading event categories...
+              {copy.loading}
             </div>
           ) : items.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              No manual event categories yet.
+              {copy.empty}
             </div>
           ) : (
             items.map((item) => (
@@ -282,7 +311,7 @@ export function ManualEventCategoriesConsole() {
                       }}
                       className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700"
                     >
-                      Edit
+                      {copy.edit}
                     </button>
                     <button
                       type="button"
@@ -290,7 +319,7 @@ export function ManualEventCategoriesConsole() {
                       onClick={() => void handleDelete(item.id)}
                       className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                     >
-                      Delete
+                      {copy.delete}
                     </button>
                   </div>
                 </div>

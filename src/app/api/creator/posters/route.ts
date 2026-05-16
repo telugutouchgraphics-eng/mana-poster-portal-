@@ -230,6 +230,7 @@ export async function POST(req: NextRequest) {
       .where("creatorPublicId", "==", creator.creatorPublicId)
       .where("categoryId", "==", parsed.categoryId)
       .where("imageHash", "==", imageHash)
+      .limit(1)
       .get();
 
     if (!duplicateSnap.empty) {
@@ -295,6 +296,9 @@ export async function POST(req: NextRequest) {
       publishAt: 0,
       performanceWindowStartAt: 0,
       performanceWindowEndAt: 0,
+      dashboardVisibleUntil: now + 24 * 60 * 60 * 1000,
+      dashboardHiddenAt: 0,
+      dashboardHiddenReason: "",
       createdByRole: "creator",
       createdBySurface: "creator_upload",
       createdAt: now,

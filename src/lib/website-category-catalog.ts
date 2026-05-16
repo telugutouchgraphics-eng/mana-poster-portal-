@@ -25,7 +25,8 @@ export const WEBSITE_CATEGORY_CATALOG: WebsiteCategoryCatalogEntry[] = [
   { id: "good-thoughts", label: "Good Thoughts", aliases: ["good thought"] },
   { id: "bible", label: "Bible" },
   { id: "islam", label: "Islam", aliases: ["islamic"] },
-  { id: "new", label: "New", aliases: ["latest"] },
+  { id: "jokes", label: "Jokes", aliases: ["funny", "humor", "comedy"] },
+  { id: "new", label: "More", aliases: ["new", "latest"] },
 ];
 
 export const UPLOADABLE_WEBSITE_CATEGORIES = WEBSITE_CATEGORY_CATALOG.filter(

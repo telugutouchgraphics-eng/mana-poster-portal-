@@ -22,6 +22,8 @@ export interface PosterRecord {
   creatorEarnings: number;
   platformEarnings: number;
   grossAmount: number;
+  approvedAt: number;
+  dashboardHiddenAt: number;
 }
 
 export interface OverviewMetrics {
@@ -166,6 +168,16 @@ function buildCategoryLabelMap(): Record<string, string> {
   );
 }
 
+const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+function isDashboardVisiblePoster(poster: PosterRecord, now: number): boolean {
+  if (poster.dashboardHiddenAt > 0) {
+    return false;
+  }
+  const baseTime = poster.status === "approved" ? poster.approvedAt || poster.createdAt : poster.createdAt;
+  return baseTime <= 0 || baseTime + DASHBOARD_RETENTION_MS > now;
+}
+
 export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnapshot> {
   const [
     creatorSnap,
@@ -214,6 +226,7 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     };
   });
 
+  const now = Date.now();
   const posters = posterSnap.docs.map((doc) => {
     const data = doc.data();
     return {
@@ -226,8 +239,10 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
       creatorEarnings: readNumber(data.creatorEarnings),
       platformEarnings: readNumber(data.platformEarnings),
       grossAmount: readNumber(data.grossAmount),
+      approvedAt: readNumber(data.approvedAt),
+      dashboardHiddenAt: readNumber(data.dashboardHiddenAt),
     };
-  });
+  }).filter((poster) => isDashboardVisiblePoster(poster, now));
 
   const overview: OverviewMetrics = {
     totalManagers: managerIds.size,

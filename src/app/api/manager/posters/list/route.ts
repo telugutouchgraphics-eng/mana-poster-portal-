@@ -98,6 +98,29 @@ interface PosterListItem {
   personalizationConfig: PosterPersonalization;
   createdAt: number;
   updatedAt: number;
+  approvedAt: number;
+  dashboardHiddenAt: number;
+  dashboardVisibleUntil: number;
+}
+
+const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+function dashboardVisibleUntilForStatus(data: Record<string, unknown>): number {
+  const status = String(data.status ?? "pending").trim().toLowerCase();
+  if (status === "approved") {
+    const approvedAt = Number(data.approvedAt ?? 0);
+    return approvedAt > 0 ? approvedAt + DASHBOARD_RETENTION_MS : 0;
+  }
+  const createdAt = Number(data.createdAt ?? 0);
+  return createdAt > 0 ? createdAt + DASHBOARD_RETENTION_MS : 0;
+}
+
+function isDashboardVisible(data: Record<string, unknown>, now: number): boolean {
+  if (Number(data.dashboardHiddenAt ?? 0) > 0) {
+    return false;
+  }
+  const visibleUntil = dashboardVisibleUntilForStatus(data);
+  return visibleUntil <= 0 || visibleUntil > now;
 }
 
 const defaultPersonalization: PosterPersonalization = {
@@ -180,6 +203,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") ?? "pending").trim();
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const now = Date.now();
     const scopedCreatorIds = await loadScopedCreatorIds(actor);
     const scopedCreatorIdSet = scopedCreatorIds ? new Set(scopedCreatorIds) : null;
 
@@ -230,6 +254,9 @@ export async function GET(req: NextRequest) {
         if (scopedCreatorIdSet && !scopedCreatorIdSet.has(creatorPublicId)) {
           return null;
         }
+        if (!isDashboardVisible(item.data, now)) {
+          return null;
+        }
         const creator = creatorMap.get(creatorPublicId) ?? {};
         return {
           id: String(item.id),
@@ -265,6 +292,9 @@ export async function GET(req: NextRequest) {
           personalizationConfig: parsePersonalization(item.data.personalizationConfig),
           createdAt: Number(item.data.createdAt ?? 0),
           updatedAt: Number(item.data.updatedAt ?? 0),
+          approvedAt: Number(item.data.approvedAt ?? 0),
+          dashboardHiddenAt: Number(item.data.dashboardHiddenAt ?? 0),
+          dashboardVisibleUntil: dashboardVisibleUntilForStatus(item.data),
         };
       })
       .filter((item): item is PosterListItem => item !== null)

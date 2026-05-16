@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { assertPosterInScope } from "@/lib/server/manager-scope";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { deleteAdminAsset } from "@/lib/server/content-management";
 import {
   getVisibleDynamicCategoryById,
   getWeekdayForCategoryId,
@@ -29,6 +30,16 @@ const payloadSchema = z.object({
 });
 
 async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedAt: number, approvedAt: number) {
+  const weekday = getWeekdayForCategoryId(categoryId);
+  if (weekday) {
+    const scheduledStart = getNextIstWeekdayStart(approvedAt, weekday);
+    return {
+      publishAt: scheduledStart,
+      eventStartAt: scheduledStart,
+      eventEndAt: getNextIstMidnight(scheduledStart) - 1,
+    };
+  }
+
   const creatorPublishAt = getCreatorPosterPublishAt(uploadedAt);
   const creatorEventEndAt = getIstEndOfDay(creatorPublishAt);
   if (creatorPublishAt >= approvedAt) {
@@ -36,16 +47,6 @@ async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedA
       publishAt: creatorPublishAt,
       eventStartAt: creatorPublishAt,
       eventEndAt: creatorEventEndAt,
-    };
-  }
-
-  const weekday = getWeekdayForCategoryId(categoryId);
-  if (weekday) {
-    const scheduledStart = getNextIstWeekdayStart(uploadedAt, weekday);
-    return {
-      publishAt: resolveFeedPublishAtMs(scheduledStart, approvedAt),
-      eventStartAt: scheduledStart,
-      eventEndAt: getNextIstMidnight(scheduledStart) - 1,
     };
   }
 
@@ -101,6 +102,31 @@ export async function POST(
     const currentData = snap.data() as Record<string, unknown>;
     await assertPosterInScope(actor, currentData);
     const now = Date.now();
+    const hardDelete = payload.status === "deleted";
+
+    if (hardDelete) {
+      await posterRef.delete();
+      await Promise.all([
+        deleteAdminAsset(String(currentData.imagePath ?? "")),
+        deleteAdminAsset(String(currentData.videoPath ?? "")),
+      ]);
+
+      await writeAuditLog({
+        actorUid: actor.uid,
+        actorRole: actor.role,
+        actorEmail: actor.email,
+        action: "poster_review_deleted",
+        targetType: "creator_poster",
+        targetId: posterId,
+        message: "Poster deleted from manager review.",
+        metadata: {
+          status: payload.status,
+          reviewComment: payload.reviewComment ?? "",
+        },
+      });
+
+      return NextResponse.json({ ok: true });
+    }
 
     await adminDb.runTransaction(async (tx) => {
       const currentSnap = await tx.get(posterRef);
@@ -132,7 +158,7 @@ export async function POST(
         reviewComment: payload.reviewComment ?? "",
         updatedAt: now,
         archivedAt: payload.status === "archived" ? now : null,
-        deletedAt: payload.status === "deleted" ? now : null,
+        deletedAt: null,
         approvedAt: payload.status === "approved" ? now : Number(current.approvedAt ?? 0),
         publishAt,
         eventStartAt:
@@ -150,6 +176,12 @@ export async function POST(
                 ? creatorSchedule.eventEndAt
                 : publishAt + 24 * 60 * 60 * 1000)
             : Number(current.performanceWindowEndAt ?? 0),
+        dashboardHiddenAt: payload.status === "approved" ? 0 : Number(current.dashboardHiddenAt ?? 0),
+        dashboardHiddenReason: payload.status === "approved" ? "" : String(current.dashboardHiddenReason ?? ""),
+        dashboardVisibleUntil:
+          payload.status === "approved"
+            ? now + 24 * 60 * 60 * 1000
+            : Number(current.dashboardVisibleUntil ?? 0),
         reviewHistory: [
           ...history,
           {
