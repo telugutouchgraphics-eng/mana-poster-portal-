@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
-import { uploadAdminAsset } from "@/lib/server/content-management";
+import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
 
 const SETTINGS_DOC_ID = "portalSettings";
 const MAX_VIDEO_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -27,6 +27,8 @@ function resolveVideoTarget(type: FormDataEntryValue | null) {
       folderName: "subscription_thanks_videos",
       action: "admin.settings.subscription_thanks_video.upload",
       message: "Uploaded subscription thanks video",
+      deleteAction: "admin.settings.subscription_thanks_video.delete",
+      deleteMessage: "Deleted subscription thanks video",
     };
   }
   return {
@@ -34,6 +36,8 @@ function resolveVideoTarget(type: FormDataEntryValue | null) {
     folderName: "subscription_exit_videos",
     action: "admin.settings.subscription_video.upload",
     message: "Uploaded subscription exit video",
+    deleteAction: "admin.settings.subscription_video.delete",
+    deleteMessage: "Deleted subscription exit video",
   };
 }
 
@@ -57,6 +61,11 @@ export async function POST(req: NextRequest) {
     const originalName = sanitizeFileName(video.name || `subscription-video.${resolveExtension(video)}`);
     const path = `${target.folderName}/${now}-${originalName}`;
     const buffer = Buffer.from(await video.arrayBuffer());
+    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const existingSnap = await settingsRef.get();
+    const existingVideo = existingSnap.data()?.[target.fieldName] as
+      | { path?: string }
+      | undefined;
     const uploaded = await uploadAdminAsset(buffer, video.type, path);
 
     const subscriptionVideo = {
@@ -70,7 +79,7 @@ export async function POST(req: NextRequest) {
       updatedByEmail: actor.email ?? "",
     };
 
-    await adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID).set(
+    await settingsRef.set(
       {
         [target.fieldName]: subscriptionVideo,
         updatedAt: now,
@@ -79,6 +88,7 @@ export async function POST(req: NextRequest) {
       },
       { merge: true },
     );
+    await deleteAdminAsset(existingVideo?.path);
 
     await writeAuditLog({
       actorUid: actor.uid,
@@ -93,6 +103,57 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, subscriptionVideo, type: target.fieldName });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to upload subscription video.";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const actor = await requireRole(req, ["admin"]);
+    const target = resolveVideoTarget(new URL(req.url).searchParams.get("type"));
+    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const settingsSnap = await settingsRef.get();
+    const existingVideo = settingsSnap.data()?.[target.fieldName] as
+      | { path?: string; url?: string; fileName?: string }
+      | undefined;
+
+    await deleteAdminAsset(existingVideo?.path);
+
+    const now = Date.now();
+    const clearedVideo = {
+      active: false,
+      url: "",
+      path: "",
+      contentType: "",
+      fileName: "",
+      updatedAt: now,
+      updatedByUid: actor.uid,
+      updatedByEmail: actor.email ?? "",
+    };
+
+    await settingsRef.set(
+      {
+        [target.fieldName]: clearedVideo,
+        updatedAt: now,
+        updatedByUid: actor.uid,
+        updatedByEmail: actor.email ?? "",
+      },
+      { merge: true },
+    );
+
+    await writeAuditLog({
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      actorEmail: actor.email,
+      action: target.deleteAction,
+      targetId: SETTINGS_DOC_ID,
+      targetType: "websiteConfig",
+      message: target.deleteMessage,
+    });
+
+    return NextResponse.json({ ok: true, subscriptionVideo: clearedVideo, type: target.fieldName });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to delete subscription video.";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }

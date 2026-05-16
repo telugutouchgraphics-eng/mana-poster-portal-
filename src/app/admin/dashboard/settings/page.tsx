@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
 interface SettingsResponse {
@@ -51,6 +51,7 @@ export default function AdminSettingsPage() {
   const [thanksVideoActive, setThanksVideoActive] = useState(false);
   const [thanksVideoFileName, setThanksVideoFileName] = useState("");
   const [videoUploading, setVideoUploading] = useState<"exit" | "thanks" | null>(null);
+  const [videoDeleting, setVideoDeleting] = useState<"exit" | "thanks" | null>(null);
   const [morningEnabled, setMorningEnabled] = useState(true);
   const [afternoonEnabled, setAfternoonEnabled] = useState(true);
   const [nightEnabled, setNightEnabled] = useState(true);
@@ -67,6 +68,8 @@ export default function AdminSettingsPage() {
     { label: "Show app banners", value: appBannersVisible, setter: setAppBannersVisible },
     { label: "Show creator banners", value: creatorBannersVisible, setter: setCreatorBannersVisible },
   ];
+  const exitVideoInputRef = useRef<HTMLInputElement | null>(null);
+  const thanksVideoInputRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     const token = await user?.getIdToken();
@@ -202,6 +205,37 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function handleSubscriptionVideoDelete(type: "exit" | "thanks") {
+    const token = await user?.getIdToken();
+    if (!token) return;
+    setVideoDeleting(type);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/settings/subscription-video?type=${type}`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to delete subscription video.");
+      }
+      if (type === "thanks") {
+        setThanksVideoUrl("");
+        setThanksVideoActive(false);
+        setThanksVideoFileName("");
+      } else {
+        setSubscriptionVideoUrl("");
+        setSubscriptionVideoActive(false);
+        setSubscriptionVideoFileName("");
+      }
+      setMessage("Subscription video deleted successfully.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to delete subscription video.");
+    } finally {
+      setVideoDeleting(null);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
@@ -274,7 +308,7 @@ export default function AdminSettingsPage() {
               </label>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
               <label className="space-y-2 text-sm text-slate-700">
                 <span className="font-semibold">Video URL</span>
                 <input
@@ -284,16 +318,39 @@ export default function AdminSettingsPage() {
                   className="w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)]"
                 />
               </label>
-              <label className="flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-[var(--portal-border-strong)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50">
+              <div className="space-y-3">
                 <input
+                  ref={exitVideoInputRef}
                   type="file"
                   accept="video/mp4,video/webm,video/quicktime"
-                  disabled={videoUploading !== null}
-                  onChange={(event) => void handleSubscriptionVideoUpload(event.target.files?.[0] ?? null, "exit")}
+                  disabled={videoUploading !== null || videoDeleting !== null}
+                  onChange={(event) => {
+                    void handleSubscriptionVideoUpload(event.target.files?.[0] ?? null, "exit");
+                    event.currentTarget.value = "";
+                  }}
                   className="hidden"
                 />
-                {videoUploading === "exit" ? "Uploading..." : "Upload Video"}
-              </label>
+                <button
+                  type="button"
+                  disabled={videoUploading !== null || videoDeleting !== null}
+                  onClick={() => exitVideoInputRef.current?.click()}
+                  className="flex w-full items-center justify-center rounded-2xl border border-dashed border-[var(--portal-border-strong)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {videoUploading === "exit"
+                    ? "Uploading..."
+                    : subscriptionVideoUrl
+                      ? "Change Video"
+                      : "Upload Video"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!subscriptionVideoUrl || videoUploading !== null || videoDeleting !== null}
+                  onClick={() => void handleSubscriptionVideoDelete("exit")}
+                  className="flex w-full items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {videoDeleting === "exit" ? "Deleting..." : "Delete Video"}
+                </button>
+              </div>
             </div>
 
             {subscriptionVideoFileName || subscriptionVideoUrl ? (
@@ -301,7 +358,11 @@ export default function AdminSettingsPage() {
                 {subscriptionVideoFileName ? <p className="font-semibold text-slate-800">{subscriptionVideoFileName}</p> : null}
                 {subscriptionVideoUrl ? <p className="mt-1 break-all">{subscriptionVideoUrl}</p> : null}
                 {subscriptionVideoUrl ? (
-                  <video className="mt-3 max-h-56 w-full rounded-xl bg-slate-950" src={subscriptionVideoUrl} controls />
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
+                    <div className="aspect-video w-full">
+                      <video className="h-full w-full object-cover" src={subscriptionVideoUrl} controls />
+                    </div>
+                  </div>
                 ) : null}
               </div>
             ) : null}
@@ -326,7 +387,7 @@ export default function AdminSettingsPage() {
               </label>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
               <label className="space-y-2 text-sm text-slate-700">
                 <span className="font-semibold">Thanks video URL</span>
                 <input
@@ -336,16 +397,39 @@ export default function AdminSettingsPage() {
                   className="w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)]"
                 />
               </label>
-              <label className="flex cursor-pointer items-center justify-center rounded-2xl border border-dashed border-[var(--portal-border-strong)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50">
+              <div className="space-y-3">
                 <input
+                  ref={thanksVideoInputRef}
                   type="file"
                   accept="video/mp4,video/webm,video/quicktime"
-                  disabled={videoUploading !== null}
-                  onChange={(event) => void handleSubscriptionVideoUpload(event.target.files?.[0] ?? null, "thanks")}
+                  disabled={videoUploading !== null || videoDeleting !== null}
+                  onChange={(event) => {
+                    void handleSubscriptionVideoUpload(event.target.files?.[0] ?? null, "thanks");
+                    event.currentTarget.value = "";
+                  }}
                   className="hidden"
                 />
-                {videoUploading === "thanks" ? "Uploading..." : "Upload Thanks Video"}
-              </label>
+                <button
+                  type="button"
+                  disabled={videoUploading !== null || videoDeleting !== null}
+                  onClick={() => thanksVideoInputRef.current?.click()}
+                  className="flex w-full items-center justify-center rounded-2xl border border-dashed border-[var(--portal-border-strong)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {videoUploading === "thanks"
+                    ? "Uploading..."
+                    : thanksVideoUrl
+                      ? "Change Thanks Video"
+                      : "Upload Thanks Video"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!thanksVideoUrl || videoUploading !== null || videoDeleting !== null}
+                  onClick={() => void handleSubscriptionVideoDelete("thanks")}
+                  className="flex w-full items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {videoDeleting === "thanks" ? "Deleting..." : "Delete Video"}
+                </button>
+              </div>
             </div>
 
             {thanksVideoFileName || thanksVideoUrl ? (
@@ -353,7 +437,11 @@ export default function AdminSettingsPage() {
                 {thanksVideoFileName ? <p className="font-semibold text-slate-800">{thanksVideoFileName}</p> : null}
                 {thanksVideoUrl ? <p className="mt-1 break-all">{thanksVideoUrl}</p> : null}
                 {thanksVideoUrl ? (
-                  <video className="mt-3 max-h-56 w-full rounded-xl bg-slate-950" src={thanksVideoUrl} controls />
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
+                    <div className="aspect-video w-full">
+                      <video className="h-full w-full object-cover" src={thanksVideoUrl} controls />
+                    </div>
+                  </div>
                 ) : null}
               </div>
             ) : null}

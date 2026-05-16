@@ -45,6 +45,22 @@ function stringValue(value: unknown, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
 
+function mergeSubscriptionVideo(
+  existingVideo: Record<string, unknown> | undefined,
+  bodyVideo: { active?: boolean; url?: string } | undefined,
+) {
+  const existingUrl = stringValue(existingVideo?.url);
+  const requestedUrl = stringValue(bodyVideo?.url, existingUrl);
+  const url = requestedUrl || existingUrl;
+  return {
+    active: boolValue(bodyVideo?.active, boolValue(existingVideo?.active, false)),
+    url,
+    path: stringValue(existingVideo?.path),
+    fileName: stringValue(existingVideo?.fileName),
+    updatedAt: Number(existingVideo?.updatedAt || 0),
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
@@ -132,19 +148,24 @@ export async function PUT(req: NextRequest) {
     };
 
     const now = Date.now();
+    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const existingSettingsSnap = await settingsRef.get();
+    const existingSettings = existingSettingsSnap.data() || {};
+    const subscriptionExitVideo = mergeSubscriptionVideo(
+      existingSettings.subscriptionExitVideo as Record<string, unknown> | undefined,
+      body.subscriptionExitVideo,
+    );
+    const subscriptionThanksVideo = mergeSubscriptionVideo(
+      existingSettings.subscriptionThanksVideo as Record<string, unknown> | undefined,
+      body.subscriptionThanksVideo,
+    );
     await Promise.all([
-      adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID).set(
+      settingsRef.set(
         {
           defaultNotificationImageUrl: stringValue(body.defaultNotificationImageUrl),
           defaultLanguage: body.defaultLanguage === "te" ? "te" : "en",
-          subscriptionExitVideo: {
-            active: boolValue(body.subscriptionExitVideo?.active, false),
-            url: stringValue(body.subscriptionExitVideo?.url),
-          },
-          subscriptionThanksVideo: {
-            active: boolValue(body.subscriptionThanksVideo?.active, false),
-            url: stringValue(body.subscriptionThanksVideo?.url),
-          },
+          subscriptionExitVideo,
+          subscriptionThanksVideo,
           notifications: {
             morningEnabled: boolValue(body.notifications?.morningEnabled, true),
             afternoonEnabled: boolValue(body.notifications?.afternoonEnabled, true),

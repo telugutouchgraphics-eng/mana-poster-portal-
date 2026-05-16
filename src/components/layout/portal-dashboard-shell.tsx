@@ -55,8 +55,8 @@ export function PortalDashboardShell({
 
   return (
     <DashboardAutoTranslate>
-      <main className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(109,40,217,0.10),transparent_34%),radial-gradient(circle_at_top_right,rgba(37,211,102,0.08),transparent_28%)] px-3 py-3 sm:px-4 lg:px-6 xl:px-8">
-        <div className="grid min-h-[calc(100vh-1.5rem)] gap-4 lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)] xl:gap-6">
+      <main className="portal-dashboard-root min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(109,40,217,0.10),transparent_34%),radial-gradient(circle_at_top_right,rgba(37,211,102,0.08),transparent_28%)] px-3 py-3 sm:px-4 lg:px-6 xl:px-8">
+        <div className="portal-dashboard-frame grid min-h-[calc(100vh-1.5rem)] gap-4 lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[260px_minmax(0,1fr)] xl:gap-6">
           {mobileNavOpen ? (
             <button
               type="button"
@@ -148,7 +148,7 @@ export function PortalDashboardShell({
           </aside>
 
           <section className="min-w-0 overflow-x-hidden">
-            <header className="rounded-[28px] border border-[var(--portal-border)] bg-white/92 px-4 py-4 shadow-sm backdrop-blur sm:px-5 sm:py-5">
+            <header className="portal-dashboard-header rounded-[28px] border border-[var(--portal-border)] bg-white/92 px-4 py-4 shadow-sm backdrop-blur sm:px-5 sm:py-5">
               <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
                 <button
                   type="button"
@@ -214,7 +214,7 @@ export function PortalDashboardShell({
               </nav>
             </header>
 
-            <div className="mt-5 space-y-5 pb-6 sm:mt-6 sm:space-y-6">
+            <div className="portal-dashboard-content mt-5 space-y-5 pb-6 sm:mt-6 sm:space-y-6">
               {children}
             </div>
           </section>
