@@ -85,7 +85,7 @@ function isEditableStatus(status: string): boolean {
 }
 
 function isDeletableStatus(status: string): boolean {
-  return status === "pending" || status === "rejected" || status === "approved";
+  return status === "pending" || status === "rejected";
 }
 
 async function assertCreatorOwnsPoster(posterId: string, creatorPublicId: string) {
@@ -251,7 +251,7 @@ export async function DELETE(
       creator.creatorPublicId,
     );
     if (!isDeletableStatus(String(poster.status ?? "pending"))) {
-      throw new Error("Only pending, rejected, or approved posters can be deleted.");
+      throw new Error("Only pending or rejected posters can be deleted.");
     }
     await posterRef.set(
       {

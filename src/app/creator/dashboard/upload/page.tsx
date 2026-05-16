@@ -755,7 +755,7 @@ export default function CreatorUploadStudioPage() {
   }
 
   function canCreatorDeletePoster(poster: CreatorPoster): boolean {
-    return poster.status === "pending" || poster.status === "rejected" || poster.status === "approved";
+    return poster.status === "pending" || poster.status === "rejected";
   }
 
   function startEditPoster(poster: CreatorPoster) {
@@ -1185,14 +1185,8 @@ export default function CreatorUploadStudioPage() {
                           {approved ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                setEditingPoster(null);
-                                setCategoryId(poster.categoryId);
-                                setFile(null);
-                                setUploadMessage(null);
-                                setActiveTab("upload");
-                              }}
-                              className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                              disabled
+                              className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white opacity-50 disabled:cursor-not-allowed"
                             >
                               {customizationCopy.reupload}
                             </button>
