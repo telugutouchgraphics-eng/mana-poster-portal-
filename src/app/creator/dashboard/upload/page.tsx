@@ -352,6 +352,9 @@ export default function CreatorUploadStudioPage() {
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"upload" | "review">("upload");
+  const [editingPoster, setEditingPoster] = useState<CreatorPoster | null>(null);
+  const [posterActionBusyMap, setPosterActionBusyMap] = useState<Record<string, boolean>>({});
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -534,7 +537,7 @@ export default function CreatorUploadStudioPage() {
   }
 
   async function performUpload() {
-    if (!file) {
+    if (!file && !editingPoster) {
       setUploadMessage(t("creator.upload.selectPoster", portalLanguage(language)));
       return;
     }
@@ -555,22 +558,34 @@ export default function CreatorUploadStudioPage() {
       if (!token) {
         throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
       }
-      const uploadFile = await preparePosterFileForUpload(file);
+      const uploadFile = file ? await preparePosterFileForUpload(file) : null;
       const body = new FormData();
       body.set("categoryId", categoryId);
-      body.set("media", uploadFile);
+      if (uploadFile) {
+        body.set("media", uploadFile);
+      }
       body.set("personalizationConfig", JSON.stringify(clampPhotoSafeArea(personalization, fileMeta)));
-      const response = await fetch("/api/creator/posters", {
-        method: "POST",
+      const response = await fetch(
+        editingPoster
+          ? `/api/creator/posters/${encodeURIComponent(editingPoster.id)}`
+          : "/api/creator/posters",
+        {
+        method: editingPoster ? "PATCH" : "POST",
         headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
         body,
-      });
+        },
+      );
       const data = await readUploadResponse(response);
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? t("creator.upload.uploadFailed", portalLanguage(language)));
       }
-      setUploadMessage(t("creator.upload.uploadedForReview", portalLanguage(language)));
+      setUploadMessage(
+        editingPoster
+          ? (language === "telugu" ? "పోస్టర్ అప్‌డేట్ అయి మళ్లీ రివ్యూకు వెళ్లింది." : "Poster updated and sent back for review.")
+          : t("creator.upload.uploadedForReview", portalLanguage(language)),
+      );
       setCustomizeOpen(false);
+      setEditingPoster(null);
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -590,6 +605,7 @@ export default function CreatorUploadStudioPage() {
 
   const assignedCategories = dashboard?.assignedCategories ?? [];
   const announcements = dashboard?.announcements ?? [];
+  const reviewPosters = dashboard?.posters ?? [];
   const uploadWindow = dashboard?.uploadWindow;
   const todayUploadsByCategory = useMemo(
     () =>
@@ -600,6 +616,7 @@ export default function CreatorUploadStudioPage() {
   );
   const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
   const activeTodayUpload = categoryId ? (todayUploadsByCategory[categoryId] ?? null) : null;
+  const activeEditPoster = editingPoster && editingPoster.categoryId === categoryId ? editingPoster : null;
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
       ? `${fileMeta.width} / ${fileMeta.height}`
@@ -634,6 +651,20 @@ export default function CreatorUploadStudioPage() {
     customization: isTelugu ? "కస్టమైజేషన్" : "Customization",
     uploading: isTelugu ? "అప్లోడింగ్..." : "Uploading...",
     upload: isTelugu ? "అప్లోడ్" : "Upload",
+    updatePoster: isTelugu ? "అప్‌డేట్ చేసి రివ్యూకు పంపండి" : "Update and send for review",
+    cancelEdit: isTelugu ? "ఎడిట్ క్యాన్సిల్" : "Cancel edit",
+    uploadTab: isTelugu ? "అప్లోడ్" : "Upload",
+    reviewTab: isTelugu ? "రివ్యూ స్టేటస్" : "Review Status",
+    submittedPosters: isTelugu ? "సబ్మిట్ చేసిన పోస్టర్లు" : "Submitted Posters",
+    noSubmittedPosters: isTelugu ? "ఇంకా సబ్మిట్ చేసిన పోస్టర్లు లేవు." : "No submitted posters yet.",
+    edit: isTelugu ? "రీ-ఎడిట్" : "Re-edit",
+    delete: isTelugu ? "డిలీట్" : "Delete",
+    lockedAfterApproval: isTelugu
+      ? "అప్రూవ్ అయిన పోస్టర్‌ని ఇక్కడ ఎడిట్/డిలీట్ చేయలేరు."
+      : "Approved posters cannot be edited or deleted here.",
+    chooseReplacement: isTelugu
+      ? "కొత్త ఫైల్ ఎంచుకుని అప్‌డేట్ చేయండి, లేదా కేటగిరీ మార్చి అప్‌డేట్ చేయండి."
+      : "Choose a new file to replace it, or change the category and update.",
     alreadyUploadedToday: isTelugu
       ? "ఈ క్యాటగిరీలో టుడే లేటెస్ట్ సబ్మిషన్ క్రింద కనిపిస్తుంది. ఇంకా పోస్టర్లు అప్లోడ్ చేయొచ్చు."
       : "Latest submission for this category today is shown below. You can upload more posters.",
@@ -734,6 +765,69 @@ export default function CreatorUploadStudioPage() {
     fileInputRef.current?.click();
   }
 
+  function canCreatorEditPoster(poster: CreatorPoster): boolean {
+    return poster.status === "pending" || poster.status === "rejected";
+  }
+
+  function startEditPoster(poster: CreatorPoster) {
+    setEditingPoster(poster);
+    setCategoryId(poster.categoryId);
+    setFile(null);
+    setFileMeta(null);
+    setFilePreviewUrl(null);
+    setUploadMessage(customizationCopy.chooseReplacement);
+    setActiveTab("upload");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function cancelEditPoster() {
+    setEditingPoster(null);
+    setFile(null);
+    setUploadMessage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function deletePoster(poster: CreatorPoster) {
+    if (!canCreatorEditPoster(poster)) {
+      setUploadMessage(customizationCopy.lockedAfterApproval);
+      return;
+    }
+    const confirmed = window.confirm(
+      isTelugu
+        ? "ఈ పోస్టర్‌ని డిలీట్ చేయాలా?"
+        : "Delete this poster?",
+    );
+    if (!confirmed) return;
+    setPosterActionBusyMap((prev) => ({ ...prev, [poster.id]: true }));
+    setUploadMessage(null);
+    try {
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+      }
+      const response = await fetch(`/api/creator/posters/${encodeURIComponent(poster.id)}`, {
+        method: "DELETE",
+        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+      });
+      const data = await readUploadResponse(response);
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to delete poster.");
+      }
+      if (editingPoster?.id === poster.id) {
+        cancelEditPoster();
+      }
+      await loadDashboard(true);
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
+    } finally {
+      setPosterActionBusyMap((prev) => ({ ...prev, [poster.id]: false }));
+    }
+  }
+
   return (
     <>
       {error ? (
@@ -763,6 +857,32 @@ export default function CreatorUploadStudioPage() {
         </section>
       ) : null}
 
+      <div className="mb-5 inline-flex rounded-2xl border border-[var(--portal-border)] bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setActiveTab("upload")}
+          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            activeTab === "upload"
+              ? "bg-[var(--portal-purple)] text-white"
+              : "text-slate-600 hover:bg-[var(--portal-surface-soft)]"
+          }`}
+        >
+          {customizationCopy.uploadTab}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("review")}
+          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            activeTab === "review"
+              ? "bg-[var(--portal-purple)] text-white"
+              : "text-slate-600 hover:bg-[var(--portal-surface-soft)]"
+          }`}
+        >
+          {customizationCopy.reviewTab}
+        </button>
+      </div>
+
+      {activeTab === "upload" ? (
       <section className="space-y-6">
         <article className="px-1 py-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -869,7 +989,25 @@ export default function CreatorUploadStudioPage() {
                 <h4 className="mt-2 text-lg font-bold text-slate-950">
                   {activeCategory?.label ?? customizationCopy.selectCategory}
                 </h4>
-                {activeTodayUpload ? (
+                {editingPoster ? (
+                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(editingPoster.status)}`}>
+                      {editingPoster.status === "approved"
+                        ? customizationCopy.accepted
+                        : editingPoster.status === "rejected"
+                          ? customizationCopy.rejected
+                          : customizationCopy.pending}
+                    </span>
+                    <p>{customizationCopy.chooseReplacement}</p>
+                    <button
+                      type="button"
+                      onClick={cancelEditPoster}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {customizationCopy.cancelEdit}
+                    </button>
+                  </div>
+                ) : activeTodayUpload ? (
                   <div className="mt-3 space-y-1 text-sm text-slate-600">
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(activeTodayUpload.status)}`}>
                       {activeTodayUpload.status === "approved"
@@ -897,7 +1035,7 @@ export default function CreatorUploadStudioPage() {
                 type="button"
                 disabled={!uploadWindow?.isOpen || !categoryId}
                 onClick={() => openFilePicker(categoryId)}
-                style={{ aspectRatio: filePreviewUrl ? activePreviewAspectRatio : "1 / 1" }}
+                style={{ aspectRatio: filePreviewUrl || activeEditPoster ? activePreviewAspectRatio : "1 / 1" }}
                 className="relative flex w-full overflow-hidden rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] text-center transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {filePreviewUrl ? (
@@ -919,10 +1057,10 @@ export default function CreatorUploadStudioPage() {
                       />
                     </>
                   )
-                ) : activeTodayUpload ? (
-                  isVideoPoster(activeTodayUpload) ? (
+                ) : activeEditPoster ? (
+                  isVideoPoster(activeEditPoster) ? (
                     <video
-                      src={activeTodayUpload.videoUrl}
+                      src={activeEditPoster.videoUrl}
                       className="h-full w-full bg-slate-950 object-contain"
                       controls
                       muted
@@ -932,8 +1070,8 @@ export default function CreatorUploadStudioPage() {
                     <>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={activeTodayUpload.imageUrl}
-                        alt={activeTodayUpload.categoryLabel || activeTodayUpload.categoryId}
+                        src={activeEditPoster.imageUrl}
+                        alt={activeEditPoster.categoryLabel || activeEditPoster.categoryId}
                         className="h-full w-full object-contain"
                       />
                     </>
@@ -968,10 +1106,14 @@ export default function CreatorUploadStudioPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={uploadBusy || !file || !uploadWindow?.isOpen || !categoryId}
+                    disabled={uploadBusy || (!file && !editingPoster) || !uploadWindow?.isOpen || !categoryId}
                     className="rounded-xl bg-[var(--portal-green)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {uploadBusy ? customizationCopy.uploading : customizationCopy.upload}
+                    {uploadBusy
+                      ? customizationCopy.uploading
+                      : editingPoster
+                        ? customizationCopy.updatePoster
+                        : customizationCopy.upload}
                   </button>
                 </div>
 
@@ -991,6 +1133,130 @@ export default function CreatorUploadStudioPage() {
           </form>
         </article>
       </section>
+      ) : (
+        <section className="space-y-6">
+          <article className="px-1 py-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
+                  {customizationCopy.reviewTab}
+                </p>
+                <h3 className="mt-2 text-xl font-bold text-slate-950">{customizationCopy.submittedPosters}</h3>
+              </div>
+              <button
+                onClick={() => void loadDashboard(true)}
+                className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
+              >
+                {refreshing ? customizationCopy.refreshing : customizationCopy.refresh}
+              </button>
+            </div>
+
+            {uploadMessage ? (
+              <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
+                {uploadMessage}
+              </p>
+            ) : null}
+
+            <div className="mt-5 space-y-4">
+              {reviewPosters.length === 0 ? (
+                <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
+                  {customizationCopy.noSubmittedPosters}
+                </div>
+              ) : (
+                reviewPosters.map((poster) => {
+                  const editable = canCreatorEditPoster(poster);
+                  const busy = Boolean(posterActionBusyMap[poster.id]);
+                  return (
+                    <article
+                      key={poster.id}
+                      className="grid gap-4 rounded-[28px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)] md:grid-cols-[120px_minmax(0,1fr)]"
+                    >
+                      <div className="aspect-[3/4] w-full overflow-hidden rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
+                        {isVideoPoster(poster) ? (
+                          <video
+                            src={poster.videoUrl}
+                            className="h-full w-full bg-slate-950 object-cover"
+                            controls
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={poster.imageUrl}
+                              alt={poster.categoryLabel || poster.categoryId}
+                              className="h-full w-full object-cover"
+                            />
+                          </>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-lg font-bold text-slate-950">
+                              {poster.categoryLabel || poster.categoryId}
+                            </h4>
+                            <p className="mt-1 text-sm text-slate-500">{formatDate(poster.createdAt)}</p>
+                          </div>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}>
+                            {poster.status === "approved"
+                              ? customizationCopy.accepted
+                              : poster.status === "rejected"
+                                ? customizationCopy.rejected
+                                : customizationCopy.pending}
+                          </span>
+                        </div>
+
+                        {poster.reviewComment ? (
+                          <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            {customizationCopy.reason}: {poster.reviewComment}
+                          </p>
+                        ) : null}
+                        {!editable ? (
+                          <p className="mt-3 text-sm text-slate-500">{customizationCopy.lockedAfterApproval}</p>
+                        ) : null}
+
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => startEditPoster(poster)}
+                            disabled={!editable || busy}
+                            className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {customizationCopy.edit}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deletePoster(poster)}
+                            disabled={!editable || busy}
+                            className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {busy ? customizationCopy.refreshing : customizationCopy.delete}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPoster(null);
+                              setCategoryId(poster.categoryId);
+                              setFile(null);
+                              setUploadMessage(null);
+                              setActiveTab("upload");
+                            }}
+                            className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                          >
+                            + {customizationCopy.upload}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </article>
+        </section>
+      )}
 
       {customizeOpen ? (
         <div data-no-auto-translate="true" className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4">
