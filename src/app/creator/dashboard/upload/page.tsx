@@ -635,8 +635,8 @@ export default function CreatorUploadStudioPage() {
     uploading: isTelugu ? "అప్లోడింగ్..." : "Uploading...",
     upload: isTelugu ? "అప్లోడ్" : "Upload",
     alreadyUploadedToday: isTelugu
-      ? "ఈ క్యాటగిరీలో టుడే ఒక పోస్టర్ ఆల్రెడీ సబ్మిట్ అయింది. టుమారో మళ్లీ అప్లోడ్ చేయొచ్చు."
-      : "A poster has already been submitted for this category today. You can upload again tomorrow.",
+      ? "ఈ క్యాటగిరీలో టుడే లేటెస్ట్ సబ్మిషన్ క్రింద కనిపిస్తుంది. ఇంకా పోస్టర్లు అప్లోడ్ చేయొచ్చు."
+      : "Latest submission for this category today is shown below. You can upload more posters.",
     customize: isTelugu ? "కస్టమైజ్" : "Customize",
     previewPlacement: isTelugu ? "ప్రివ్యూ ప్లేస్‌మెంట్" : "Preview Placement",
     close: isTelugu ? "క్లోజ్" : "Close",
@@ -895,7 +895,7 @@ export default function CreatorUploadStudioPage() {
             <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
               <button
                 type="button"
-                disabled={!uploadWindow?.isOpen || Boolean(activeTodayUpload) || !categoryId}
+                disabled={!uploadWindow?.isOpen || !categoryId}
                 onClick={() => openFilePicker(categoryId)}
                 style={{ aspectRatio: filePreviewUrl ? activePreviewAspectRatio : "1 / 1" }}
                 className="relative flex w-full overflow-hidden rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] text-center transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -952,7 +952,7 @@ export default function CreatorUploadStudioPage() {
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}
-                  disabled={!filePreviewUrl || isVideoFile(file) || Boolean(activeTodayUpload)}
+                  disabled={!filePreviewUrl || isVideoFile(file)}
                   className="rounded-xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isVideoFile(file) ? customizationCopy.imageCustomizationOnly : customizationCopy.customize}
@@ -960,7 +960,7 @@ export default function CreatorUploadStudioPage() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    disabled={!uploadWindow?.isOpen || Boolean(activeTodayUpload) || !categoryId}
+                    disabled={!uploadWindow?.isOpen || !categoryId}
                     onClick={() => openCustomizationPicker(categoryId)}
                     className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -968,7 +968,7 @@ export default function CreatorUploadStudioPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={uploadBusy || !file || !uploadWindow?.isOpen || !categoryId || Boolean(activeTodayUpload)}
+                    disabled={uploadBusy || !file || !uploadWindow?.isOpen || !categoryId}
                     className="rounded-xl bg-[var(--portal-green)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadBusy ? customizationCopy.uploading : customizationCopy.upload}

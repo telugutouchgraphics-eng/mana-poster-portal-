@@ -31,6 +31,14 @@ export function getNextIstMidnight(epochMs: number): number {
   return getIstStartOfDay(epochMs) + DAY_MS;
 }
 
+export function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
+  return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
+}
+
+export function getIstEndOfDay(epochMs: number): number {
+  return getNextIstMidnight(epochMs) - 1;
+}
+
 /**
  * IST midnight at the start of the target weekday.
  * If today is already that weekday, returns today's midnight (same day), not next week's.
@@ -68,4 +76,8 @@ export function buildCreatorUploadWindow(epochMs: number) {
 export function getPosterPublishAt(uploadedAt: number, approvedAt: number): number {
   const nextMidnight = getNextIstMidnight(uploadedAt);
   return Math.max(nextMidnight, approvedAt);
+}
+
+export function getCreatorPosterPublishAt(uploadedAt: number): number {
+  return getIstStartOfDayOffset(uploadedAt, 2);
 }

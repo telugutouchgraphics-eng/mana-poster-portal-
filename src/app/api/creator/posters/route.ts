@@ -6,10 +6,7 @@ import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
 import { requireCreatorAccessContext } from "@/lib/server/creator-dashboard";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
-import {
-  buildCreatorUploadWindow,
-  getIstDayKey,
-} from "@/lib/server/ist-schedule";
+import { buildCreatorUploadWindow } from "@/lib/server/ist-schedule";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -240,23 +237,6 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error: "Same poster already uploaded in this category. Change design and upload again.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const todayCategorySnap = await adminDb
-      .collection("creatorPosters")
-      .where("creatorPublicId", "==", creator.creatorPublicId)
-      .where("categoryId", "==", parsed.categoryId)
-      .where("uploadDayKey", "==", getIstDayKey(now))
-      .get();
-
-    if (!todayCategorySnap.empty) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "A poster has already been submitted for this category today. You can upload again tomorrow.",
         },
         { status: 409 },
       );

@@ -10,6 +10,8 @@ import {
 } from "@/lib/server/categories";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
 import {
+  getCreatorPosterPublishAt,
+  getIstEndOfDay,
   getNextIstMidnight,
   getNextIstWeekdayStart,
   getPosterPublishAt,
@@ -27,6 +29,16 @@ const payloadSchema = z.object({
 });
 
 async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedAt: number, approvedAt: number) {
+  const creatorPublishAt = getCreatorPosterPublishAt(uploadedAt);
+  const creatorEventEndAt = getIstEndOfDay(creatorPublishAt);
+  if (creatorPublishAt >= approvedAt) {
+    return {
+      publishAt: creatorPublishAt,
+      eventStartAt: creatorPublishAt,
+      eventEndAt: creatorEventEndAt,
+    };
+  }
+
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const scheduledStart = getNextIstWeekdayStart(uploadedAt, weekday);
@@ -134,7 +146,9 @@ export async function POST(
         performanceWindowStartAt: payload.status === "approved" ? publishAt : Number(current.performanceWindowStartAt ?? 0),
         performanceWindowEndAt:
           payload.status === "approved"
-            ? publishAt + 24 * 60 * 60 * 1000
+            ? (creatorSchedule?.eventEndAt && creatorSchedule.eventEndAt >= publishAt
+                ? creatorSchedule.eventEndAt
+                : publishAt + 24 * 60 * 60 * 1000)
             : Number(current.performanceWindowEndAt ?? 0),
         reviewHistory: [
           ...history,

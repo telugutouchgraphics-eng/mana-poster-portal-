@@ -457,7 +457,7 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "creator.upload.customization": "Customization",
     "creator.upload.uploading": "Uploading...",
     "creator.upload.upload": "Upload",
-    "creator.upload.alreadyUploadedToday": "A poster has already been submitted for this category today. You can upload again tomorrow.",
+    "creator.upload.alreadyUploadedToday": "Latest submission for this category today is shown below. You can upload more posters.",
     "creator.upload.customize": "Customize",
     "creator.upload.previewPlacement": "Preview Placement",
     "creator.upload.close": "Close",
@@ -791,4 +791,3 @@ function decodeMojibake(value: string): string {
 export function t(key: TranslationKey, lang: PortalLanguage): string {
   return decodeMojibake(translations[lang][key] ?? translations.en[key] ?? key);
 }
-
