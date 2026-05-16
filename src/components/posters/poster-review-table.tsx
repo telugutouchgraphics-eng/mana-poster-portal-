@@ -433,32 +433,6 @@ export function PosterReviewTable() {
                     </button>
                   </div>
 
-                  {row.reviewHistory.length > 0 ? (
-                    <div className="mt-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Review History
-                      </p>
-                      <div className="mt-2 space-y-2">
-                        {row.reviewHistory
-                          .slice()
-                          .reverse()
-                          .slice(0, 5)
-                          .map((entry, index) => (
-                            <div
-                              key={`${row.id}-${entry.createdAt}-${index}`}
-                              className="rounded-xl bg-white px-3 py-2 text-xs text-slate-700"
-                            >
-                              <p className="font-semibold capitalize text-slate-900">
-                                {entry.type.replaceAll("_", " ")} by {entry.actorName || entry.actorRole}
-                              </p>
-                              <p className="text-slate-500">{formatDate(entry.createdAt)}</p>
-                              {entry.comment ? <p className="mt-1">{entry.comment}</p> : null}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ) : null}
-
                   {row.status === "approved" ? (
                     <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
                       <input
