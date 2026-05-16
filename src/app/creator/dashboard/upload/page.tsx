@@ -658,10 +658,8 @@ export default function CreatorUploadStudioPage() {
     submittedPosters: isTelugu ? "సబ్మిట్ చేసిన పోస్టర్లు" : "Submitted Posters",
     noSubmittedPosters: isTelugu ? "ఇంకా సబ్మిట్ చేసిన పోస్టర్లు లేవు." : "No submitted posters yet.",
     edit: isTelugu ? "రీ-ఎడిట్" : "Re-edit",
+    reupload: isTelugu ? "రీ-అప్లోడ్" : "Re-upload",
     delete: isTelugu ? "డిలీట్" : "Delete",
-    lockedAfterApproval: isTelugu
-      ? "అప్రూవ్ అయిన పోస్టర్‌ని ఇక్కడ ఎడిట్/డిలీట్ చేయలేరు."
-      : "Approved posters cannot be edited or deleted here.",
     chooseReplacement: isTelugu
       ? "కొత్త ఫైల్ ఎంచుకుని అప్‌డేట్ చేయండి, లేదా కేటగిరీ మార్చి అప్‌డేట్ చేయండి."
       : "Choose a new file to replace it, or change the category and update.",
@@ -769,6 +767,10 @@ export default function CreatorUploadStudioPage() {
     return poster.status === "pending" || poster.status === "rejected";
   }
 
+  function canCreatorDeletePoster(poster: CreatorPoster): boolean {
+    return poster.status === "pending" || poster.status === "rejected" || poster.status === "approved";
+  }
+
   function startEditPoster(poster: CreatorPoster) {
     setEditingPoster(poster);
     setCategoryId(poster.categoryId);
@@ -792,10 +794,7 @@ export default function CreatorUploadStudioPage() {
   }
 
   async function deletePoster(poster: CreatorPoster) {
-    if (!canCreatorEditPoster(poster)) {
-      setUploadMessage(customizationCopy.lockedAfterApproval);
-      return;
-    }
+    if (!canCreatorDeletePoster(poster)) return;
     const confirmed = window.confirm(
       isTelugu
         ? "ఈ పోస్టర్‌ని డిలీట్ చేయాలా?"
@@ -1147,6 +1146,8 @@ export default function CreatorUploadStudioPage() {
               ) : (
                 reviewPosters.map((poster) => {
                   const editable = canCreatorEditPoster(poster);
+                  const deletable = canCreatorDeletePoster(poster);
+                  const approved = poster.status === "approved";
                   const busy = Boolean(posterActionBusyMap[poster.id]);
                   return (
                     <article
@@ -1195,40 +1196,40 @@ export default function CreatorUploadStudioPage() {
                             {customizationCopy.reason}: {poster.reviewComment}
                           </p>
                         ) : null}
-                        {!editable ? (
-                          <p className="mt-3 text-sm text-slate-500">{customizationCopy.lockedAfterApproval}</p>
-                        ) : null}
-
                         <div className="mt-4 flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() => startEditPoster(poster)}
-                            disabled={!editable || busy}
-                            className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {customizationCopy.edit}
-                          </button>
+                          {!approved ? (
+                            <button
+                              type="button"
+                              onClick={() => startEditPoster(poster)}
+                              disabled={!editable || busy}
+                              className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {customizationCopy.edit}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => void deletePoster(poster)}
-                            disabled={!editable || busy}
+                            disabled={!deletable || busy}
                             className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {busy ? customizationCopy.refreshing : customizationCopy.delete}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPoster(null);
-                              setCategoryId(poster.categoryId);
-                              setFile(null);
-                              setUploadMessage(null);
-                              setActiveTab("upload");
-                            }}
-                            className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
-                          >
-                            + {customizationCopy.upload}
-                          </button>
+                          {approved ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPoster(null);
+                                setCategoryId(poster.categoryId);
+                                setFile(null);
+                                setUploadMessage(null);
+                                setActiveTab("upload");
+                              }}
+                              className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)]"
+                            >
+                              {customizationCopy.reupload}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </article>

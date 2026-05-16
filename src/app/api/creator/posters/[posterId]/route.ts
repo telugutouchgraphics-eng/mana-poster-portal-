@@ -84,7 +84,11 @@ function isEditableStatus(status: string): boolean {
   return status === "pending" || status === "rejected";
 }
 
-async function assertCreatorOwnsEditablePoster(posterId: string, creatorPublicId: string) {
+function isDeletableStatus(status: string): boolean {
+  return status === "pending" || status === "rejected" || status === "approved";
+}
+
+async function assertCreatorOwnsPoster(posterId: string, creatorPublicId: string) {
   const posterRef = adminDb.collection("creatorPosters").doc(posterId);
   const posterSnap = await posterRef.get();
   if (!posterSnap.exists) {
@@ -94,10 +98,16 @@ async function assertCreatorOwnsEditablePoster(posterId: string, creatorPublicId
   if (String(poster.creatorPublicId ?? "") !== creatorPublicId) {
     throw new Error("Forbidden");
   }
+  return { posterRef, poster };
+}
+
+async function assertCreatorOwnsEditablePoster(posterId: string, creatorPublicId: string) {
+  const result = await assertCreatorOwnsPoster(posterId, creatorPublicId);
+  const poster = result.poster;
   if (!isEditableStatus(String(poster.status ?? "pending"))) {
     throw new Error("Only pending or rejected posters can be changed.");
   }
-  return { posterRef, poster };
+  return result;
 }
 
 export async function PATCH(
@@ -236,10 +246,13 @@ export async function DELETE(
   try {
     const creator = await requireCreatorAccessContext(req);
     const { posterId } = await params;
-    const { posterRef, poster } = await assertCreatorOwnsEditablePoster(
+    const { posterRef, poster } = await assertCreatorOwnsPoster(
       posterId,
       creator.creatorPublicId,
     );
+    if (!isDeletableStatus(String(poster.status ?? "pending"))) {
+      throw new Error("Only pending, rejected, or approved posters can be deleted.");
+    }
     await posterRef.set(
       {
         status: "deleted",
