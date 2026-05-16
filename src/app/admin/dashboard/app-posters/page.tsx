@@ -510,15 +510,6 @@ export default function AdminAppPostersPage() {
   }
 
   const activeCategory = categories.find((item) => item.id === categoryId);
-  const categoryPreviewMap = useMemo(() => {
-    const map = new Map<string, AppPosterItem>();
-    for (const poster of posters) {
-      if (!map.has(poster.categoryId)) {
-        map.set(poster.categoryId, poster);
-      }
-    }
-    return map;
-  }, [posters]);
   const uploadBoxAspectRatio = useMemo(() => {
     if (fileMeta && fileMeta.width > 0 && fileMeta.height > 0) {
       return `${fileMeta.width} / ${fileMeta.height}`;
@@ -714,7 +705,6 @@ export default function AdminAppPostersPage() {
             ) : (
               categories.map((category) => {
                 const isActive = category.id === categoryId;
-                const categoryPoster = categoryPreviewMap.get(category.id);
                 return (
                   <button
                     key={category.id}
@@ -733,11 +723,6 @@ export default function AdminAppPostersPage() {
                     {formatCategoryDate(category.eventDateLabel) ? (
                       <span className="ml-2 text-[11px] opacity-75">
                         {formatCategoryDate(category.eventDateLabel)}
-                      </span>
-                    ) : null}
-                    {categoryPoster ? (
-                      <span className="ml-2 text-[11px] opacity-75">
-                        {categoryPoster.status === "approved" ? "accepted" : categoryPoster.status}
                       </span>
                     ) : null}
                   </button>

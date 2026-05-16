@@ -944,7 +944,6 @@ export default function CreatorUploadStudioPage() {
               </div>
             ) : (
               assignedCategories.map((category) => {
-                const todayUpload = todayUploadsByCategory[category.id];
                 return (
                   <button
                     key={category.id}
@@ -957,23 +956,6 @@ export default function CreatorUploadStudioPage() {
                     }`}
                   >
                     <span>{category.label}</span>
-                    {todayUpload ? (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          todayUpload.status === "approved"
-                            ? "bg-emerald-600 text-white"
-                            : todayUpload.status === "rejected"
-                              ? "bg-rose-600 text-white"
-                              : "bg-violet-600 text-white"
-                        }`}
-                      >
-                        {todayUpload.status === "approved"
-                          ? customizationCopy.accepted
-                          : todayUpload.status === "rejected"
-                            ? customizationCopy.rejected
-                            : customizationCopy.pending}
-                      </span>
-                    ) : null}
                   </button>
                 );
               })

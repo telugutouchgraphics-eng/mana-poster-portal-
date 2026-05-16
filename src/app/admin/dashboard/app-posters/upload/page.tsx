@@ -816,7 +816,6 @@ export default function AdminUploadStudioPage() {
               </div>
             ) : (
               assignedCategories.map((category) => {
-                const latestUpload = uploadsByCategory[category.id];
                 return (
                   <button
                     key={category.id}
@@ -838,27 +837,10 @@ export default function AdminUploadStudioPage() {
                               ? "bg-amber-100 text-amber-800"
                               : "bg-sky-100 text-sky-800"
                         }`}
-                      >
-                        {formatCategoryDate(category.eventDateLabel)}
-                      </span>
-                    ) : null}
-                    {latestUpload ? (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          latestUpload.status === "approved"
-                            ? "bg-emerald-600 text-white"
-                            : latestUpload.status === "rejected"
-                              ? "bg-rose-600 text-white"
-                              : "bg-violet-600 text-white"
-                        }`}
-                      >
-                        {latestUpload.status === "approved"
-                          ? customizationCopy.accepted
-                          : latestUpload.status === "rejected"
-                            ? customizationCopy.rejected
-                            : customizationCopy.pending}
-                      </span>
-                    ) : null}
+                    >
+                      {formatCategoryDate(category.eventDateLabel)}
+                    </span>
+                  ) : null}
                   </button>
                 );
               })
