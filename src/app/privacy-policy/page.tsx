@@ -1,32 +1,9 @@
 ﻿import Link from "next/link";
-
-const sections = [
-  {
-    title: "Information We Collect",
-    body:
-      "Mana Poster Ai app and portal use account details such as name, email address, phone number, profile photo, login identifiers, purchase status, and device/session information required to operate the service.",
-  },
-  {
-    title: "How We Use Data",
-    body:
-      "We use collected data to authenticate users, deliver subscriptions, restore purchases, enforce one-account-one-device access where applicable, provide customer support, and improve platform operations.",
-  },
-  {
-    title: "Payments and Subscriptions",
-    body:
-      "Subscription purchases are processed through Google Play. We store only the minimum purchase verification data required to confirm entitlement status, restore subscriptions, and resolve billing support requests.",
-  },
-  {
-    title: "Data Sharing",
-    body:
-      "We do not sell personal data. Data may be shared only with essential service providers such as Firebase, Google Play billing infrastructure, and lawful authorities when legally required.",
-  },
-  {
-    title: "User Controls",
-    body:
-      "Users can request account deletion, review support information, and contact support for subscription issues, refund clarification, and cancellation guidance.",
-  },
-];
+import {
+  LEGAL_LAST_UPDATED,
+  SUPPORT_EMAIL,
+  privacySections,
+} from "@/lib/legal/public-legal-content";
 
 export const metadata = {
   title: "Privacy Policy | Mana Poster Ai",
@@ -40,12 +17,12 @@ export default function PrivacyPolicyPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Mana Poster Ai</p>
         <h1 className="mt-3 text-3xl font-extrabold text-slate-950 sm:text-4xl">Privacy Policy</h1>
         <p className="mt-4 text-sm leading-7 text-slate-600">
-          Effective date: April 15, 2026. This page explains how Mana Poster Ai app and the Mana Poster Ai web
-          portal collect, use, and protect user information.
+          Last updated: {LEGAL_LAST_UPDATED}. This page explains how Mana Poster Ai app and the Mana Poster Ai web
+          portal collect, use, review, and protect user information.
         </p>
 
         <div className="mt-8 space-y-6">
-          {sections.map((section) => (
+          {privacySections.map((section) => (
             <section key={section.title} className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
               <h2 className="text-lg font-semibold text-slate-900">{section.title}</h2>
               <p className="mt-2 text-sm leading-7 text-slate-600">{section.body}</p>
@@ -57,8 +34,8 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-lg font-semibold text-slate-900">Contact</h2>
           <p className="mt-2 text-sm leading-7 text-slate-600">
             For privacy, subscription, or account concerns, contact{" "}
-            <a className="font-semibold text-slate-900 underline" href="mailto:telugutouchgraphics@gmail.com">
-              telugutouchgraphics@gmail.com
+            <a className="font-semibold text-slate-900 underline" href={`mailto:${SUPPORT_EMAIL}`}>
+              {SUPPORT_EMAIL}
             </a>
             .
           </p>

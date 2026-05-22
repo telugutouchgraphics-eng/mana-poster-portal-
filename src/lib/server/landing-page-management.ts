@@ -326,7 +326,6 @@ export function createDefaultLandingPageRecord(): LandingPageRecord {
         createCategoryItem("cat-7", "Mahabharatam", "ðŸ¹", 70),
         createCategoryItem("cat-8", "Bhagavad Gita", "ðŸ“œ", 80),
         createCategoryItem("cat-9", "Today Special", "âœ¨", 90),
-        createCategoryItem("cat-10", "News", "ðŸ“°", 100),
       ],
     },
     dynamicEvents: {
@@ -426,7 +425,7 @@ export function createDefaultLandingPageRecord(): LandingPageRecord {
       title: "Mana Poster Ai",
       subtitle: "Your Daily Telugu Poster App",
       description: "Quick links, contact details and social profile links.",
-      contactEmail: "telugutouchgraphics@gmail.com",
+      contactEmail: "manaposter2026@gmail.com",
       logoImageUrl: "",
       logoImagePath: "",
       quickLinks: [
@@ -448,7 +447,7 @@ export function createDefaultLandingPageRecord(): LandingPageRecord {
     showDownloadCta: true,
     downloadUrl: "https://play.google.com/store/apps/details?id=com.telugutouch.manaposter",
     watchDemoUrl: previewUrl,
-    supportEmail: "telugutouchgraphics@gmail.com",
+    supportEmail: "manaposter2026@gmail.com",
     facebookUrl: "https://facebook.com/manaposterapp",
     instagramUrl: "https://instagram.com/manaposterapp",
     youtubeUrl: "https://youtube.com/@manaposter",

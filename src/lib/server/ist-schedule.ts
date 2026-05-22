@@ -22,6 +22,11 @@ export function getIstMinute(epochMs: number): number {
   return shiftedDate(epochMs).getUTCMinutes();
 }
 
+export function getIstWeekday(epochMs: number): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
+  const weekday = ((shiftedDate(epochMs).getUTCDay() + 6) % 7) + 1;
+  return weekday as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+}
+
 export function getIstStartOfDay(epochMs: number): number {
   const date = shiftedDate(epochMs);
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - IST_OFFSET_MINUTES * MINUTE_MS;
@@ -33,6 +38,23 @@ export function getNextIstMidnight(epochMs: number): number {
 
 export function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
   return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
+}
+
+export function parseIstDateKeyToEpoch(dayKey: string): number | null {
+  const normalized = dayKey.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const [yearRaw, monthRaw, dayRaw] = normalized.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+  const utcMidnight = Date.UTC(year, month - 1, day);
+  const epochMs = utcMidnight - IST_OFFSET_MINUTES * MINUTE_MS;
+  return getIstDayKey(epochMs) === normalized ? epochMs : null;
 }
 
 export function getIstEndOfDay(epochMs: number): number {
@@ -79,5 +101,5 @@ export function getPosterPublishAt(uploadedAt: number, approvedAt: number): numb
 }
 
 export function getCreatorPosterPublishAt(uploadedAt: number): number {
-  return getIstStartOfDayOffset(uploadedAt, 2);
+  return getIstStartOfDayOffset(uploadedAt, 1);
 }

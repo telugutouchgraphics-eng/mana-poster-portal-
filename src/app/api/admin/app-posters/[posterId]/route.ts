@@ -16,8 +16,10 @@ import {
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
 import {
   getCreatorPosterPublishAt,
+  getIstWeekday,
   getNextIstMidnight,
   getNextIstWeekdayStart,
+  parseIstDateKeyToEpoch,
 } from "@/lib/server/ist-schedule";
 import {
   resolveFeedPublishAtMs,
@@ -29,6 +31,7 @@ const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const payloadSchema = z.object({
   title: z.string().trim().min(1).max(120),
   categoryId: z.string().trim().min(1),
+  requestedPublishDate: z.string().trim().optional(),
 });
 
 function sanitizeFileName(input: string): string {
@@ -56,10 +59,25 @@ function resolveFileExtension(file: File): string {
   return "png";
 }
 
-async function resolveAdminPosterSchedule(categoryId: string, now: number) {
+function resolveAdminPosterUploadSource(
+  uploadSource: string | undefined,
+): "app_posters" | "upload_posters" {
+  return uploadSource === "upload_posters" ? "upload_posters" : "app_posters";
+}
+
+async function resolveAdminPosterSchedule(
+  categoryId: string,
+  now: number,
+  uploadSource: "app_posters" | "upload_posters",
+  requestedPublishAt: number,
+) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
-    const scheduledStart = getNextIstWeekdayStart(now, weekday);
+    const fallbackWeekdayStart = getNextIstWeekdayStart(now, weekday);
+    const scheduledStart =
+      requestedPublishAt > 0 && getIstWeekday(requestedPublishAt) === weekday
+        ? Math.max(requestedPublishAt, fallbackWeekdayStart)
+        : fallbackWeekdayStart;
     return {
       publishAt: scheduledStart,
       eventStartAt: scheduledStart,
@@ -80,7 +98,10 @@ async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   if (!dynamicSchedule) {
     const item = await getManualEventCategoryById(categoryId);
     if (!item) {
-      const publishAt = getCreatorPosterPublishAt(now);
+      const publishAt =
+        uploadSource === "upload_posters"
+          ? Math.max(requestedPublishAt || getCreatorPosterPublishAt(now), getCreatorPosterPublishAt(now))
+          : now;
       return {
         publishAt,
         eventStartAt: 0,
@@ -144,6 +165,7 @@ export async function PATCH(
     const parsed = payloadSchema.parse({
       title: formData.get("title"),
       categoryId: formData.get("categoryId"),
+      requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
     });
     let personalizationConfig: unknown = undefined;
     const personalizationRaw = formData.get("personalizationConfig");
@@ -171,6 +193,49 @@ export async function PATCH(
         : undefined);
     if (!category) {
       return NextResponse.json({ ok: false, error: "Valid category is required." }, { status: 400 });
+    }
+    const updatedAt = Date.now();
+    const uploadSource = resolveAdminPosterUploadSource(
+      existing.storageFolderKey ?? existing.createdBySurface,
+    );
+    const requestedPublishAtRaw = parsed.requestedPublishDate
+      ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
+      : null;
+    if (parsed.requestedPublishDate && requestedPublishAtRaw == null) {
+      return NextResponse.json({ ok: false, error: "Choose a valid publish date." }, { status: 400 });
+    }
+    const weekday = getWeekdayForCategoryId(parsed.categoryId);
+    let requestedPublishAt = 0;
+    if (weekday && uploadSource === "upload_posters") {
+      const earliestWeekdayPublishAt = getNextIstWeekdayStart(updatedAt, weekday);
+      if (requestedPublishAtRaw != null) {
+        if (getIstWeekday(requestedPublishAtRaw) !== weekday) {
+          return NextResponse.json(
+            { ok: false, error: "Selected publish date must match the category weekday." },
+            { status: 400 },
+          );
+        }
+        if (requestedPublishAtRaw < earliestWeekdayPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      }
+    } else if (!manualCategory && !weekday && uploadSource === "upload_posters") {
+      const earliestRegularPublishAt = getCreatorPosterPublishAt(updatedAt);
+      if (requestedPublishAtRaw != null) {
+        if (requestedPublishAtRaw < earliestRegularPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      } else {
+        requestedPublishAt = earliestRegularPublishAt;
+      }
     }
 
     let mediaType: "image" | "video" | undefined;
@@ -225,13 +290,18 @@ export async function PATCH(
       await deleteAdminAsset(existing.videoPath);
     }
 
-    const updatedAt = Date.now();
-    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, updatedAt);
+    const schedule = await resolveAdminPosterSchedule(
+      parsed.categoryId,
+      updatedAt,
+      uploadSource,
+      requestedPublishAt,
+    );
     await posterRef.set(
       {
         title: parsed.title,
         categoryId: parsed.categoryId,
         categoryLabel: category.label,
+        requestedPublishAt,
         publishAt: schedule.publishAt,
         eventStartAt: schedule.eventStartAt,
         eventEndAt: schedule.eventEndAt,

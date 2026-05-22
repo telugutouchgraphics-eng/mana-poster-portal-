@@ -38,7 +38,6 @@ export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "birthdays", label: "Birthdays" },
   { id: "life_advice", label: "Life Advice" },
   { id: "gita_wisdom", label: "Gita Wisdom" },
-  { id: "news", label: "News" },
   { id: "devotional", label: "Devotional" },
   { id: "mahabharata", label: "Mahabharata" },
   { id: "anniversary", label: "Anniversary" },

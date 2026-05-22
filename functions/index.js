@@ -15,14 +15,16 @@ const { FieldValue } = admin.firestore;
 const EXPIRY_HOURS = 168;
 const EXPIRY_MS = EXPIRY_HOURS * 60 * 60 * 1000;
 const DASHBOARD_POSTER_RETENTION_HOURS = 24;
-const DASHBOARD_POSTER_RETENTION_MS = DASHBOARD_POSTER_RETENTION_HOURS * 60 * 60 * 1000;
+const DASHBOARD_POSTER_RETENTION_MS =
+  DASHBOARD_POSTER_RETENTION_HOURS * 60 * 60 * 1000;
 const PUSH_HISTORY_EXPIRY_HOURS = 24;
 const PUSH_HISTORY_EXPIRY_MS = PUSH_HISTORY_EXPIRY_HOURS * 60 * 60 * 1000;
 const STORAGE_PAGE_SIZE = 1000;
 const FIRESTORE_PAGE_SIZE = 500;
 const DELETE_BATCH_SIZE = 25;
 const SCHEDULE = process.env.STORAGE_CLEANUP_SCHEDULE || "0 3 * * *";
-const SCHEDULE_TIME_ZONE = process.env.STORAGE_CLEANUP_TIME_ZONE || "Asia/Kolkata";
+const SCHEDULE_TIME_ZONE =
+  process.env.STORAGE_CLEANUP_TIME_ZONE || "Asia/Kolkata";
 const PUSH_HISTORY_CLEANUP_SCHEDULE =
   process.env.PUSH_HISTORY_CLEANUP_SCHEDULE || "every 60 minutes";
 
@@ -44,7 +46,10 @@ function normalizePrefix(value) {
 }
 
 function parsePrefixList(envValue, fallback) {
-  const source = typeof envValue === "string" && envValue.trim().length > 0 ? envValue : fallback;
+  const source =
+    typeof envValue === "string" && envValue.trim().length > 0
+      ? envValue
+      : fallback;
   return source
     .split(",")
     .map((item) => normalizePrefix(item))
@@ -66,7 +71,10 @@ function parseBooleanEnv(envValue, fallback) {
   return fallback;
 }
 
-const TEMP_PREFIXES = parsePrefixList(process.env.STORAGE_CLEANUP_TEMP_PREFIXES, "temp/");
+const TEMP_PREFIXES = parsePrefixList(
+  process.env.STORAGE_CLEANUP_TEMP_PREFIXES,
+  "temp/",
+);
 const ORPHAN_SCAN_ENABLED = parseBooleanEnv(
   process.env.STORAGE_CLEANUP_ENABLE_ORPHAN_SCAN,
   true,
@@ -80,7 +88,10 @@ const ORPHAN_PREFIXES = ORPHAN_SCAN_ENABLED
 
 function resolveCreatedAtMs(metadata) {
   const customCreatedAt = metadata?.metadata?.createdAt;
-  if (typeof customCreatedAt === "string" && customCreatedAt.trim().length > 0) {
+  if (
+    typeof customCreatedAt === "string" &&
+    customCreatedAt.trim().length > 0
+  ) {
     const numericValue = Number(customCreatedAt);
     if (Number.isFinite(numericValue) && numericValue > 0) {
       return numericValue;
@@ -115,7 +126,9 @@ function extractPathFromStorageUrl(rawValue, bucketName) {
 
   if (value.startsWith("gs://")) {
     const expectedPrefix = `gs://${bucketName}/`;
-    return value.startsWith(expectedPrefix) ? normalizePath(value.slice(expectedPrefix.length)) : "";
+    return value.startsWith(expectedPrefix)
+      ? normalizePath(value.slice(expectedPrefix.length))
+      : "";
   }
 
   try {
@@ -131,7 +144,9 @@ function extractPathFromStorageUrl(rawValue, bucketName) {
         segments[bucketIndex + 1] === bucketName &&
         segments[objectIndex + 1]
       ) {
-        return normalizePath(decodeURIComponent(segments.slice(objectIndex + 1).join("/")));
+        return normalizePath(
+          decodeURIComponent(segments.slice(objectIndex + 1).join("/")),
+        );
       }
     }
 
@@ -157,7 +172,11 @@ function collectProtectedPath(value, bucketName, protectedPaths) {
   }
 
   const normalizedPath = normalizePath(value);
-  if (normalizedPath && !normalizedPath.startsWith("http://") && !normalizedPath.startsWith("https://")) {
+  if (
+    normalizedPath &&
+    !normalizedPath.startsWith("http://") &&
+    !normalizedPath.startsWith("https://")
+  ) {
     protectedPaths.add(normalizedPath);
   }
 
@@ -167,7 +186,12 @@ function collectProtectedPath(value, bucketName, protectedPaths) {
   }
 }
 
-async function appendProtectedPathsFromCollection(collectionName, fieldNames, bucketName, protectedPaths) {
+async function appendProtectedPathsFromCollection(
+  collectionName,
+  fieldNames,
+  bucketName,
+  protectedPaths,
+) {
   let lastDocumentId = null;
   let documentCount = 0;
 
@@ -258,7 +282,11 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
     for (const document of snapshot.docs) {
       scanned += 1;
       const data = document.data();
-      if (String(data.status ?? "").trim().toLowerCase() !== "approved") {
+      if (
+        String(data.status ?? "")
+          .trim()
+          .toLowerCase() !== "approved"
+      ) {
         continue;
       }
       if (Number(data.contentExpiredAt ?? 0) > 0) {
@@ -266,7 +294,11 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
       }
 
       const approvedAtMs = Number(data.approvedAt ?? data.createdAt ?? 0);
-      if (!Number.isFinite(approvedAtMs) || approvedAtMs <= 0 || approvedAtMs > cutoffMs) {
+      if (
+        !Number.isFinite(approvedAtMs) ||
+        approvedAtMs <= 0 ||
+        approvedAtMs > cutoffMs
+      ) {
         continue;
       }
 
@@ -276,7 +308,9 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
       ].filter(Boolean);
 
       const deleteResults = await Promise.allSettled(
-        pathsToDelete.map((filePath) => bucket.file(filePath).delete({ ignoreNotFound: true })),
+        pathsToDelete.map((filePath) =>
+          bucket.file(filePath).delete({ ignoreNotFound: true }),
+        ),
       );
       deleteResults.forEach((result, index) => {
         if (result.status === "fulfilled") {
@@ -287,7 +321,10 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
         logger.error("Failed to delete expired creator poster media.", {
           posterId: document.id,
           filePath: pathsToDelete[index],
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          error:
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason),
         });
       });
 
@@ -310,7 +347,8 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
               actorRole: "system",
               actorId: "cleanupExpiredStorageAssets",
               actorName: "Scheduled Cleanup",
-              comment: "Poster media auto-expired after 7 days while preserving business records.",
+              comment:
+                "Poster media auto-expired after 7 days while preserving business records.",
               createdAt: Date.now(),
             }),
           },
@@ -374,7 +412,9 @@ async function hideExpiredCreatorPostersFromDashboards(cutoffMs) {
         continue;
       }
 
-      const status = String(data.status ?? "").trim().toLowerCase();
+      const status = String(data.status ?? "")
+        .trim()
+        .toLowerCase();
       if (status === "expired") {
         continue;
       }
@@ -430,6 +470,102 @@ async function hideExpiredCreatorPostersFromDashboards(cutoffMs) {
   };
 }
 
+async function cleanupExpiredUserUploads(bucket, cutoffMs) {
+  let lastDocumentId = null;
+  let scanned = 0;
+  let deletedUploads = 0;
+  let deletedUploadAssets = 0;
+  let deletedApprovedPosters = 0;
+  let deletedPosterAssets = 0;
+  let errors = 0;
+
+  while (true) {
+    let query = db
+      .collection("userPosterUploads")
+      .orderBy(FieldPath.documentId())
+      .limit(FIRESTORE_PAGE_SIZE)
+      .select(
+        "imagePath",
+        "approvedPosterTemplateId",
+        "expiresAt",
+        "createdAt",
+      );
+
+    if (lastDocumentId) {
+      query = query.startAfter(lastDocumentId);
+    }
+
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      break;
+    }
+
+    for (const document of snapshot.docs) {
+      scanned += 1;
+      const data = document.data();
+      const expiresAt = Number(data.expiresAt ?? data.createdAt ?? 0);
+      if (
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= 0 ||
+        expiresAt > cutoffMs
+      ) {
+        continue;
+      }
+
+      try {
+        const uploadImagePath = normalizePath(data.imagePath);
+        if (uploadImagePath) {
+          await bucket.file(uploadImagePath).delete({ ignoreNotFound: true });
+          deletedUploadAssets += 1;
+        }
+
+        const approvedPosterTemplateId = String(
+          data.approvedPosterTemplateId ?? "",
+        ).trim();
+        if (approvedPosterTemplateId) {
+          const posterRef = db
+            .collection("creatorPosters")
+            .doc(approvedPosterTemplateId);
+          const posterSnap = await posterRef.get();
+          if (posterSnap.exists) {
+            const poster = posterSnap.data() || {};
+            const posterPaths = [
+              normalizePath(poster.imagePath),
+              normalizePath(poster.videoPath),
+            ].filter(Boolean);
+            for (const filePath of posterPaths) {
+              await bucket.file(filePath).delete({ ignoreNotFound: true });
+              deletedPosterAssets += 1;
+            }
+            await posterRef.delete();
+            deletedApprovedPosters += 1;
+          }
+        }
+
+        await document.ref.delete();
+        deletedUploads += 1;
+      } catch (error) {
+        errors += 1;
+        logger.error("Failed to clean expired user upload.", {
+          uploadId: document.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    lastDocumentId = snapshot.docs[snapshot.docs.length - 1].id;
+  }
+
+  return {
+    scanned,
+    deletedUploads,
+    deletedUploadAssets,
+    deletedApprovedPosters,
+    deletedPosterAssets,
+    errors,
+  };
+}
+
 function createStats() {
   return {
     scanned: 0,
@@ -460,7 +596,10 @@ async function flushDeletes(filesToDelete, stats) {
     stats.deleteErrors += 1;
     logger.error("Failed to delete expired storage object.", {
       filePath: batch[index].name,
-      error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      error:
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason),
     });
   });
 }
@@ -541,7 +680,10 @@ exports.cleanupExpiredPushNotificationHistory = onSchedule(
   async () => {
     const startedAt = Date.now();
     const cutoffMs = startedAt - PUSH_HISTORY_EXPIRY_MS;
-    const expiredDocuments = await loadExpiredPushHistoryDocuments(cutoffMs, FIRESTORE_PAGE_SIZE);
+    const expiredDocuments = await loadExpiredPushHistoryDocuments(
+      cutoffMs,
+      FIRESTORE_PAGE_SIZE,
+    );
     const deleteSummary = await deletePushHistoryDocuments(expiredDocuments);
     const summary = {
       expiryHours: PUSH_HISTORY_EXPIRY_HOURS,
@@ -556,7 +698,12 @@ exports.cleanupExpiredPushNotificationHistory = onSchedule(
   },
 );
 
-async function scanPrefixForExpiredFiles(bucket, prefix, protectedPaths, cutoffMs) {
+async function scanPrefixForExpiredFiles(
+  bucket,
+  prefix,
+  protectedPaths,
+  cutoffMs,
+) {
   const stats = createStats();
   const filesToDelete = [];
   let pageToken;
@@ -619,8 +766,16 @@ exports.cleanupExpiredStorageAssets = onSchedule(
     const cutoffMs = startedAt - EXPIRY_MS;
     const dashboardCutoffMs = startedAt - DASHBOARD_POSTER_RETENTION_MS;
     const bucket = storage.bucket();
-    const expiredPosterSummary = await expireApprovedCreatorPosterContent(bucket, cutoffMs);
-    const dashboardPosterSummary = await hideExpiredCreatorPostersFromDashboards(dashboardCutoffMs);
+    const expiredUserUploadsSummary = await cleanupExpiredUserUploads(
+      bucket,
+      startedAt,
+    );
+    const expiredPosterSummary = await expireApprovedCreatorPosterContent(
+      bucket,
+      cutoffMs,
+    );
+    const dashboardPosterSummary =
+      await hideExpiredCreatorPostersFromDashboards(dashboardCutoffMs);
     const { protectedPaths, creatorPosterDocs, websitePosterDocs } =
       await buildProtectedPathSet(bucket.name);
 
@@ -638,6 +793,7 @@ exports.cleanupExpiredStorageAssets = onSchedule(
         creatorPosters: creatorPosterDocs,
         websitePosters: websitePosterDocs,
       },
+      expiredUserUploads: expiredUserUploadsSummary,
       expiredCreatorPosterContent: expiredPosterSummary,
       dashboardCreatorPosterCleanup: dashboardPosterSummary,
       prefixes: {},

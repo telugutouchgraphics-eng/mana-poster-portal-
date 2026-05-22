@@ -2,10 +2,15 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
-import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
+import { CREATOR_ASSIGNABLE_CATEGORIES, getWeekdayForCategoryId } from "@/lib/server/categories";
 import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
 import { requireCreatorAccessContext } from "@/lib/server/creator-dashboard";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
+import {
+  getCreatorPosterPublishAt,
+  getIstWeekday,
+  parseIstDateKeyToEpoch,
+} from "@/lib/server/ist-schedule";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -13,6 +18,7 @@ const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
 
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
+  requestedPublishDate: z.string().trim().optional(),
 });
 
 const photoShapeSchema = z.enum([
@@ -125,6 +131,7 @@ export async function PATCH(
     const formData = await req.formData();
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
+      requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
     });
 
     if (!creator.assignedCategories.includes(parsed.categoryId)) {
@@ -150,12 +157,55 @@ export async function PATCH(
     personalizationConfig.sampleName = PERMANENT_SAMPLE_NAME;
 
     const now = Date.now();
+    const requestedPublishAtRaw = parsed.requestedPublishDate
+      ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
+      : null;
+    if (parsed.requestedPublishDate && requestedPublishAtRaw == null) {
+      return NextResponse.json(
+        { ok: false, error: "Choose a valid publish date." },
+        { status: 400 },
+      );
+    }
+    const weekday = getWeekdayForCategoryId(parsed.categoryId);
+    let requestedPublishAt = 0;
+    if (weekday) {
+      const earliestWeekdayPublishAt = getCreatorPosterPublishAt(now);
+      if (requestedPublishAtRaw != null) {
+        if (getIstWeekday(requestedPublishAtRaw) !== weekday) {
+          return NextResponse.json(
+            { ok: false, error: "Selected publish date must match the category weekday." },
+            { status: 400 },
+          );
+        }
+        if (requestedPublishAtRaw < earliestWeekdayPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      }
+    } else if (!manualCategory) {
+      const earliestRegularPublishAt = getCreatorPosterPublishAt(now);
+      if (requestedPublishAtRaw != null) {
+        if (requestedPublishAtRaw < earliestRegularPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      } else {
+        requestedPublishAt = earliestRegularPublishAt;
+      }
+    }
     const nextUpdate: Record<string, unknown> = {
       categoryId: parsed.categoryId,
       categoryLabel: category.label,
       personalizationConfig,
       status: "pending",
       reviewComment: "",
+      requestedPublishAt,
       publishAt: 0,
       approvedAt: 0,
       eventStartAt: 0,

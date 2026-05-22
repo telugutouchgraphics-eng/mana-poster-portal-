@@ -22,6 +22,9 @@ import {
 interface CreatorCategory {
   id: string;
   label: string;
+  isDynamic?: boolean;
+  eventDateLabel?: string;
+  eventStartAt?: number;
 }
 
 interface CreatorPoster {
@@ -35,6 +38,7 @@ interface CreatorPoster {
   reviewComment?: string;
   createdAt: number;
   uploadDayKey?: string;
+  requestedPublishAt?: number;
   publishAt?: number;
   performanceWindowEndAt?: number;
 }
@@ -113,10 +117,11 @@ const defaultPersonalization: PersonalizationConfig = {
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
-const MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_SOURCE_IMAGE_LABEL = "12 MB";
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_LABEL = "5 MB";
+const IST_OFFSET_MINUTES = 330;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isVideoFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("video/"));
@@ -159,26 +164,81 @@ function validatePosterFile(file: File | null): string | null {
     }
     return null;
   }
-  if (file.size > MAX_SOURCE_IMAGE_BYTES) {
-    return `Poster image must be ${MAX_SOURCE_IMAGE_LABEL} or smaller.`;
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    return `Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`;
   }
   return null;
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error("Unable to prepare image for upload."));
-        }
-      },
-      "image/jpeg",
-      quality,
-    );
-  });
+function shiftedIstDate(epochMs: number) {
+  return new Date(epochMs + IST_OFFSET_MINUTES * MINUTE_MS);
+}
+
+function getIstDateKey(epochMs: number): string {
+  const date = shiftedIstDate(epochMs);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getIstStartOfDay(epochMs: number): number {
+  const date = shiftedIstDate(epochMs);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - IST_OFFSET_MINUTES * MINUTE_MS;
+}
+
+function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
+  return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
+}
+
+function getNextIstWeekdayStart(epochMs: number, weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7): number {
+  const startOfDay = getIstStartOfDay(epochMs);
+  const shifted = shiftedIstDate(startOfDay);
+  const todayWeekday = ((shifted.getUTCDay() + 6) % 7) + 1;
+  let daysAhead = weekday - todayWeekday;
+  if (daysAhead < 0) {
+    daysAhead += 7;
+  }
+  return startOfDay + daysAhead * DAY_MS;
+}
+
+function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
+  switch (categoryId) {
+    case "weekday_monday_special":
+      return 1;
+    case "weekday_tuesday_special":
+      return 2;
+    case "weekday_wednesday_special":
+      return 3;
+    case "weekday_thursday_special":
+      return 4;
+    case "weekday_friday_special":
+      return 5;
+    case "weekday_saturday_special":
+      return 6;
+    case "weekday_sunday_special":
+      return 7;
+    default:
+      return null;
+  }
+}
+
+function supportsManualPublishDate(category: CreatorCategory | null): boolean {
+  if (!category) return false;
+  return !category.isDynamic || categoryWeekday(category.id) != null;
+}
+
+function resolveDefaultPublishDateKey(category: CreatorCategory | null, now: number): string {
+  if (!category) return "";
+  const weekday = categoryWeekday(category.id);
+  if (weekday) {
+    return getIstDateKey(getNextIstWeekdayStart(now, weekday));
+  }
+  if (category.isDynamic && (category.eventStartAt ?? 0) > 0) {
+    const earliestVisible = Math.max((category.eventStartAt ?? 0) - 3 * DAY_MS, now);
+    return getIstDateKey(earliestVisible);
+  }
+  return getIstDateKey(getIstStartOfDayOffset(now, 1));
 }
 
 async function preparePosterFileForUpload(file: File): Promise<File> {
@@ -188,54 +248,7 @@ async function preparePosterFileForUpload(file: File): Promise<File> {
   if (file.size <= MAX_IMAGE_UPLOAD_BYTES && isServerAcceptedImage(file)) {
     return file;
   }
-
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new window.Image();
-    image.decoding = "async";
-    const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("This image format is not supported. Please choose JPG, PNG, or WEBP."));
-    });
-    image.src = objectUrl;
-    await loaded;
-
-    const sourceWidth = image.naturalWidth || image.width;
-    const sourceHeight = image.naturalHeight || image.height;
-    if (!sourceWidth || !sourceHeight) {
-      throw new Error(t("creator.upload.unableReadImageSize", "en"));
-    }
-
-    let maxSide = 1600;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
-      const width = Math.max(1, Math.round(sourceWidth * scale));
-      const height = Math.max(1, Math.round(sourceHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        throw new Error(t("creator.upload.unableOptimizeImage", "en"));
-      }
-      context.drawImage(image, 0, 0, width, height);
-
-      for (const quality of [0.84, 0.76, 0.68, 0.6, 0.52]) {
-        const blob = await canvasToBlob(canvas, quality);
-        if (blob.size <= MAX_IMAGE_UPLOAD_BYTES) {
-          const outputName = file.name.replace(/\.[^.]+$/, "") || "poster";
-          return new File([blob], `${outputName}.jpg`, {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          });
-        }
-      }
-      maxSide = Math.round(maxSide * 0.78);
-    }
-    throw new Error(`Image could not be compressed under ${MAX_IMAGE_UPLOAD_LABEL}. Please choose a smaller image.`);
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  throw new Error(`Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`);
 }
 
 async function readUploadResponse(response: Response) {
@@ -340,6 +353,7 @@ export default function CreatorUploadStudioPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<CreatorDashboardResponse | null>(null);
+  const [pageNow] = useState(() => Date.now());
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -351,6 +365,7 @@ export default function CreatorUploadStudioPage() {
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [requestedPublishDate, setRequestedPublishDate] = useState("");
   const [activeTab, setActiveTab] = useState<"upload" | "review">("upload");
   const [editingPoster, setEditingPoster] = useState<CreatorPoster | null>(null);
   const [posterActionBusyMap, setPosterActionBusyMap] = useState<Record<string, boolean>>({});
@@ -560,6 +575,9 @@ export default function CreatorUploadStudioPage() {
       const uploadFile = file ? await preparePosterFileForUpload(file) : null;
       const body = new FormData();
       body.set("categoryId", categoryId);
+      if (manualPublishDateEnabled) {
+        body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+      }
       if (uploadFile) {
         body.set("media", uploadFile);
       }
@@ -608,6 +626,8 @@ export default function CreatorUploadStudioPage() {
   const uploadWindow = dashboard?.uploadWindow;
   const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
   const activeEditPoster = editingPoster && editingPoster.categoryId === categoryId ? editingPoster : null;
+  const defaultPublishDate = resolveDefaultPublishDateKey(activeCategory, pageNow);
+  const manualPublishDateEnabled = supportsManualPublishDate(activeCategory);
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
       ? `${fileMeta.width} / ${fileMeta.height}`
@@ -732,6 +752,18 @@ export default function CreatorUploadStudioPage() {
       transparent_sharp_round: t("creator.upload.shape.transparent_sharp_round", lang),
     } as Record<string, string>,
   });
+
+  useEffect(() => {
+    if (!activeCategory) {
+      setRequestedPublishDate("");
+      return;
+    }
+    if (activeEditPoster?.requestedPublishAt && activeEditPoster.requestedPublishAt > 0) {
+      setRequestedPublishDate(getIstDateKey(activeEditPoster.requestedPublishAt));
+      return;
+    }
+    setRequestedPublishDate(defaultPublishDate);
+  }, [activeCategory, activeEditPoster?.id, activeEditPoster?.requestedPublishAt, defaultPublishDate]);
 
   function openFilePicker(nextCategoryId: string) {
     setCategoryId(nextCategoryId);
@@ -1041,6 +1073,26 @@ export default function CreatorUploadStudioPage() {
               </button>
 
               <div>
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="date"
+                      value={requestedPublishDate}
+                      min={defaultPublishDate || undefined}
+                      disabled={!manualPublishDateEnabled}
+                      onChange={(event) => setRequestedPublishDate(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    />
+                    <span className="text-xs text-slate-600">
+                      {manualPublishDateEnabled
+                        ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
+                        : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
+                    </span>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}

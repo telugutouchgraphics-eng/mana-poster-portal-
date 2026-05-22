@@ -16,6 +16,7 @@ import {
   getNextIstMidnight,
   getNextIstWeekdayStart,
   getPosterPublishAt,
+  getIstWeekday,
 } from "@/lib/server/ist-schedule";
 import {
   resolveFeedPublishAtMs,
@@ -29,10 +30,19 @@ const payloadSchema = z.object({
   reviewComment: z.string().trim().max(300).optional(),
 });
 
-async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedAt: number, approvedAt: number) {
+async function resolveCreatorPosterPublishSchedule(
+  categoryId: string,
+  uploadedAt: number,
+  approvedAt: number,
+  requestedPublishAt: number,
+) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
-    const scheduledStart = getNextIstWeekdayStart(approvedAt, weekday);
+    const fallbackWeekdayStart = getNextIstWeekdayStart(approvedAt, weekday);
+    const scheduledStart =
+      requestedPublishAt > 0 && getIstWeekday(requestedPublishAt) === weekday
+        ? Math.max(requestedPublishAt, fallbackWeekdayStart)
+        : fallbackWeekdayStart;
     return {
       publishAt: scheduledStart,
       eventStartAt: scheduledStart,
@@ -40,7 +50,10 @@ async function resolveCreatorPosterPublishSchedule(categoryId: string, uploadedA
     };
   }
 
-  const creatorPublishAt = getCreatorPosterPublishAt(uploadedAt);
+  const creatorPublishAt = Math.max(
+    requestedPublishAt > 0 ? requestedPublishAt : getCreatorPosterPublishAt(uploadedAt),
+    approvedAt,
+  );
   const creatorEventEndAt = getIstEndOfDay(creatorPublishAt);
   if (creatorPublishAt >= approvedAt) {
     return {
@@ -142,12 +155,13 @@ export async function POST(
       const categoryLabel = String(current.categoryLabel ?? "");
       const title = String(current.title ?? "Poster");
       const uploadedAt = Number(current.createdAt ?? now);
+      const requestedPublishAt = Number(current.requestedPublishAt ?? 0);
       const createdByRole = String(current.createdByRole ?? "").trim().toLowerCase();
       const createdBySurface = String(current.createdBySurface ?? "").trim().toLowerCase();
       const isCreatorUpload = createdByRole === "creator" || createdBySurface === "creator_upload";
       const creatorSchedule =
         payload.status === "approved" && isCreatorUpload
-          ? await resolveCreatorPosterPublishSchedule(categoryId, uploadedAt, now)
+          ? await resolveCreatorPosterPublishSchedule(categoryId, uploadedAt, now, requestedPublishAt)
           : null;
       const publishAt =
         payload.status === "approved"

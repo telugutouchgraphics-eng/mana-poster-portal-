@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import { SUPPORT_EMAIL } from "@/lib/legal/public-legal-content";
 
 export const metadata = {
   title: "Account Deletion | Mana Poster Ai",
@@ -14,8 +15,8 @@ export default function AccountDeletionPage() {
         <p className="mt-4 text-sm leading-7 text-slate-600">
           Users can request account deletion from within the Mana Poster Ai app profile section. If in-app access is not
           available, send a deletion request from your registered email address to{" "}
-          <a className="font-semibold text-slate-900 underline" href="mailto:telugutouchgraphics@gmail.com">
-            telugutouchgraphics@gmail.com
+          <a className="font-semibold text-slate-900 underline" href={`mailto:${SUPPORT_EMAIL}`}>
+            {SUPPORT_EMAIL}
           </a>
           .
         </p>

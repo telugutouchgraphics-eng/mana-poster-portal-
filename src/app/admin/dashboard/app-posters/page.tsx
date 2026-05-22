@@ -115,6 +115,15 @@ function isVideoPoster(poster: Pick<AppPosterItem, "mediaType" | "videoUrl">): b
   return poster.mediaType === "video" && Boolean(poster.videoUrl);
 }
 
+function normalizeCategoryKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function validatePosterFile(file: File | null): string | null {
   if (!file) return null;
   const mimeType = (file.type || "").toLowerCase();
@@ -307,6 +316,16 @@ function categoryTone(category: CategoryItem): string {
     return "border-amber-200 bg-amber-50 text-amber-900 hover:border-amber-300";
   }
   return "border-sky-200 bg-sky-50 text-sky-900 hover:border-sky-300";
+}
+
+function statusClass(status: string): string {
+  if (status === "approved") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "rejected") {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+  return "border-violet-200 bg-violet-50 text-violet-700";
 }
 
 export default function AdminAppPostersPage() {
@@ -510,6 +529,20 @@ export default function AdminAppPostersPage() {
   }
 
   const activeCategory = categories.find((item) => item.id === categoryId);
+  const postersByCategory = useMemo(() => {
+    return posters.reduce<Record<string, AppPosterItem[]>>((acc, item) => {
+      const key = normalizeCategoryKey(item.categoryId || item.categoryLabel || "");
+      const current = acc[key] ?? [];
+      current.push(item);
+      current.sort((left, right) => right.createdAt - left.createdAt);
+      acc[key] = current;
+      return acc;
+    }, {});
+  }, [posters]);
+  const activeCategoryKey = normalizeCategoryKey(categoryId);
+  const activeCategoryPosters = categoryId ? (postersByCategory[activeCategoryKey] ?? []) : [];
+  const activeCategoryPoster = activeCategoryPosters[0] ?? null;
+  const visibleRecentUploads = categoryId ? activeCategoryPosters : posters;
   const uploadBoxAspectRatio = useMemo(() => {
     if (fileMeta && fileMeta.width > 0 && fileMeta.height > 0) {
       return `${fileMeta.width} / ${fileMeta.height}`;
@@ -832,43 +865,81 @@ export default function AdminAppPostersPage() {
       </article>
 
       <article className="px-1">
-        <h3 className="text-lg font-bold text-slate-950 sm:text-xl">Recent admin app posters</h3>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
-          {posters.length === 0 ? (
-            <p className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-              No admin uploaded app posters yet.
-            </p>
+        <section className="rounded-[28px] border border-[var(--portal-border)] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
+                Recent uploads
+              </p>
+              <h4 className="mt-2 text-lg font-bold text-slate-950">Latest posters</h4>
+              <p className="mt-1 text-xs text-slate-500">
+                {visibleRecentUploads.length} uploads
+              </p>
+            </div>
+            {activeCategoryPoster ? (
+              <div className="text-right">
+                <p className="text-sm font-semibold text-slate-950">
+                  {activeCategory?.label ?? activeCategoryPoster.categoryLabel}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {activeCategoryPosters.length} uploads in this category
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          {visibleRecentUploads.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-600">No uploads yet.</p>
           ) : (
-            posters.map((poster) => (
-              <article key={poster.id} className="overflow-hidden rounded-2xl border border-[var(--portal-border)] bg-white">
-                {isVideoPoster(poster) ? (
-                  <video
-                    src={poster.videoUrl}
-                    className="h-28 w-full bg-slate-950 object-cover sm:h-32"
-                    controls
-                    muted
-                    playsInline
-                  />
-                ) : (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={poster.imageUrl} alt={poster.categoryLabel} className="h-28 w-full object-cover sm:h-32" />
-                  </>
-                )}
-                <div className="p-2 sm:p-3">
-                  <p className="text-xs font-semibold text-slate-900 sm:text-sm">{poster.categoryLabel || poster.categoryId}</p>
-                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-600 sm:text-xs">{poster.title}</p>
-                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    {isVideoPoster(poster) ? "video" : "image"}
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-700">{poster.status}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDate(poster.createdAt)}</p>
-                  <div className="mt-3 flex gap-2">
+            <div className="mt-4 max-h-[36rem] space-y-3 overflow-y-auto pr-1">
+              {visibleRecentUploads.map((poster) => (
+                <div
+                  key={poster.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-14 w-14 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                      {isVideoPoster(poster) ? (
+                        <video
+                          src={poster.videoUrl}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={poster.imageUrl}
+                          alt={poster.title || poster.categoryLabel || poster.categoryId}
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {poster.categoryLabel || poster.categoryId}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                        {poster.title}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">{formatDate(poster.createdAt)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}
+                    >
+                      {poster.status}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase text-slate-600">
+                      {isVideoPoster(poster) ? "video" : "image"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => startEdit(poster)}
                       disabled={actionPosterId === poster.id}
-                      className="flex-1 rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[var(--portal-purple)] disabled:opacity-60"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                     >
                       Edit
                     </button>
@@ -876,16 +947,16 @@ export default function AdminAppPostersPage() {
                       type="button"
                       onClick={() => void handleDeletePoster(poster)}
                       disabled={actionPosterId === poster.id}
-                      className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                      className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
                     >
                       {actionPosterId === poster.id ? "Deleting..." : "Delete"}
                     </button>
                   </div>
                 </div>
-              </article>
-            ))
+              ))}
+            </div>
           )}
-        </div>
+        </section>
       </article>
 
       {editingPoster ? (

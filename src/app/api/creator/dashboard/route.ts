@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
+import {
+  CREATOR_ASSIGNABLE_CATEGORIES,
+  getVisibleAssignableCategories,
+} from "@/lib/server/categories";
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
@@ -106,6 +109,7 @@ export async function GET(req: NextRequest) {
         reviewComment: String(doc.data().reviewComment ?? ""),
         createdAt: Number(doc.data().createdAt ?? 0),
         uploadDayKey: String(doc.data().uploadDayKey ?? ""),
+        requestedPublishAt: Number(doc.data().requestedPublishAt ?? 0),
         publishAt: Number(doc.data().publishAt ?? 0),
         performanceWindowEndAt: Number(doc.data().performanceWindowEndAt ?? 0),
         dashboardHiddenAt: Number(doc.data().dashboardHiddenAt ?? 0),
@@ -134,16 +138,32 @@ export async function GET(req: NextRequest) {
     const pendingCount = visiblePosters.filter((item) => item.status === "pending").length;
 
     const manualCategories = await listManualEventCategories();
+    const visibleCategoryMeta = new Map(
+      getVisibleAssignableCategories(new Date(now), 2, 7, 2).map((item) => [
+        item.id,
+        {
+          isDynamic: Boolean(item.isDynamic),
+          eventDateLabel: item.eventDateLabel ?? "",
+          eventStartAt: Number(item.eventStartAt ?? 0),
+        },
+      ]),
+    );
     const categoryMap = Object.fromEntries(
       [...CREATOR_ASSIGNABLE_CATEGORIES, ...manualCategories.map((item) => ({ id: item.id, label: item.label }))].map(
         (item) => [item.id, item.label],
       ),
     );
 
-    const assignedCategories = creator.assignedCategories.map((categoryId) => ({
-      id: categoryId,
-      label: categoryMap[categoryId] ?? categoryId,
-    }));
+    const assignedCategories = creator.assignedCategories.map((categoryId) => {
+      const meta = visibleCategoryMeta.get(categoryId);
+      return {
+        id: categoryId,
+        label: categoryMap[categoryId] ?? categoryId,
+        isDynamic: categoryId.startsWith("weekday_") || Boolean(meta?.isDynamic),
+        eventDateLabel: meta?.eventDateLabel ?? "",
+        eventStartAt: meta?.eventStartAt ?? 0,
+      };
+    });
     const earnings = buildCreatorEarningsSummary(
       creator.creatorPublicId,
       analytics.posters,

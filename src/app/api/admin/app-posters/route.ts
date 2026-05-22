@@ -17,8 +17,10 @@ import {
 import { uploadAdminAsset } from "@/lib/server/content-management";
 import {
   getCreatorPosterPublishAt,
+  getIstWeekday,
   getNextIstMidnight,
   getNextIstWeekdayStart,
+  parseIstDateKeyToEpoch,
 } from "@/lib/server/ist-schedule";
 import {
   resolveFeedPublishAtMs,
@@ -30,6 +32,7 @@ const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
+  requestedPublishDate: z.string().trim().optional(),
   /** FormData.get returns null when missing; Zod .default only runs for undefined. */
   uploadSource: z.preprocess(
     (val) => (val === null || val === "" ? undefined : val),
@@ -146,6 +149,7 @@ function mapPoster(id: string, data: Record<string, unknown>) {
     storageFolderKey: String(data.storageFolderKey ?? ""),
     createdAt: Number(data.createdAt ?? 0),
     approvedAt: Number(data.approvedAt ?? 0),
+    requestedPublishAt: Number(data.requestedPublishAt ?? 0),
   };
 }
 
@@ -170,10 +174,19 @@ async function buildAdminAppPosterCategories() {
   ];
 }
 
-async function resolveAdminPosterSchedule(categoryId: string, now: number) {
+async function resolveAdminPosterSchedule(
+  categoryId: string,
+  now: number,
+  uploadSource: "app_posters" | "upload_posters",
+  requestedPublishAt: number,
+) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
-    const scheduledStart = getNextIstWeekdayStart(now, weekday);
+    const fallbackWeekdayStart = getNextIstWeekdayStart(now, weekday);
+    const scheduledStart =
+      requestedPublishAt > 0 && getIstWeekday(requestedPublishAt) === weekday
+        ? Math.max(requestedPublishAt, fallbackWeekdayStart)
+        : fallbackWeekdayStart;
     return {
       publishAt: scheduledStart,
       eventStartAt: scheduledStart,
@@ -194,7 +207,10 @@ async function resolveAdminPosterSchedule(categoryId: string, now: number) {
   if (!dynamicSchedule) {
     const item = await getManualEventCategoryById(categoryId);
     if (!item) {
-      const publishAt = getCreatorPosterPublishAt(now);
+      const publishAt =
+        uploadSource === "upload_posters"
+          ? Math.max(requestedPublishAt || getCreatorPosterPublishAt(now), getCreatorPosterPublishAt(now))
+          : now;
       return {
         publishAt,
         eventStartAt: 0,
@@ -231,6 +247,7 @@ function resolveAdminPosterStorageFolder(uploadSource: "app_posters" | "upload_p
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
+    const dashboardFetchLimit = 500;
     const sourceParam = req.nextUrl.searchParams.get("source");
     const sourceFilter =
       sourceParam === "upload_posters" || sourceParam === "app_posters"
@@ -239,7 +256,7 @@ export async function GET(req: NextRequest) {
     const snap = await adminDb
       .collection("creatorPosters")
       .where("createdByRole", "==", "admin")
-      .limit(120)
+      .limit(dashboardFetchLimit)
       .get();
     const posters = snap.docs
       .map((doc) => mapPoster(doc.id, doc.data()))
@@ -250,8 +267,7 @@ export async function GET(req: NextRequest) {
         }
         return !surface || surface === "app_posters";
       })
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 80);
+      .sort((a, b) => b.createdAt - a.createdAt);
     return NextResponse.json({
       ok: true,
       categories: await buildAdminAppPosterCategories(),
@@ -269,6 +285,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
+      requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
       uploadSource: formData.get("uploadSource"),
     });
 
@@ -341,7 +358,51 @@ export async function POST(req: NextRequest) {
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const now = Date.now();
-    const schedule = await resolveAdminPosterSchedule(parsed.categoryId, now);
+    const requestedPublishAtRaw = parsed.requestedPublishDate
+      ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
+      : null;
+    if (parsed.requestedPublishDate && requestedPublishAtRaw == null) {
+      return NextResponse.json({ ok: false, error: "Choose a valid publish date." }, { status: 400 });
+    }
+    const weekday = getWeekdayForCategoryId(parsed.categoryId);
+    let requestedPublishAt = 0;
+    if (weekday && parsed.uploadSource === "upload_posters") {
+      const earliestWeekdayPublishAt = getNextIstWeekdayStart(now, weekday);
+      if (requestedPublishAtRaw != null) {
+        if (getIstWeekday(requestedPublishAtRaw) !== weekday) {
+          return NextResponse.json(
+            { ok: false, error: "Selected publish date must match the category weekday." },
+            { status: 400 },
+          );
+        }
+        if (requestedPublishAtRaw < earliestWeekdayPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      }
+    } else if (!manualCategory && !weekday && parsed.uploadSource === "upload_posters") {
+      const earliestRegularPublishAt = getCreatorPosterPublishAt(now);
+      if (requestedPublishAtRaw != null) {
+        if (requestedPublishAtRaw < earliestRegularPublishAt) {
+          return NextResponse.json(
+            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            { status: 400 },
+          );
+        }
+        requestedPublishAt = requestedPublishAtRaw;
+      } else {
+        requestedPublishAt = earliestRegularPublishAt;
+      }
+    }
+    const schedule = await resolveAdminPosterSchedule(
+      parsed.categoryId,
+      now,
+      parsed.uploadSource,
+      requestedPublishAt,
+    );
     const posterRef = adminDb.collection("creatorPosters").doc();
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);
     const storageFolder = resolveAdminPosterStorageFolder(parsed.uploadSource);
@@ -396,6 +457,7 @@ export async function POST(req: NextRequest) {
       platformEarnings: 0,
       payoutStatus: "not_applicable",
       uploadDayKey: "",
+      requestedPublishAt,
       publishAt: schedule.publishAt,
       eventStartAt: schedule.eventStartAt,
       eventEndAt: schedule.eventEndAt,

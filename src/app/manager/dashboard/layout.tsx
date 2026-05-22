@@ -33,6 +33,11 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
       shortLabel: isTelugu ? "రివ్యూ" : "Review",
     },
     {
+      href: "/manager/dashboard/user-uploads",
+      label: isTelugu ? "యూజర్ అప్‌లోడ్స్" : "User Uploads",
+      shortLabel: isTelugu ? "అప్‌లోడ్స్" : "Uploads",
+    },
+    {
       href: "/manager/dashboard/performance",
       label: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
       shortLabel: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",

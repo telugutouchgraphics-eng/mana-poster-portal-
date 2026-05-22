@@ -47,3 +47,6 @@ next-env.d.ts
 
 # Firebase local cache
 .firebase/
+
+# Local debug artifacts
+firebase-debug.log

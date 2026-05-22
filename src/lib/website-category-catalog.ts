@@ -18,7 +18,6 @@ export const WEBSITE_CATEGORY_CATALOG: WebsiteCategoryCatalogEntry[] = [
   { id: "birthdays", label: "Birthdays", aliases: ["birthday"] },
   { id: "life-advice", label: "Life Advice", aliases: ["life advice quotes", "advice"] },
   { id: "gita-wisdom", label: "Gita Wisdom", aliases: ["bhagavad gita", "gita", "gita quotes"] },
-  { id: "news", label: "News" },
   { id: "devotional", label: "Devotional", aliases: ["bhakti"] },
   { id: "mahabharata", label: "Mahabharata", aliases: ["mahabharatam", "maha bharatam"] },
   { id: "anniversary", label: "Anniversary", aliases: ["anniversaries"] },

@@ -22,6 +22,7 @@ interface AdminCategory {
   label: string;
   isDynamic?: boolean;
   eventDateLabel?: string;
+  eventStartAt?: number;
 }
 
 interface AdminPoster {
@@ -34,6 +35,7 @@ interface AdminPoster {
   videoUrl?: string;
   status: string;
   createdAt: number;
+  requestedPublishAt?: number;
 }
 
 interface PersonalizationConfig {
@@ -90,10 +92,11 @@ const defaultPersonalization: PersonalizationConfig = {
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
-const MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_SOURCE_IMAGE_LABEL = "12 MB";
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_LABEL = "5 MB";
+const IST_OFFSET_MINUTES = 330;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isVideoFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("video/"));
@@ -111,6 +114,15 @@ function isServerAcceptedImage(file: File): boolean {
 
 function isVideoPoster(poster: Pick<AdminPoster, "mediaType" | "videoUrl">): boolean {
   return poster.mediaType === "video" && Boolean(poster.videoUrl);
+}
+
+function normalizeCategoryKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function formatCategoryDate(label?: string): string {
@@ -147,26 +159,81 @@ function validatePosterFile(file: File | null): string | null {
     }
     return null;
   }
-  if (file.size > MAX_SOURCE_IMAGE_BYTES) {
-    return `Poster image must be ${MAX_SOURCE_IMAGE_LABEL} or smaller.`;
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    return `Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`;
   }
   return null;
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error("Unable to prepare image for upload."));
-        }
-      },
-      "image/jpeg",
-      quality,
-    );
-  });
+function shiftedIstDate(epochMs: number) {
+  return new Date(epochMs + IST_OFFSET_MINUTES * MINUTE_MS);
+}
+
+function getIstDateKey(epochMs: number): string {
+  const date = shiftedIstDate(epochMs);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getIstStartOfDay(epochMs: number): number {
+  const date = shiftedIstDate(epochMs);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - IST_OFFSET_MINUTES * MINUTE_MS;
+}
+
+function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
+  return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
+}
+
+function getNextIstWeekdayStart(epochMs: number, weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7): number {
+  const startOfDay = getIstStartOfDay(epochMs);
+  const shifted = shiftedIstDate(startOfDay);
+  const todayWeekday = ((shifted.getUTCDay() + 6) % 7) + 1;
+  let daysAhead = weekday - todayWeekday;
+  if (daysAhead < 0) {
+    daysAhead += 7;
+  }
+  return startOfDay + daysAhead * DAY_MS;
+}
+
+function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
+  switch (categoryId) {
+    case "weekday_monday_special":
+      return 1;
+    case "weekday_tuesday_special":
+      return 2;
+    case "weekday_wednesday_special":
+      return 3;
+    case "weekday_thursday_special":
+      return 4;
+    case "weekday_friday_special":
+      return 5;
+    case "weekday_saturday_special":
+      return 6;
+    case "weekday_sunday_special":
+      return 7;
+    default:
+      return null;
+  }
+}
+
+function supportsManualPublishDate(category: AdminCategory | null): boolean {
+  if (!category) return false;
+  return !category.isDynamic || categoryWeekday(category.id) != null;
+}
+
+function resolveDefaultPublishDateKey(category: AdminCategory | null, now: number): string {
+  if (!category) return "";
+  const weekday = categoryWeekday(category.id);
+  if (weekday) {
+    return getIstDateKey(getNextIstWeekdayStart(now, weekday));
+  }
+  if (category.isDynamic && (category.eventStartAt ?? 0) > 0) {
+    const earliestVisible = Math.max((category.eventStartAt ?? 0) - 3 * DAY_MS, now);
+    return getIstDateKey(earliestVisible);
+  }
+  return getIstDateKey(getIstStartOfDayOffset(now, 1));
 }
 
 async function preparePosterFileForUpload(file: File): Promise<File> {
@@ -176,57 +243,7 @@ async function preparePosterFileForUpload(file: File): Promise<File> {
   if (file.size <= MAX_IMAGE_UPLOAD_BYTES && isServerAcceptedImage(file)) {
     return file;
   }
-
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new window.Image();
-    image.decoding = "async";
-    const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () =>
-        reject(new Error("This image format is not supported. Please choose JPG, PNG, or WEBP."));
-    });
-    image.src = objectUrl;
-    await loaded;
-
-    const sourceWidth = image.naturalWidth || image.width;
-    const sourceHeight = image.naturalHeight || image.height;
-    if (!sourceWidth || !sourceHeight) {
-      throw new Error(t("creator.upload.unableReadImageSize", "en"));
-    }
-
-    let maxSide = 1600;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
-      const width = Math.max(1, Math.round(sourceWidth * scale));
-      const height = Math.max(1, Math.round(sourceHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        throw new Error(t("creator.upload.unableOptimizeImage", "en"));
-      }
-      context.drawImage(image, 0, 0, width, height);
-
-      for (const quality of [0.84, 0.76, 0.68, 0.6, 0.52]) {
-        const blob = await canvasToBlob(canvas, quality);
-        if (blob.size <= MAX_IMAGE_UPLOAD_BYTES) {
-          const outputName = file.name.replace(/\.[^.]+$/, "") || "poster";
-          return new File([blob], `${outputName}.jpg`, {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          });
-        }
-      }
-      maxSide = Math.round(maxSide * 0.78);
-    }
-    throw new Error(
-      `Image could not be compressed under ${MAX_IMAGE_UPLOAD_LABEL}. Please choose a smaller image.`,
-    );
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  throw new Error(`Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`);
 }
 
 async function readUploadResponse(response: Response) {
@@ -337,6 +354,7 @@ export default function AdminUploadStudioPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<AdminAppPostersResponse | null>(null);
+  const [pageNow] = useState(() => Date.now());
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [editingPosterId, setEditingPosterId] = useState<string | null>(null);
@@ -349,6 +367,7 @@ export default function AdminUploadStudioPage() {
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [requestedPublishDate, setRequestedPublishDate] = useState("");
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -550,6 +569,9 @@ export default function AdminUploadStudioPage() {
         const title = `Admin ${activeCategory?.label ?? categoryId}`;
         body.set("title", title);
         body.set("categoryId", categoryId);
+        if (manualPublishDateEnabled) {
+          body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+        }
         body.set("media", uploadFile);
         body.set("personalizationConfig", safeConfig);
         response = await fetch(`/api/admin/app-posters/${editingPosterId}`, {
@@ -560,6 +582,9 @@ export default function AdminUploadStudioPage() {
       } else {
         body.set("categoryId", categoryId);
         body.set("uploadSource", "upload_posters");
+        if (manualPublishDateEnabled) {
+          body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+        }
         body.set("media", uploadFile);
         body.set("personalizationConfig", safeConfig);
         response = await fetch("/api/admin/app-posters", {
@@ -580,6 +605,7 @@ export default function AdminUploadStudioPage() {
       setCustomizeOpen(false);
       setFile(null);
       setEditingPosterId(null);
+      setPersonalization(defaultPersonalization);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -599,23 +625,27 @@ export default function AdminUploadStudioPage() {
   }
 
   const assignedCategories = dashboard?.categories ?? [];
-  const categoryUploads = useMemo(() => {
-    return Object.values(
-      (dashboard?.posters ?? []).reduce<Record<string, AdminPoster>>((acc, item) => {
-        const current = acc[item.categoryId];
-        if (!current || item.createdAt > current.createdAt) {
-          acc[item.categoryId] = item;
-        }
-        return acc;
-      }, {}),
-    );
+  const uploadsByCategory = useMemo(() => {
+    return (dashboard?.posters ?? []).reduce<Record<string, AdminPoster[]>>((acc, item) => {
+      const key = normalizeCategoryKey(item.categoryId || item.categoryLabel || "");
+      const current = acc[key] ?? [];
+      current.push(item);
+      current.sort((left, right) => right.createdAt - left.createdAt);
+      acc[key] = current;
+      return acc;
+    }, {});
   }, [dashboard?.posters]);
-  const uploadsByCategory = useMemo(
-    () => Object.fromEntries(categoryUploads.map((item) => [item.categoryId, item])) as Record<string, AdminPoster>,
-    [categoryUploads],
-  );
   const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
-  const activeCategoryUpload = categoryId ? (uploadsByCategory[categoryId] ?? null) : null;
+  const activeCategoryKey = normalizeCategoryKey(categoryId);
+  const activeCategoryUploads = categoryId ? (uploadsByCategory[activeCategoryKey] ?? []) : [];
+  const activeCategoryUpload = activeCategoryUploads[0] ?? null;
+  const activeEditingPoster =
+    editingPosterId && activeCategoryUploads.some((item) => item.id === editingPosterId)
+      ? (activeCategoryUploads.find((item) => item.id === editingPosterId) ?? null)
+      : null;
+  const visibleRecentUploads = categoryId ? activeCategoryUploads : (dashboard?.posters ?? []);
+  const defaultPublishDate = resolveDefaultPublishDateKey(activeCategory, pageNow);
+  const manualPublishDateEnabled = supportsManualPublishDate(activeCategory);
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
       ? `${fileMeta.width} / ${fileMeta.height}`
@@ -709,6 +739,18 @@ export default function AdminUploadStudioPage() {
     apply: t("creator.upload.apply", lang),
     appliedMessage: t("creator.upload.appliedMessage", lang),
   });
+
+  useEffect(() => {
+    if (!activeCategory) {
+      setRequestedPublishDate("");
+      return;
+    }
+    if (activeEditingPoster?.requestedPublishAt && activeEditingPoster.requestedPublishAt > 0) {
+      setRequestedPublishDate(getIstDateKey(activeEditingPoster.requestedPublishAt));
+      return;
+    }
+    setRequestedPublishDate(defaultPublishDate);
+  }, [activeCategory, activeEditingPoster?.id, activeEditingPoster?.requestedPublishAt, defaultPublishDate]);
 
   function openFilePicker(nextCategoryId: string) {
     setCategoryId(nextCategoryId);
@@ -884,6 +926,9 @@ export default function AdminUploadStudioPage() {
                           ? customizationCopy.rejected
                           : customizationCopy.pending}
                     </span>
+                    <p className="text-xs font-semibold text-slate-500">
+                      {activeCategoryUploads.length} uploads in this category
+                    </p>
                     <p>{formatDate(activeCategoryUpload.createdAt)}</p>
                   </div>
                 ) : null}
@@ -922,25 +967,6 @@ export default function AdminUploadStudioPage() {
                       />
                     </>
                   )
-                ) : activeCategoryUpload ? (
-                  isVideoPoster(activeCategoryUpload) ? (
-                    <video
-                      src={activeCategoryUpload.videoUrl}
-                      className="h-full w-full bg-slate-950 object-contain"
-                      controls
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeCategoryUpload.imageUrl}
-                        alt={activeCategoryUpload.categoryLabel || activeCategoryUpload.categoryId}
-                        className="h-full w-full object-contain"
-                      />
-                    </>
-                  )
                 ) : (
                   <div className="flex w-full flex-col items-center justify-center p-6">
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--portal-purple)] text-xl font-semibold text-white">
@@ -954,6 +980,26 @@ export default function AdminUploadStudioPage() {
               </button>
 
               <div>
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="date"
+                      value={requestedPublishDate}
+                      min={defaultPublishDate || undefined}
+                      disabled={!manualPublishDateEnabled}
+                      onChange={(event) => setRequestedPublishDate(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    />
+                    <span className="text-xs text-slate-600">
+                      {manualPublishDateEnabled
+                        ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
+                        : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
+                    </span>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}
@@ -1002,14 +1048,17 @@ export default function AdminUploadStudioPage() {
                   Recent uploads
                 </p>
                 <h4 className="mt-2 text-lg font-bold text-slate-950">Latest posters</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  {visibleRecentUploads.length} uploads
+                </p>
               </div>
             </div>
 
-            {(dashboard?.posters ?? []).length === 0 ? (
+            {visibleRecentUploads.length === 0 ? (
               <p className="mt-4 text-sm text-slate-600">No uploads yet.</p>
             ) : (
-              <div className="mt-4 space-y-3">
-                {(dashboard?.posters ?? []).slice(0, 12).map((poster) => (
+              <div className="mt-4 max-h-[36rem] space-y-3 overflow-y-auto pr-1">
+                {visibleRecentUploads.map((poster) => (
                   <div
                     key={poster.id}
                     className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
