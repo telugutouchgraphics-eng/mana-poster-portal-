@@ -9,9 +9,16 @@ interface RateLimitOptions {
 }
 
 function requestFingerprint(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
+  const forwardedFor =
+    req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-real-ip") ??
+    req.headers.get("x-client-ip") ??
+    req.headers.get("x-forwarded-for") ??
+    "";
   const userAgent = req.headers.get("user-agent") ?? "";
-  const raw = `${forwardedFor}|${userAgent}`;
+  const acceptLanguage = req.headers.get("accept-language") ?? "";
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "";
+  const raw = `${forwardedFor}|${userAgent}|${acceptLanguage}|${host}`;
   return createHash("sha256").update(raw).digest("hex").slice(0, 24);
 }
 

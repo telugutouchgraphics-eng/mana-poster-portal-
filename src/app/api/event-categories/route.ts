@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import {
   listManualEventCategories,
   normalizeManualEventDateRange,
+  parseIsoDateInput,
 } from "@/lib/server/manual-event-categories";
 
 const payloadSchema = z.object({
@@ -13,14 +14,6 @@ const payloadSchema = z.object({
   startDate: z.string().trim().min(10).max(10),
   endDate: z.string().trim().min(10).max(10).optional(),
 });
-
-function parseDateInput(value: string): number {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    throw new Error("Invalid date.");
-  }
-  return new Date(year, month - 1, day).getTime();
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -47,8 +40,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const startAtRaw = parseDateInput(payload.startDate);
-    const endAtRaw = payload.endDate ? parseDateInput(payload.endDate) : startAtRaw;
+    const startAtRaw = parseIsoDateInput(payload.startDate);
+    const endAtRaw = payload.endDate ? parseIsoDateInput(payload.endDate) : startAtRaw;
     const { startAt, endAt } = normalizeManualEventDateRange(startAtRaw, endAtRaw);
     const now = Date.now();
 

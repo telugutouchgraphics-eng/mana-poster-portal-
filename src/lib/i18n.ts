@@ -23,8 +23,6 @@ type TranslationKey =
   | "admin.nav.push"
   | "admin.nav.dashboardAccess"
   | "admin.nav.access"
-  | "admin.nav.landingAccess"
-  | "admin.nav.landing"
   | "admin.nav.settings"
   | "manualEventCategories.eyebrow"
   | "manualEventCategories.title"
@@ -56,6 +54,7 @@ type TranslationKey =
   | "manager.table.unableStatus"
   | "manager.table.unablePassword"
   | "manager.table.unableDevice"
+  | "manager.table.unableDelete"
   | "manager.table.title"
   | "manager.table.search"
   | "manager.table.allStatuses"
@@ -70,6 +69,8 @@ type TranslationKey =
   | "manager.table.activate"
   | "manager.table.resetPassword"
   | "manager.table.resetDevice"
+  | "manager.table.delete"
+  | "manager.table.confirmDelete"
   | "manager.table.loginEmail"
   | "manager.table.resetLink"
   | "manager.table.copied"
@@ -288,8 +289,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "admin.nav.push": "Push",
     "admin.nav.dashboardAccess": "Dashboard Access",
     "admin.nav.access": "Access",
-    "admin.nav.landingAccess": "Landing Access",
-    "admin.nav.landing": "Landing",
     "admin.nav.settings": "Settings",
     "manualEventCategories.eyebrow": "Event Categories",
     "manualEventCategories.title": "Create manual event categories",
@@ -322,6 +321,7 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "manager.table.unableStatus": "Unable to change manager status.",
     "manager.table.unablePassword": "Unable to reset password.",
     "manager.table.unableDevice": "Unable to reset device.",
+    "manager.table.unableDelete": "Unable to delete manager.",
     "manager.table.title": "Managers",
     "manager.table.search": "Search manager",
     "manager.table.allStatuses": "All statuses",
@@ -336,6 +336,9 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "manager.table.activate": "Activate",
     "manager.table.resetPassword": "Reset password",
     "manager.table.resetDevice": "Reset device",
+    "manager.table.delete": "Delete",
+    "manager.table.confirmDelete":
+      "Delete this manager access? Ensure there are no untransferred creators first.",
     "manager.table.loginEmail": "Login email",
     "manager.table.resetLink": "Reset link",
     "manager.table.copied": "Reset link copied",
@@ -556,8 +559,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "admin.nav.push": "à°ªà±à°·à±",
     "admin.nav.dashboardAccess": "à°¡à°¾à°·à±â€Œà°¬à±‹à°°à±à°¡à± à°¯à°¾à°•à±à°¸à±†à°¸à±",
     "admin.nav.access": "à°¯à°¾à°•à±à°¸à±†à°¸à±",
-    "admin.nav.landingAccess": "à°²à°¾à°‚à°¡à°¿à°‚à°—à± à°¯à°¾à°•à±à°¸à±†à°¸à±",
-    "admin.nav.landing": "à°²à°¾à°‚à°¡à°¿à°‚à°—à±",
     "admin.nav.settings": "à°¸à±†à°Ÿà±à°Ÿà°¿à°‚à°—à±à°¸à±",
     "manualEventCategories.eyebrow": "ఈవెంట్ క్యాటగిరీలు",
     "manualEventCategories.title": "మాన్యువల్ ఈవెంట్ క్యాటగిరీలు సృష్టించండి",
@@ -590,6 +591,7 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "manager.table.unableStatus": "à°®à±‡à°¨à±‡à°œà°°à± à°¸à±à°Ÿà±‡à°Ÿà°¸à± à°®à°¾à°°à±à°šà°²à±‡à°•à°ªà±‹à°¯à°¾à°‚.",
     "manager.table.unablePassword": "à°ªà°¾à°¸à±â€Œà°µà°°à±à°¡à± à°°à±€à°¸à±†à°Ÿà± à°šà±‡à°¯à°²à±‡à°•à°ªà±‹à°¯à°¾à°‚.",
     "manager.table.unableDevice": "à°¡à°¿à°µà±ˆà°¸à± à°°à±€à°¸à±†à°Ÿà± à°šà±‡à°¯à°²à±‡à°•à°ªà±‹à°¯à°¾à°‚.",
+    "manager.table.unableDelete": "మేనేజర్‌ను డిలీట్ చేయలేకపోయాం.",
     "manager.table.title": "à°®à±‡à°¨à±‡à°œà°°à±à°²à±",
     "manager.table.search": "à°®à±‡à°¨à±‡à°œà°°à±â€Œà°¨à± à°µà±†à°¤à°•à°‚à°¡à°¿",
     "manager.table.allStatuses": "à°…à°¨à±à°¨à°¿ à°¸à±à°Ÿà±‡à°Ÿà°¸à±â€Œà°²à±",
@@ -604,6 +606,9 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "manager.table.activate": "à°¯à°¾à°•à±à°Ÿà°¿à°µà±‡à°Ÿà±",
     "manager.table.resetPassword": "à°ªà°¾à°¸à±â€Œà°µà°°à±à°¡à± à°°à±€à°¸à±†à°Ÿà±",
     "manager.table.resetDevice": "à°¡à°¿à°µà±ˆà°¸à± à°°à±€à°¸à±†à°Ÿà±",
+    "manager.table.delete": "డిలీట్",
+    "manager.table.confirmDelete":
+      "ఈ మేనేజర్ యాక్సెస్‌ను డిలీట్ చేయాలా? ముందు transfer చేయని creators లేనేలేని నిర్ధారించండి.",
     "manager.table.loginEmail": "à°²à°¾à°—à°¿à°¨à± à°‡à°®à±†à°¯à°¿à°²à±",
     "manager.table.resetLink": "à°°à±€à°¸à±†à°Ÿà± à°²à°¿à°‚à°•à±",
     "manager.table.copied": "à°°à±€à°¸à±†à°Ÿà± à°²à°¿à°‚à°•à± à°•à°¾à°ªà±€ à°…à°¯à°¿à°‚à°¦à°¿",

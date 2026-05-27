@@ -1,14 +1,12 @@
 import { adminAuth } from "@/lib/firebase/admin";
 import type { ManagedPortalRole } from "@/lib/server/managed-auth";
 
-type PortalLinkRole = ManagedPortalRole | "landing";
-
 function configuredPortalUrl(envName: string, fallback: string) {
   const configured = process.env[envName]?.trim();
   return configured && configured.length > 0 ? configured : fallback;
 }
 
-export function buildPortalLoginUrl(role: PortalLinkRole): string {
+export function buildPortalLoginUrl(role: ManagedPortalRole): string {
   if (role === "admin") {
     return configuredPortalUrl("PORTAL_ADMIN_URL", "https://admin.manaposter.in/login");
   }
@@ -27,7 +25,7 @@ export function buildCreatorActivationLink(token: string): string {
 
 export async function generatePortalPasswordResetLink(
   authEmail: string,
-  role: PortalLinkRole,
+  role: ManagedPortalRole,
 ): Promise<string> {
   return adminAuth.generatePasswordResetLink(authEmail, {
     url: buildPortalLoginUrl(role),

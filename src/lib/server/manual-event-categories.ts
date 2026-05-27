@@ -18,6 +18,30 @@ export interface ManualEventCategoryRecord {
   createdByRole: string;
 }
 
+export function parseIsoDateInput(value: string): number {
+  const normalized = value.trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new Error("Invalid date.");
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    throw new Error("Invalid date.");
+  }
+
+  return parsed.getTime();
+}
+
 function startOfDay(epochMs: number): number {
   const date = new Date(epochMs);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();

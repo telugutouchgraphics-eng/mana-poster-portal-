@@ -1,11 +1,5 @@
-import { ManagerCreateForm } from "@/components/admin/manager-create-form";
-import { ManagerTable } from "@/components/managers/manager-table";
+import { AdminManagersPanel } from "@/components/managers/admin-managers-panel";
 
 export default function AdminManagersPage() {
-  return (
-    <section className="space-y-6">
-      <ManagerCreateForm />
-      <ManagerTable />
-    </section>
-  );
+  return <AdminManagersPanel />;
 }

@@ -81,11 +81,6 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       shortLabel: t("admin.nav.access", lang),
     },
     {
-      href: "/admin/dashboard/access",
-      label: t("admin.nav.landingAccess", lang),
-      shortLabel: t("admin.nav.landing", lang),
-    },
-    {
       href: "/admin/dashboard/settings",
       label: t("admin.nav.settings", lang),
       shortLabel: t("admin.nav.settings", lang),

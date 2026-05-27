@@ -44,6 +44,7 @@ export function ManagerTable() {
     unableStatus: isTelugu ? "మేనేజర్ స్టేటస్ చేంజ్ చేయలేకపోయాం." : "Unable to change manager status.",
     unablePassword: isTelugu ? "పాస్‌వర్డ్ రీసెట్ చేయలేకపోయాం." : "Unable to reset password.",
     unableDevice: isTelugu ? "డివైస్ రీసెట్ చేయలేకపోయాం." : "Unable to reset device.",
+    unableDelete: isTelugu ? "మేనేజర్‌ను డిలీట్ చేయలేకపోయాం." : "Unable to delete manager.",
     title: isTelugu ? "మేనేజర్స్" : "Managers",
     search: isTelugu ? "సెర్చ్ మేనేజర్" : "Search manager",
     allStatuses: isTelugu ? "ఆల్ స్టేటసెస్" : "All statuses",
@@ -58,6 +59,10 @@ export function ManagerTable() {
     activate: isTelugu ? "యాక్టివేట్" : "Activate",
     resetPassword: isTelugu ? "రీసెట్ పాస్‌వర్డ్" : "Reset password",
     resetDevice: isTelugu ? "రీసెట్ డివైస్" : "Reset device",
+    delete: isTelugu ? "డిలీట్" : "Delete",
+    confirmDelete: isTelugu
+      ? "ఈ మేనేజర్ యాక్సెస్‌ను డిలీట్ చేయాలా? ముందు transfer చేయని creators లేనేలేని నిర్ధారించండి."
+      : "Delete this manager access? Ensure there are no untransferred creators first.",
     loginEmail: isTelugu ? "లాగిన్ ఇమెయిల్" : "Login email",
     initialPassword: isTelugu ? "సిస్టమ్ పాస్వర్డ్" : "System password",
     loginUrl: isTelugu ? "లాగిన్ URL" : "Login URL",
@@ -76,6 +81,7 @@ export function ManagerTable() {
     unableStatus: t("manager.table.unableStatus", lang),
     unablePassword: t("manager.table.unablePassword", lang),
     unableDevice: t("manager.table.unableDevice", lang),
+    unableDelete: t("manager.table.unableDelete", lang),
     title: t("manager.table.title", lang),
     search: t("manager.table.search", lang),
     allStatuses: t("manager.table.allStatuses", lang),
@@ -90,6 +96,8 @@ export function ManagerTable() {
     activate: t("manager.table.activate", lang),
     resetPassword: t("manager.table.resetPassword", lang),
     resetDevice: t("manager.table.resetDevice", lang),
+    delete: t("manager.table.delete", lang),
+    confirmDelete: t("manager.table.confirmDelete", lang),
     loginEmail: t("manager.table.loginEmail", lang),
     initialPassword: t("manager.table.initialPassword", lang),
     loginUrl: t("manager.table.loginUrl", lang),
@@ -233,6 +241,40 @@ export function ManagerTable() {
     }
   }
 
+  async function deleteManager(managerUid: string) {
+    try {
+      const confirmed = window.confirm(copy.confirmDelete);
+      if (!confirmed) {
+        return;
+      }
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/admin/managers/${encodeURIComponent(managerUid)}`,
+        {
+          method: "DELETE",
+          headers,
+        }
+      );
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? copy.unableDelete);
+      }
+      setCredentialResult((prev) => {
+        const next = { ...prev };
+        delete next[managerUid];
+        return next;
+      });
+      setExpandedRows((prev) => {
+        const next = { ...prev };
+        delete next[managerUid];
+        return next;
+      });
+      await loadManagers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : copy.unableDelete);
+    }
+  }
+
   function toggleExpanded(managerUid: string) {
     setExpandedRows((prev) => ({
       ...prev,
@@ -340,6 +382,12 @@ export function ManagerTable() {
                     >
                       {copy.resetDevice}
                     </button>
+                    <button
+                      onClick={() => void deleteManager(row.uid)}
+                      className="w-full rounded-xl bg-rose-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
+                    >
+                      {copy.delete}
+                    </button>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700">
                       <p data-no-auto-translate="true">{copy.loginEmail}: {row.email}</p>
                       <p data-no-auto-translate="true" className="mt-1 break-all">
@@ -410,12 +458,20 @@ export function ManagerTable() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <button
-                        onClick={() => toggleExpanded(row.uid)}
-                        className="w-full whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                      >
-                        {expandedRows[row.uid] ? copy.close : copy.open}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleExpanded(row.uid)}
+                          className="flex-1 whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                        >
+                          {expandedRows[row.uid] ? copy.close : copy.open}
+                        </button>
+                        <button
+                          onClick={() => void deleteManager(row.uid)}
+                          className="whitespace-nowrap rounded-xl bg-rose-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-rose-700"
+                        >
+                          {copy.delete}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                   {expandedRows[row.uid] ? (
@@ -444,6 +500,12 @@ export function ManagerTable() {
                             className="whitespace-nowrap rounded-xl bg-[var(--portal-purple)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
                           >
                             {copy.resetDevice}
+                          </button>
+                          <button
+                            onClick={() => void deleteManager(row.uid)}
+                            className="whitespace-nowrap rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700"
+                          >
+                            {copy.delete}
                           </button>
                         </div>
                         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">

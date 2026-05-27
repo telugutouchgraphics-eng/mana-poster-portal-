@@ -1,7 +1,7 @@
 import { Firestore } from "firebase-admin/firestore";
 
 export type ManagedPortalRole = "admin" | "manager" | "creator";
-export type ManagedAuthScope = ManagedPortalRole | "landing";
+export type ManagedAuthScope = ManagedPortalRole;
 
 function splitEmailParts(email: string) {
   const normalized = email.trim().toLowerCase();
