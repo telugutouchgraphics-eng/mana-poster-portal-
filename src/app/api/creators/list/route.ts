@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
-import { loadScopedCreatorIds } from "@/lib/server/manager-scope";
+import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import { decryptSensitiveField } from "@/lib/server/secure-fields";
-import { pruneInactiveAssignedCategories } from "@/lib/server/categories";
+import {
+  filterKnownAssignedCategories,
+  pruneInactiveAssignedCategories,
+} from "@/lib/server/categories";
+import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
 interface RawCreatorDoc {
@@ -46,6 +50,34 @@ interface PayoutSummary {
   lastPayoutAt: number;
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function loadDocsByCreatorIds(collectionName: string, creatorIds: string[]) {
+  const chunks = chunkArray(creatorIds, 30);
+  const snapshots = await Promise.all(
+    chunks.map((chunk) =>
+      adminDb.collection(collectionName).where("creatorPublicId", "in", chunk).get(),
+    ),
+  );
+  return snapshots.flatMap((snapshot) => snapshot.docs);
+}
+
+async function loadProfileDocsByIds(collectionName: string, creatorIds: string[]) {
+  const chunks = chunkArray(creatorIds, 40);
+  const docs = await Promise.all(
+    chunks.map((chunk) =>
+      Promise.all(chunk.map((creatorId) => adminDb.collection(collectionName).doc(creatorId).get())),
+    ),
+  );
+  return docs.flat().filter((doc) => doc.exists);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin", "manager"]);
@@ -54,15 +86,23 @@ export async function GET(req: NextRequest) {
     const status = (url.searchParams.get("status") ?? "all").trim();
     const bankStatus = (url.searchParams.get("bankStatus") ?? "all").trim();
     const payoutStatus = (url.searchParams.get("payoutStatus") ?? "all").trim();
-    const scopedCreatorIds = await loadScopedCreatorIds(actor);
-    const scopedCreatorIdSet = scopedCreatorIds ? new Set(scopedCreatorIds) : null;
-
-    const [snapshot, posterSnap, payoutProfileSnap, payoutSnap] = await Promise.all([
-      adminDb.collection("creatorProfiles").get(),
-      adminDb.collection("creatorPosters").get(),
-      adminDb.collection("creatorPayoutProfiles").get(),
-      adminDb.collection("creatorPayouts").get(),
+    const [snapshot, manualCategories] = await Promise.all([
+      loadScopedCreatorProfiles(actor),
+      listManualEventCategories(),
     ]);
+    const manualCategoryIds = manualCategories.map((item) => item.id);
+    const creatorIds = snapshot
+      .map((doc) => String(doc.data().creatorPublicId ?? doc.id).trim())
+      .filter((creatorId) => creatorId.length > 0);
+
+    const [posterSnap, payoutProfileSnap, payoutSnap] =
+      creatorIds.length > 0
+        ? await Promise.all([
+            loadDocsByCreatorIds("creatorPosters", creatorIds),
+            loadProfileDocsByIds("creatorPayoutProfiles", creatorIds),
+            loadDocsByCreatorIds("creatorPayouts", creatorIds),
+          ])
+        : [[], [], []];
 
     const posterStats = new Map<
       string,
@@ -75,7 +115,7 @@ export async function GET(req: NextRequest) {
       }
     >();
 
-    for (const doc of posterSnap.docs) {
+    for (const doc of posterSnap) {
       const data = doc.data();
       const creatorPublicId = String(data.creatorPublicId ?? "").trim();
       if (!creatorPublicId) continue;
@@ -96,8 +136,11 @@ export async function GET(req: NextRequest) {
     }
 
     const payoutProfileMap = new Map<string, BankReviewSummary>();
-    for (const doc of payoutProfileSnap.docs) {
+    for (const doc of payoutProfileSnap) {
       const data = doc.data();
+      if (!data) {
+        continue;
+      }
       const encryptedAccountNumber = String(data.accountNumberEncrypted ?? "");
       payoutProfileMap.set(doc.id, {
         status: String(data.status ?? "pending_review"),
@@ -118,7 +161,7 @@ export async function GET(req: NextRequest) {
     }
 
     const payoutSummaryMap = new Map<string, PayoutSummary>();
-    for (const doc of payoutSnap.docs) {
+    for (const doc of payoutSnap) {
       const data = doc.data();
       const creatorPublicId = String(data.creatorPublicId ?? "").trim();
       if (!creatorPublicId) continue;
@@ -142,13 +185,10 @@ export async function GET(req: NextRequest) {
       payoutSummaryMap.set(creatorPublicId, current);
     }
 
-    const rows = snapshot.docs
+    const rows = snapshot
       .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<RawCreatorDoc, "id">) }))
       .filter((item) => {
         const itemCreatorId = String(item.creatorPublicId ?? item.id).trim();
-        if (scopedCreatorIdSet && !scopedCreatorIdSet.has(itemCreatorId)) {
-          return false;
-        }
         const itemStatus = String(item.status ?? "pending_invite");
         if (status !== "all" && itemStatus !== status) {
           return false;
@@ -185,7 +225,11 @@ export async function GET(req: NextRequest) {
         const rawAssignedCategories = Array.isArray(item.assignedCategories)
           ? item.assignedCategories.map(String)
           : [];
-        const { assignedCategories } = pruneInactiveAssignedCategories(rawAssignedCategories);
+        const { assignedCategories: knownAssignedCategories } = filterKnownAssignedCategories(
+          rawAssignedCategories,
+          manualCategoryIds,
+        );
+        const { assignedCategories } = pruneInactiveAssignedCategories(knownAssignedCategories);
         const stats = posterStats.get(creatorPublicId);
         const payoutProfile = payoutProfileMap.get(creatorPublicId) ?? null;
         const payoutSummary = payoutSummaryMap.get(creatorPublicId) ?? {

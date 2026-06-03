@@ -213,7 +213,7 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
-  const [otpAuthEmail, setOtpAuthEmail] = useState<string | null>(null);
+  const [, setOtpAuthEmail] = useState<string | null>(null);
   const [resetMode, setResetMode] = useState(false);
   const [resetChallengeId, setResetChallengeId] = useState<string | null>(null);
   const [resetOtp, setResetOtp] = useState("");
@@ -331,15 +331,14 @@ function LoginContent() {
       const data = (await response.json()) as {
         ok: boolean;
         challengeId?: string;
-        authEmail?: string;
         maskedEmail?: string;
         error?: string;
       };
-      if (!response.ok || !data.ok || !data.challengeId || !data.authEmail) {
+      if (!response.ok || !data.ok || !data.challengeId) {
         throw new Error(data.error ?? "Unable to send OTP.");
       }
       setOtpChallengeId(data.challengeId);
-      setOtpAuthEmail(data.authEmail);
+      setOtpAuthEmail(null);
       setOtp("");
       setInfo(copy.infoOtpSent(data.maskedEmail ?? "your email"));
     } catch (err) {
@@ -355,7 +354,7 @@ function LoginContent() {
     setError(null);
     setInfo(null);
     try {
-      if (!otpChallengeId || !otpAuthEmail) {
+      if (!otpChallengeId) {
         throw new Error("Request OTP first.");
       }
       const verifyResponse = await fetch("/api/auth/verify-otp", {
@@ -368,14 +367,16 @@ function LoginContent() {
       });
       const verifyData = (await verifyResponse.json()) as {
         ok: boolean;
+        authEmail?: string;
         error?: string;
       };
-      if (!verifyResponse.ok || !verifyData.ok) {
+      if (!verifyResponse.ok || !verifyData.ok || !verifyData.authEmail) {
         throw new Error(verifyData.error ?? "OTP verification failed.");
       }
+      setOtpAuthEmail(verifyData.authEmail);
 
       const auth = getClientAuth();
-      await signInWithEmailAndPassword(auth, otpAuthEmail, password);
+      await signInWithEmailAndPassword(auth, verifyData.authEmail, password);
       await finishLogin();
     } catch (err) {
       try {

@@ -18,14 +18,23 @@ function matchesManagerScope(
 }
 
 export async function loadScopedCreatorProfiles(actor: RequestUser) {
-  const snapshot = await adminDb.collection("creatorProfiles").get();
-  const docs = snapshot.docs.filter((doc) => {
-    if (isAdmin(actor)) {
-      return true;
-    }
-    return matchesManagerScope(doc.data(), actor.uid);
-  });
-  return docs;
+  if (isAdmin(actor)) {
+    const snapshot = await adminDb.collection("creatorProfiles").get();
+    return snapshot.docs;
+  }
+
+  const [directManagerSnap, assignedBySnap] = await Promise.all([
+    adminDb.collection("creatorProfiles").where("managerUid", "==", actor.uid).get(),
+    adminDb.collection("creatorProfiles").where("assignedByUid", "==", actor.uid).get(),
+  ]);
+  const docs = new Map<string, (typeof directManagerSnap.docs)[number]>();
+  for (const doc of directManagerSnap.docs) {
+    docs.set(doc.id, doc);
+  }
+  for (const doc of assignedBySnap.docs) {
+    docs.set(doc.id, doc);
+  }
+  return Array.from(docs.values()).filter((doc) => matchesManagerScope(doc.data(), actor.uid));
 }
 
 export async function loadScopedCreatorIds(actor: RequestUser): Promise<string[] | null> {

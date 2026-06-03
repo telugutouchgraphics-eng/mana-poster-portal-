@@ -34,6 +34,108 @@ const payloadSchema = z.object({
   requestedPublishDate: z.string().trim().optional(),
 });
 
+const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
+const photoShapeSchema = z.enum([
+  "circle",
+  "scallop_circle",
+  "soft_burst",
+  "badge",
+  "square",
+  "rounded_square",
+  "vertical_rectangle",
+  "oval",
+  "flower",
+  "blob",
+  "wave_bottom",
+  "arch",
+  "diagonal_cut",
+  "diamond",
+  "hexagon",
+  "parallelogram",
+  "sunburst",
+  "transparent_bottom_fade",
+  "transparent_clean",
+  "transparent_soft_round",
+  "transparent_sharp_round",
+]);
+
+const photoFrameStyleSchema = z.enum([
+  "none",
+  "inner_shadow",
+  "white_outline",
+  "glow_edge",
+  "double_border",
+]);
+const videoPhotoAnimationSchema = z.enum([
+  "none",
+  "top_to_place",
+  "bottom_to_place",
+  "left_to_place",
+  "right_to_place",
+  "zoom_in",
+  "zoom_out",
+]);
+const personalizationSchema = z.object({
+  photoShape: photoShapeSchema.default("circle"),
+  photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
+  edgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  photoFrameStyle: photoFrameStyleSchema.default("none"),
+  showSafeAreas: z.boolean().default(true),
+  photoX: z.number().min(0).max(100).default(78),
+  photoY: z.number().min(0).max(100).default(42),
+  photoScale: z.number().min(10).max(100).default(44),
+  showVideoExtraPhoto: z.boolean().default(false),
+  videoExtraPhotoShape: photoShapeSchema.default("circle"),
+  videoExtraPhotoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
+  videoExtraPhotoEdgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  videoExtraPhotoFrameStyle: photoFrameStyleSchema.default("none"),
+  videoExtraPhotoX: z.number().min(0).max(100).default(24),
+  videoExtraPhotoY: z.number().min(0).max(100).default(44),
+  videoExtraPhotoScale: z.number().min(10).max(100).default(28),
+  photoAnimation: videoPhotoAnimationSchema.default("none"),
+  videoExtraPhotoAnimation: videoPhotoAnimationSchema.default("none"),
+  nameX: z.number().min(0).max(100).default(50),
+  nameY: z.number().min(0).max(100).default(82),
+  showBottomStrip: z.boolean().default(true),
+  stripHeight: z.number().min(8).max(40).default(16),
+  sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
+});
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function clampPersonalizationSafeArea(
+  config: z.infer<typeof personalizationSchema>,
+): z.infer<typeof personalizationSchema> {
+  const margin = 0;
+  const bleed = 6;
+  const clampOverlay = (x: number, y: number, scale: number) => {
+    const safeScale = clampNumber(scale, 12, 90);
+    const half = safeScale / 2;
+    return {
+      scale: safeScale,
+      x: clampNumber(x, margin + half - bleed, 100 - margin - half + bleed),
+      y: clampNumber(y, margin + half - bleed, 100 - margin - half + bleed),
+    };
+  };
+  const mainOverlay = clampOverlay(config.photoX, config.photoY, config.photoScale);
+  const extraOverlay = clampOverlay(
+    config.videoExtraPhotoX,
+    config.videoExtraPhotoY,
+    config.videoExtraPhotoScale,
+  );
+  return {
+    ...config,
+    photoScale: mainOverlay.scale,
+    photoX: mainOverlay.x,
+    photoY: mainOverlay.y,
+    videoExtraPhotoScale: extraOverlay.scale,
+    videoExtraPhotoX: extraOverlay.x,
+    videoExtraPhotoY: extraOverlay.y,
+  };
+}
+
 function sanitizeFileName(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -171,7 +273,12 @@ export async function PATCH(
     const personalizationRaw = formData.get("personalizationConfig");
     if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
       try {
-        personalizationConfig = JSON.parse(personalizationRaw);
+        personalizationConfig = {
+          ...clampPersonalizationSafeArea(
+            personalizationSchema.parse(JSON.parse(personalizationRaw)),
+          ),
+          sampleName: PERMANENT_SAMPLE_NAME,
+        };
       } catch {
         return NextResponse.json(
           { ok: false, error: "Unable to parse personalization config." },

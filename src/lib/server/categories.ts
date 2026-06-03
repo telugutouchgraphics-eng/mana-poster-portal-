@@ -5,6 +5,7 @@ import {
   type FloatingDynamicEventCategoryDef,
 } from "./dynamic-event-catalog";
 import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
+import { getIstEndOfDay, getNextIstWeekdayStart } from "./ist-schedule";
 
 export interface CategoryDef {
   id: string;
@@ -23,6 +24,14 @@ function formatEventDateLabel(month: number, day: number): string {
   return new Date(2026, month - 1, day).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
+  });
+}
+
+function formatEpochEventDateLabel(epochMs: number): string {
+  return new Date(epochMs).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -68,6 +77,22 @@ const WEEKDAY_DYNAMIC_CATEGORIES: Array<
   { id: "weekday_saturday_special", label: "Saturday Special", weekday: 6 },
   { id: "weekday_sunday_special", label: "Sunday Special", weekday: 7 },
 ];
+
+export function getUpcomingWeekdayAssignableCategories(
+  now: Date = new Date(),
+): VisibleCategoryDef[] {
+  return WEEKDAY_DYNAMIC_CATEGORIES.map((item) => {
+    const eventStartAt = getNextIstWeekdayStart(now.getTime(), item.weekday);
+    return {
+      id: item.id,
+      label: item.label,
+      isDynamic: true,
+      eventDateLabel: formatEpochEventDateLabel(eventStartAt),
+      eventStartAt,
+      eventEndAt: getIstEndOfDay(eventStartAt),
+    };
+  });
+}
 
 const DYNAMIC_EVENT_CATEGORIES = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES;
 const FLOATING_DYNAMIC_EVENT_CATEGORIES = CSV_FLOATING_DYNAMIC_EVENT_CATEGORIES;
@@ -226,12 +251,9 @@ export function getVisibleAssignableCategories(
     id: item.id,
     label: item.label,
     isDynamic: true,
-    eventDateLabel: today.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-    }),
+    eventDateLabel: formatEpochEventDateLabel(today.getTime()),
     eventStartAt: today.getTime(),
-    eventEndAt: endOfDay(today).getTime(),
+    eventEndAt: getIstEndOfDay(today.getTime()),
   }));
 
   return uniqueById([
@@ -254,9 +276,36 @@ export const CREATOR_ASSIGNABLE_CATEGORIES: CategoryDef[] = uniqueById([
   ...FLOATING_DYNAMIC_EVENT_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
   ...LUNAR_DYNAMIC_CATEGORIES,
 ]);
+const CREATOR_ASSIGNABLE_CATEGORY_ID_SET = new Set(
+  CREATOR_ASSIGNABLE_CATEGORIES.map((item) => item.id),
+);
 
 export function isValidCategoryId(id: string): boolean {
   return CREATOR_ASSIGNABLE_CATEGORIES.some((category) => category.id === id);
+}
+
+export function filterKnownAssignedCategories(
+  assignedCategories: string[],
+  extraValidIds: string[] = [],
+): { assignedCategories: string[]; removedCategoryIds: string[] } {
+  const validIds = new Set([...CREATOR_ASSIGNABLE_CATEGORY_ID_SET, ...extraValidIds]);
+  const keptCategoryIds: string[] = [];
+  const removedCategoryIds: string[] = [];
+
+  for (const categoryId of assignedCategories) {
+    if (!validIds.has(categoryId)) {
+      removedCategoryIds.push(categoryId);
+      continue;
+    }
+    if (!keptCategoryIds.includes(categoryId)) {
+      keptCategoryIds.push(categoryId);
+    }
+  }
+
+  return {
+    assignedCategories: keptCategoryIds,
+    removedCategoryIds,
+  };
 }
 
 export function getVisibleDynamicCategoryById(

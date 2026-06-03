@@ -10,8 +10,10 @@ interface Params {
   params: Promise<{ creatorPublicId: string }>;
 }
 
+const MAX_ASSIGNED_CATEGORIES = 200;
+
 const requestSchema = z.object({
-  categoryIds: z.array(z.string().trim().min(1)).max(20),
+  categoryIds: z.array(z.string().trim().min(1)).max(MAX_ASSIGNED_CATEGORIES),
 });
 
 export async function POST(req: NextRequest, { params }: Params) {

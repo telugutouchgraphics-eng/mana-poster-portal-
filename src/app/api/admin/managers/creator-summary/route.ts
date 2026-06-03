@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { filterKnownAssignedCategories } from "@/lib/server/categories";
+import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 
 interface RawManagerDoc {
   uid: string;
@@ -38,11 +40,13 @@ export async function GET(req: NextRequest) {
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim();
 
-    const [primaryRoleSnapshot, multiRoleSnapshot, creatorSnapshot] = await Promise.all([
+    const [primaryRoleSnapshot, multiRoleSnapshot, creatorSnapshot, manualCategories] = await Promise.all([
       adminDb.collection("users").where("role", "==", "manager").get(),
       adminDb.collection("users").where("roles", "array-contains", "manager").get(),
       adminDb.collection("creatorProfiles").get(),
+      listManualEventCategories(),
     ]);
+    const manualCategoryIds = manualCategories.map((item) => item.id);
 
     const mergedDocs = new Map<string, (typeof primaryRoleSnapshot.docs)[number]>();
     for (const doc of primaryRoleSnapshot.docs) {
@@ -74,9 +78,13 @@ export async function GET(req: NextRequest) {
       }
 
       const creators = creatorsByManager.get(managerUid) ?? [];
-      const assignedCategories = Array.isArray(item.assignedCategories)
+      const rawAssignedCategories = Array.isArray(item.assignedCategories)
         ? item.assignedCategories.map(String)
         : [];
+      const { assignedCategories } = filterKnownAssignedCategories(
+        rawAssignedCategories,
+        manualCategoryIds,
+      );
       creators.push({
         creatorPublicId: String(item.creatorPublicId ?? doc.id),
         name: String(item.name ?? "-"),

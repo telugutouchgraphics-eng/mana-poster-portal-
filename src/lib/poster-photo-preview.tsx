@@ -539,3 +539,69 @@ export function renderPosterPhotoPreview({
     </div>
   );
 }
+
+export function renderPosterPhotoPlaceholderPreview({
+  shape,
+  frameStyle,
+  label = "Add Photo",
+}: {
+  shape: PhotoShape;
+  frameStyle: PhotoFrameStyle;
+  label?: string;
+}): React.JSX.Element {
+  const renderShape = resolvedRenderShape(shape);
+  const preset = shapeFramePreset(shape);
+  const outerShell = shapeShellStyle(renderShape);
+  const photoShell = shapeOverlayStyle(renderShape);
+  const hasBackground = !isTransparentPhotoShape(shape);
+  const shouldClip = shouldClipPhotoToShape(shape);
+
+  return (
+    <div className={`relative h-full w-full ${photoClassName(shape)}`}>
+      {hasBackground ? (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            ...outerShell,
+            background: preset.outerBackground,
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          ...(shouldClip
+            ? photoShell
+            : {
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+              }),
+          inset: preset.photoInset,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          className="relative flex h-full w-full items-center justify-center"
+          style={{
+            background: hasBackground
+              ? "linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08))"
+              : "linear-gradient(180deg, rgba(15,23,42,0.06), rgba(15,23,42,0.14))",
+          }}
+        >
+          <div className="flex flex-col items-center gap-2 text-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.28)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/20 text-xl font-semibold">
+              +
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.24em]">
+              {label}
+            </span>
+          </div>
+        </div>
+      </div>
+      {frameStyle !== "none" && hasBackground ? (
+        <div aria-hidden="true" style={frameDecorationStyle(renderShape, frameStyle)} />
+      ) : null}
+    </div>
+  );
+}

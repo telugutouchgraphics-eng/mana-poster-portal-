@@ -204,6 +204,21 @@ export function CreatorAccessTable({
     () => Object.fromEntries(categories.map((cat) => [cat.id, cat])),
     [categories],
   );
+  const visibleCategoryIds = useMemo(() => new Set(categories.map((cat) => cat.id)), [categories]);
+
+  useEffect(() => {
+    if (visibleCategoryIds.size === 0) {
+      return;
+    }
+    setSelectedMap((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([creatorPublicId, categoryIds]) => [
+          creatorPublicId,
+          categoryIds.filter((categoryId) => visibleCategoryIds.has(categoryId)),
+        ]),
+      ),
+    );
+  }, [visibleCategoryIds]);
 
   function toggleCategory(creatorPublicId: string, categoryId: string) {
     setSelectedMap((prev) => {
@@ -219,6 +234,9 @@ export function CreatorAccessTable({
   async function assignCategories(creatorPublicId: string) {
     try {
       const headers = await authHeader();
+      const sanitizedCategoryIds = (selectedMap[creatorPublicId] ?? []).filter((categoryId) =>
+        visibleCategoryIds.has(categoryId),
+      );
       const response = await fetch(
         `/api/creators/${encodeURIComponent(creatorPublicId)}/assign-categories`,
         {
@@ -228,7 +246,7 @@ export function CreatorAccessTable({
             ...headers,
           },
           body: JSON.stringify({
-            categoryIds: selectedMap[creatorPublicId] ?? [],
+            categoryIds: sanitizedCategoryIds,
           }),
         }
       );
@@ -236,7 +254,8 @@ export function CreatorAccessTable({
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Category assignment failed.");
       }
-      const nextCategories = selectedMap[creatorPublicId] ?? [];
+      const nextCategories = sanitizedCategoryIds;
+      setSelectedMap((prev) => ({ ...prev, [creatorPublicId]: nextCategories }));
       setRows((prev) =>
         prev.map((row) =>
           row.creatorPublicId === creatorPublicId

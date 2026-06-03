@@ -86,9 +86,32 @@ export async function resolveManagedAuthEmail(
   uid: string;
 }> {
   const normalizedIdentifier = normalizeLoginIdentifier(identifier);
-  const snapshot = await db.collection("users").get();
+  const users = db.collection("users");
+  const dedupedDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  const queries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [];
 
-  for (const doc of snapshot.docs) {
+  for (const field of roleLoginField(role)) {
+    queries.push(users.where(field, "==", normalizedIdentifier).limit(1).get());
+  }
+
+  if (normalizedIdentifier.includes("@")) {
+    const contactEmail = roleContactEmail(normalizedIdentifier, role);
+    const authEmail = buildRoleAuthEmail(normalizedIdentifier, role);
+    queries.push(users.where("email", "==", contactEmail).limit(1).get());
+    queries.push(users.where("authEmail", "==", authEmail).limit(1).get());
+    if (authEmail !== normalizedIdentifier) {
+      queries.push(users.where("authEmail", "==", normalizedIdentifier).limit(1).get());
+    }
+  }
+
+  const snapshots = await Promise.all(queries);
+  for (const snapshot of snapshots) {
+    for (const doc of snapshot.docs) {
+      dedupedDocs.set(doc.id, doc);
+    }
+  }
+
+  for (const doc of dedupedDocs.values()) {
     const data = { uid: doc.id, ...(doc.data() as Omit<ManagedUserRecord, "uid">) };
     if (!hasRole(data, role)) {
       continue;

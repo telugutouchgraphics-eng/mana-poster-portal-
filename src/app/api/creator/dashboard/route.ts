@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
+  getUpcomingWeekdayAssignableCategories,
   getVisibleAssignableCategories,
 } from "@/lib/server/categories";
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
@@ -19,6 +20,9 @@ import {
 } from "@/lib/server/dashboard-metrics";
 import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
 import { buildCreatorUploadWindow, getIstDayKey } from "@/lib/server/ist-schedule";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function dayKey(epochMs: number): string {
   const date = new Date(epochMs);
@@ -41,38 +45,45 @@ export async function GET(req: NextRequest) {
   try {
     const creator = await resolveCreatorReadContext(req);
     if (!creator) {
-      return NextResponse.json({
-        ok: true,
-        previewOnly: true,
-        requiresAsCreator: true,
-        profile: null,
-        assignedCategories: [],
-        stats: {
-          totalUploads: 0,
-          todayUploads: 0,
-          approvedCount: 0,
-          rejectedCount: 0,
-          pendingCount: 0,
-          todayEarnings: 0,
-          monthEarnings: 0,
-          totalEarnings: 0,
+      return NextResponse.json(
+        {
+          ok: true,
+          previewOnly: true,
+          requiresAsCreator: true,
+          profile: null,
+          assignedCategories: [],
+          stats: {
+            totalUploads: 0,
+            todayUploads: 0,
+            approvedCount: 0,
+            rejectedCount: 0,
+            pendingCount: 0,
+            todayEarnings: 0,
+            monthEarnings: 0,
+            totalEarnings: 0,
+          },
+          earnings: {
+            today: 0,
+            thisMonth: 0,
+            total: 0,
+            paidOut: 0,
+            pendingBalance: 0,
+            platformToday: 0,
+            platformThisMonth: 0,
+            platformTotal: 0,
+            sharePercent: 80,
+          },
+          categoryPerformance: [],
+          competition: [],
+          transactions: [],
+          posters: [],
         },
-        earnings: {
-          today: 0,
-          thisMonth: 0,
-          total: 0,
-          paidOut: 0,
-          pendingBalance: 0,
-          platformToday: 0,
-          platformThisMonth: 0,
-          platformTotal: 0,
-          sharePercent: 80,
+        {
+          headers: {
+            "Cache-Control": "no-store, max-age=0",
+          },
         },
-        categoryPerformance: [],
-        competition: [],
-        transactions: [],
-        posters: [],
-      });
+      );
     }
     const now = Date.now();
     const today = dayKey(now);
@@ -107,6 +118,7 @@ export async function GET(req: NextRequest) {
         videoUrl: String(doc.data().videoUrl ?? ""),
         status: String(doc.data().status ?? "pending"),
         reviewComment: String(doc.data().reviewComment ?? ""),
+        personalizationConfig: doc.data().personalizationConfig ?? null,
         createdAt: Number(doc.data().createdAt ?? 0),
         uploadDayKey: String(doc.data().uploadDayKey ?? ""),
         requestedPublishAt: Number(doc.data().requestedPublishAt ?? 0),
@@ -138,15 +150,18 @@ export async function GET(req: NextRequest) {
     const pendingCount = visiblePosters.filter((item) => item.status === "pending").length;
 
     const manualCategories = await listManualEventCategories();
+    const weekdayCategories = getUpcomingWeekdayAssignableCategories(new Date(now));
     const visibleCategoryMeta = new Map(
-      getVisibleAssignableCategories(new Date(now), 2, 7, 2).map((item) => [
-        item.id,
-        {
-          isDynamic: Boolean(item.isDynamic),
-          eventDateLabel: item.eventDateLabel ?? "",
-          eventStartAt: Number(item.eventStartAt ?? 0),
-        },
-      ]),
+      [...getVisibleAssignableCategories(new Date(now), 2, 7, 2), ...weekdayCategories].map(
+        (item) => [
+          item.id,
+          {
+            isDynamic: Boolean(item.isDynamic),
+            eventDateLabel: item.eventDateLabel ?? "",
+            eventStartAt: Number(item.eventStartAt ?? 0),
+          },
+        ],
+      ),
     );
     const categoryMap = Object.fromEntries(
       [...CREATOR_ASSIGNABLE_CATEGORIES, ...manualCategories.map((item) => ({ id: item.id, label: item.label }))].map(
@@ -210,42 +225,45 @@ export async function GET(req: NextRequest) {
       .filter((item) => item.status !== "completed")
       .slice(0, 4);
 
-    return NextResponse.json({
-      ok: true,
-      profile: {
-        creatorPublicId: creator.creatorPublicId,
-        name: creator.name,
-        email: creator.email,
+    return NextResponse.json(
+      {
+        ok: true,
+        profile: {
+          creatorPublicId: creator.creatorPublicId,
+          name: creator.name,
+          email: creator.email,
+        },
+        assignedCategories,
+        uploadWindow,
+        todayUploadsByCategory,
+        stats: {
+          totalUploads: visiblePosters.length,
+          todayUploads,
+          approvedCount,
+          rejectedCount,
+          pendingCount,
+          todayEarnings: earnings.today,
+          monthEarnings: earnings.thisMonth,
+          totalEarnings: earnings.total,
+        },
+        earnings,
+        categoryPerformance,
+        competition,
+        activeCompetitions,
+        liveBanners: banners
+          .filter((item) => item.active)
+          .filter((item) => item.placement === "creator_overview_banner")
+          .slice(0, 5),
+        announcements,
+        transactions,
+        posters: visiblePosters,
       },
-      assignedCategories,
-      uploadWindow,
-      todayUploadsByCategory,
-      stats: {
-        totalUploads: visiblePosters.length,
-        todayUploads,
-        approvedCount,
-        rejectedCount,
-        pendingCount,
-        todayEarnings: earnings.today,
-        monthEarnings: earnings.thisMonth,
-        totalEarnings: earnings.total,
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
       },
-      earnings,
-      categoryPerformance,
-      competition,
-      activeCompetitions,
-      liveBanners: banners
-        .filter((item) => item.active)
-        .filter(
-          (item) =>
-            item.placement === "creator_overview_banner" ||
-            item.placement === "home_category_banner",
-        )
-        .slice(0, 5),
-      announcements,
-      transactions,
-      posters: visiblePosters,
-    });
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load creator dashboard.";
     const status = message === "Forbidden" ? 403 : 400;

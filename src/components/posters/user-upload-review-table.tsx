@@ -593,11 +593,18 @@ export function UserUploadReviewTable() {
       }
       const uploads = data.uploads;
       setRows(uploads);
-      setRejectionReasonMap(
-        Object.fromEntries(
-          uploads.map((item) => [item.id, item.rejectionReason ?? ""]),
-        ),
-      );
+      setRejectionReasonMap((prev) => {
+        const next: Record<string, string> = {};
+        uploads.forEach((item) => {
+          if (Object.prototype.hasOwnProperty.call(prev, item.id)) {
+            // Keep in-progress local typing during auto-refresh.
+            next[item.id] = prev[item.id] ?? "";
+            return;
+          }
+          next[item.id] = item.rejectionReason ?? "";
+        });
+        return next;
+      });
       setPersonalizationMap((prev) => {
         const next = { ...prev };
         uploads.forEach((item) => {

@@ -71,7 +71,15 @@ const photoFrameStyleSchema = z.enum([
   "glow_edge",
   "double_border",
 ]);
-
+const videoPhotoAnimationSchema = z.enum([
+  "none",
+  "top_to_place",
+  "bottom_to_place",
+  "left_to_place",
+  "right_to_place",
+  "zoom_in",
+  "zoom_out",
+]);
 const personalizationSchema = z.object({
   photoShape: photoShapeSchema.default("circle"),
   photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
@@ -81,6 +89,16 @@ const personalizationSchema = z.object({
   photoX: z.number().min(0).max(100).default(78),
   photoY: z.number().min(0).max(100).default(42),
   photoScale: z.number().min(10).max(100).default(44),
+  showVideoExtraPhoto: z.boolean().default(false),
+  videoExtraPhotoShape: photoShapeSchema.default("circle"),
+  videoExtraPhotoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
+  videoExtraPhotoEdgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  videoExtraPhotoFrameStyle: photoFrameStyleSchema.default("none"),
+  videoExtraPhotoX: z.number().min(0).max(100).default(24),
+  videoExtraPhotoY: z.number().min(0).max(100).default(44),
+  videoExtraPhotoScale: z.number().min(10).max(100).default(28),
+  photoAnimation: videoPhotoAnimationSchema.default("none"),
+  videoExtraPhotoAnimation: videoPhotoAnimationSchema.default("none"),
   nameX: z.number().min(0).max(100).default(50),
   nameY: z.number().min(0).max(100).default(82),
   showBottomStrip: z.boolean().default(true),
@@ -97,13 +115,29 @@ function clampPersonalizationSafeArea(
 ): z.infer<typeof personalizationSchema> {
   const margin = 0;
   const bleed = 6;
-  const photoScale = clampNumber(config.photoScale, 12, 90);
-  const half = photoScale / 2;
+  const clampOverlay = (x: number, y: number, scale: number) => {
+    const safeScale = clampNumber(scale, 12, 90);
+    const half = safeScale / 2;
+    return {
+      scale: safeScale,
+      x: clampNumber(x, margin + half - bleed, 100 - margin - half + bleed),
+      y: clampNumber(y, margin + half - bleed, 100 - margin - half + bleed),
+    };
+  };
+  const mainOverlay = clampOverlay(config.photoX, config.photoY, config.photoScale);
+  const extraOverlay = clampOverlay(
+    config.videoExtraPhotoX,
+    config.videoExtraPhotoY,
+    config.videoExtraPhotoScale,
+  );
   return {
     ...config,
-    photoScale,
-    photoX: clampNumber(config.photoX, margin + half - bleed, 100 - margin - half + bleed),
-    photoY: clampNumber(config.photoY, margin + half - bleed, 100 - margin - half + bleed),
+    photoScale: mainOverlay.scale,
+    photoX: mainOverlay.x,
+    photoY: mainOverlay.y,
+    videoExtraPhotoScale: extraOverlay.scale,
+    videoExtraPhotoX: extraOverlay.x,
+    videoExtraPhotoY: extraOverlay.y,
   };
 }
 
@@ -144,6 +178,7 @@ function mapPoster(id: string, data: Record<string, unknown>) {
     imagePath: String(data.imagePath ?? ""),
     videoUrl: String(data.videoUrl ?? ""),
     videoPath: String(data.videoPath ?? ""),
+    personalizationConfig: data.personalizationConfig ?? null,
     status: String(data.status ?? ""),
     createdBySurface: String(data.createdBySurface ?? ""),
     storageFolderKey: String(data.storageFolderKey ?? ""),

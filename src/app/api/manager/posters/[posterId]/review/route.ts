@@ -50,19 +50,6 @@ async function resolveCreatorPosterPublishSchedule(
     };
   }
 
-  const creatorPublishAt = Math.max(
-    requestedPublishAt > 0 ? requestedPublishAt : getCreatorPosterPublishAt(uploadedAt),
-    approvedAt,
-  );
-  const creatorEventEndAt = getIstEndOfDay(creatorPublishAt);
-  if (creatorPublishAt >= approvedAt) {
-    return {
-      publishAt: creatorPublishAt,
-      eventStartAt: creatorPublishAt,
-      eventEndAt: creatorEventEndAt,
-    };
-  }
-
   const dynamicSchedule = getVisibleDynamicCategoryById(
     categoryId,
     new Date(uploadedAt),
@@ -85,12 +72,24 @@ async function resolveCreatorPosterPublishSchedule(
       eventEndAt: item.endAt,
     };
   }
-  const eventStartAt = dynamicSchedule?.eventStartAt ?? 0;
-  const eventEndAt = dynamicSchedule?.eventEndAt ?? 0;
+  if (dynamicSchedule) {
+    const eventStartAt = dynamicSchedule.eventStartAt ?? 0;
+    const eventEndAt = dynamicSchedule.eventEndAt ?? 0;
+    return {
+      publishAt: resolveFeedPublishAtMs(eventStartAt, approvedAt),
+      eventStartAt,
+      eventEndAt,
+    };
+  }
+
+  const creatorPublishAt = Math.max(
+    requestedPublishAt > 0 ? requestedPublishAt : getCreatorPosterPublishAt(uploadedAt),
+    approvedAt,
+  );
   return {
-    publishAt: resolveFeedPublishAtMs(eventStartAt, approvedAt),
-    eventStartAt,
-    eventEndAt,
+    publishAt: creatorPublishAt,
+    eventStartAt: creatorPublishAt,
+    eventEndAt: getIstEndOfDay(creatorPublishAt),
   };
 }
 

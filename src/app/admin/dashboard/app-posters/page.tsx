@@ -14,6 +14,13 @@ import {
   type PhotoFrameStyle,
   type PhotoShape,
 } from "@/lib/poster-photo-preview";
+import {
+  parseVideoPhotoAnimation,
+  resolveVideoPhotoAnimationStyle,
+  VIDEO_PHOTO_ANIMATION_GLOBAL_CSS,
+  VIDEO_PHOTO_ANIMATION_OPTIONS,
+  type VideoPhotoAnimation,
+} from "@/lib/video-photo-animation";
 
 interface CategoryItem {
   id: string;
@@ -30,6 +37,7 @@ interface AppPosterItem {
   mediaType: string;
   imageUrl: string;
   videoUrl?: string;
+  personalizationConfig?: Partial<PersonalizationConfig> | null;
   imagePath?: string;
   status: string;
   createdAt: number;
@@ -57,6 +65,16 @@ interface PersonalizationConfig {
   photoX: number;
   photoY: number;
   photoScale: number;
+  showVideoExtraPhoto: boolean;
+  videoExtraPhotoShape: PhotoShape;
+  videoExtraPhotoRenderMode: "cutout" | "original";
+  videoExtraPhotoEdgeStyle: PhotoEdgeStyle;
+  videoExtraPhotoFrameStyle: PhotoFrameStyle;
+  videoExtraPhotoX: number;
+  videoExtraPhotoY: number;
+  videoExtraPhotoScale: number;
+  photoAnimation: VideoPhotoAnimation;
+  videoExtraPhotoAnimation: VideoPhotoAnimation;
   nameX: number;
   nameY: number;
   showBottomStrip: boolean;
@@ -82,6 +100,16 @@ const defaultPersonalization: PersonalizationConfig = {
   photoX: 78,
   photoY: 42,
   photoScale: 44,
+  showVideoExtraPhoto: false,
+  videoExtraPhotoShape: "circle",
+  videoExtraPhotoRenderMode: "cutout",
+  videoExtraPhotoEdgeStyle: "soft_fade",
+  videoExtraPhotoFrameStyle: "none",
+  videoExtraPhotoX: 24,
+  videoExtraPhotoY: 44,
+  videoExtraPhotoScale: 28,
+  photoAnimation: "none",
+  videoExtraPhotoAnimation: "none",
   nameX: 50,
   nameY: 82,
   showBottomStrip: true,
@@ -94,7 +122,6 @@ const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
 const MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024;
 const MAX_SOURCE_IMAGE_LABEL = "12 MB";
 const MAX_VIDEO_UPLOAD_LABEL = "5 MB";
-
 function isVideoFile(file: File | null): boolean {
   if (!file) return false;
   return (file.type || "").toLowerCase().startsWith("video/");
@@ -224,6 +251,7 @@ async function preparePosterFileForUpload(file: File): Promise<File> {
   }
 }
 
+
 async function readUploadResponse(response: Response) {
   const text = await response.text();
   if (!text) {
@@ -270,6 +298,7 @@ function clampPhotoSafeArea(
 ): PersonalizationConfig {
   const margin = 0;
   const bleed = 0;
+  const edgeTravelBleed = 18;
   const bottomBleed = config.showBottomStrip
     ? Math.max(8, Math.min(16, config.stripHeight * 0.75))
     : bleed;
@@ -277,13 +306,35 @@ function clampPhotoSafeArea(
   const maxScaleX = 100 - margin * 2;
   const maxScaleY = (100 - margin * 2) / aspect;
   const photoScale = clampNumber(config.photoScale, 12, Math.max(12, Math.min(90, maxScaleX, maxScaleY)));
+  const videoExtraPhotoScale = clampNumber(
+    config.videoExtraPhotoScale,
+    12,
+    Math.max(12, Math.min(90, maxScaleX, maxScaleY)),
+  );
   const halfX = photoScale / 2;
   const halfY = (photoScale * aspect) / 2;
+  const extraHalfX = videoExtraPhotoScale / 2;
+  const extraHalfY = (videoExtraPhotoScale * aspect) / 2;
   return {
     ...config,
     photoScale,
-    photoX: clampNumber(config.photoX, margin + halfX, 100 - margin - halfX),
-    photoY: clampNumber(config.photoY, margin + halfY - bleed, 100 - margin - halfY + bottomBleed),
+    photoX: clampNumber(config.photoX, margin + halfX - edgeTravelBleed, 100 - margin - halfX + edgeTravelBleed),
+    photoY: clampNumber(
+      config.photoY,
+      margin + halfY - bleed - edgeTravelBleed,
+      100 - margin - halfY + bottomBleed + edgeTravelBleed,
+    ),
+    videoExtraPhotoScale,
+    videoExtraPhotoX: clampNumber(
+      config.videoExtraPhotoX,
+      margin + extraHalfX - edgeTravelBleed,
+      100 - margin - extraHalfX + edgeTravelBleed,
+    ),
+    videoExtraPhotoY: clampNumber(
+      config.videoExtraPhotoY,
+      margin + extraHalfY - bleed - edgeTravelBleed,
+      100 - margin - extraHalfY + bottomBleed + edgeTravelBleed,
+    ),
   };
 }
 
@@ -347,14 +398,20 @@ export default function AdminAppPostersPage() {
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileMeta, setFileMeta] = useState<ImageMeta | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [videoPreviewStarted, setVideoPreviewStarted] = useState(false);
+  const [videoPreviewCycle, setVideoPreviewCycle] = useState(0);
   const [personalization, setPersonalization] =
     useState<PersonalizationConfig>(defaultPersonalization);
+  const [selectedPhotoTarget, setSelectedPhotoTarget] =
+    useState<"photo" | "videoExtraPhoto">("photo");
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
+  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] = useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const dragRef = useRef({
-    target: null as "photo" | "name" | null,
+    target: null as "photo" | "videoExtraPhoto" | "name" | null,
     dragging: false,
     startX: 0,
     startY: 0,
@@ -440,6 +497,14 @@ export default function AdminAppPostersPage() {
           return clampPhotoSafeArea({ ...prev, photoX: nextX, photoY: nextY }, fileMeta);
         });
       }
+      if (dragRef.current.target === "videoExtraPhoto") {
+        setPersonalization((prev) => {
+          return clampPhotoSafeArea(
+            { ...prev, videoExtraPhotoX: nextX, videoExtraPhotoY: nextY },
+            fileMeta,
+          );
+        });
+      }
       if (dragRef.current.target === "name") {
         setPersonalization((prev) => ({ ...prev, nameX: nextX, nameY: nextY }));
       }
@@ -448,6 +513,7 @@ export default function AdminAppPostersPage() {
       dragRef.current.dragging = false;
       dragRef.current.target = null;
       setIsPhotoDragging(false);
+      setIsVideoExtraPhotoDragging(false);
       setIsNameDragging(false);
     }
     window.addEventListener("pointermove", onPointerMove);
@@ -464,18 +530,50 @@ export default function AdminAppPostersPage() {
     setPersonalization((prev) => clampPhotoSafeArea(prev, fileMeta));
   }, [fileMeta]);
 
-  function startDrag(target: "photo" | "name", event: React.PointerEvent<HTMLDivElement>) {
+  useEffect(() => {
+    setVideoPreviewStarted(false);
+    setVideoPreviewCycle(0);
+    if (previewVideoRef.current) {
+      previewVideoRef.current.pause();
+      previewVideoRef.current.currentTime = 0;
+    }
+  }, [customizeOpen, filePreviewUrl]);
+
+  useEffect(() => {
+    if (!personalization.showVideoExtraPhoto && selectedPhotoTarget === "videoExtraPhoto") {
+      setSelectedPhotoTarget("photo");
+    }
+  }, [personalization.showVideoExtraPhoto, selectedPhotoTarget]);
+
+  function startDrag(
+    target: "photo" | "videoExtraPhoto" | "name",
+    event: React.PointerEvent<HTMLDivElement>,
+  ) {
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (target === "photo" || target === "videoExtraPhoto") {
+      setSelectedPhotoTarget(target);
+    }
     dragRef.current = {
       target,
       dragging: true,
       startX: event.clientX,
       startY: event.clientY,
-      initialX: target === "photo" ? personalization.photoX : personalization.nameX,
-      initialY: target === "photo" ? personalization.photoY : personalization.nameY,
+      initialX:
+        target === "photo"
+          ? personalization.photoX
+          : target === "videoExtraPhoto"
+            ? personalization.videoExtraPhotoX
+            : personalization.nameX,
+      initialY:
+        target === "photo"
+          ? personalization.photoY
+          : target === "videoExtraPhoto"
+            ? personalization.videoExtraPhotoY
+            : personalization.nameY,
     };
     setIsPhotoDragging(target === "photo");
+    setIsVideoExtraPhotoDragging(target === "videoExtraPhoto");
     setIsNameDragging(target === "name");
   }
 
@@ -550,11 +648,32 @@ export default function AdminAppPostersPage() {
     return "1 / 1";
   }, [fileMeta]);
   const safePersonalization = clampPhotoSafeArea(personalization, fileMeta);
+  const isVideoPreview = Boolean(filePreviewUrl && isVideoFile(file));
   const stripGradient = resolvePosterStripGradient(
     PERMANENT_SAMPLE_NAME,
     personalization.stripHeight,
   );
   const gradientTextColor = stripTextColor(stripGradient);
+  async function startVideoPreviewPlayback() {
+    if (!isVideoPreview) return;
+    setVideoPreviewCycle((prev) => prev + 1);
+    setVideoPreviewStarted(true);
+    try {
+      await previewVideoRef.current?.play();
+    } catch {
+      setVideoPreviewStarted(false);
+    }
+  }
+  async function replayVideoPreviewFromStart() {
+    if (!isVideoPreview || !previewVideoRef.current) return;
+    setVideoPreviewCycle((prev) => prev + 1);
+    previewVideoRef.current.currentTime = 0;
+    try {
+      await previewVideoRef.current.play();
+    } catch {
+      setVideoPreviewStarted(false);
+    }
+  }
   const isTelugu = language === "telugu";
   const customizationCopy = {
     customize: isTelugu ? "కస్టమైజ్" : "Customize",
@@ -839,10 +958,10 @@ export default function AdminAppPostersPage() {
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}
-                  disabled={!filePreviewUrl || isVideoFile(file)}
+                  disabled={!filePreviewUrl}
                   className="rounded-xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isVideoFile(file) ? "Image customization only" : "Customize"}
+                  {customizationCopy.customize}
                 </button>
                 <button
                   type="submit"
@@ -1088,72 +1207,206 @@ export default function AdminAppPostersPage() {
               </div>
 
               <div className="mt-5 space-y-4 text-sm">
-                <label className="block">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoShape}</span>
-                  <select
-                    data-no-auto-translate="true"
-                    value={personalization.photoShape}
-                    onChange={(event) =>
-                      setPersonalization((prev) => ({
-                        ...prev,
-                        photoShape: event.target.value as PhotoShape,
-                      }))
-                    }
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
-                  >
-                    {PHOTO_SHAPE_GROUPS.map((group) => (
-                      <optgroup
-                        key={group.label}
-                        label={
-                          group.label === "Premium Shapes"
-                            ? customizationCopy.premiumShapes
-                            : customizationCopy.transparentCutouts
+                <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-200">
+                    Photo Controls
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-300">
+                    Select photo slot, adjust shape and size, then drag it inside the preview.
+                  </p>
+
+                  {isVideoPreview ? (
+                    <div className="mt-4 grid gap-3">
+                      <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-3 py-3 text-sm text-white/90">
+                        <span>Second Photo</span>
+                        <input
+                          type="checkbox"
+                          checked={personalization.showVideoExtraPhoto}
+                          onChange={(event) =>
+                            setPersonalization((prev) => ({
+                              ...prev,
+                              showVideoExtraPhoto: event.target.checked,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
+                        <div className="grid grid-cols-2 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhotoTarget("photo")}
+                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                              selectedPhotoTarget === "photo"
+                                ? "bg-white text-slate-950"
+                                : "text-white/80 hover:bg-white/10"
+                            }`}
+                          >
+                            Main Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                            disabled={!personalization.showVideoExtraPhoto}
+                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                              selectedPhotoTarget === "videoExtraPhoto"
+                                ? "bg-white text-slate-950"
+                                : "text-white/80 hover:bg-white/10"
+                            } disabled:cursor-not-allowed disabled:opacity-40`}
+                          >
+                            Second Photo
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-4">
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoShape}</span>
+                      <select
+                        data-no-auto-translate="true"
+                        value={
+                          selectedPhotoTarget === "videoExtraPhoto"
+                            ? personalization.videoExtraPhotoShape
+                            : personalization.photoShape
                         }
+                        onChange={(event) =>
+                          setPersonalization((prev) => ({
+                            ...prev,
+                            ...(selectedPhotoTarget === "videoExtraPhoto"
+                              ? { videoExtraPhotoShape: event.target.value as PhotoShape }
+                              : { photoShape: event.target.value as PhotoShape }),
+                          }))
+                        }
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
                       >
-                        {group.options.map((option) => (
-                          <option key={option.value} value={option.value} className="bg-white text-slate-950">
-                            {customizationCopy.shapeLabels[option.value] ?? option.label}
-                          </option>
+                        {PHOTO_SHAPE_GROUPS.map((group) => (
+                          <optgroup
+                            key={group.label}
+                            label={
+                              group.label === "Premium Shapes"
+                                ? customizationCopy.premiumShapes
+                                : customizationCopy.transparentCutouts
+                            }
+                          >
+                            {group.options.map((option) => (
+                              <option key={option.value} value={option.value} className="bg-white text-slate-950">
+                                {customizationCopy.shapeLabels[option.value] ?? option.label}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+                      </select>
+                    </label>
 
-                <label className="block">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoMode}</span>
-                  <select
-                    data-no-auto-translate="true"
-                    value={personalization.photoRenderMode}
-                    onChange={(event) =>
-                      setPersonalization((prev) => ({ ...prev, photoRenderMode: event.target.value as "cutout" | "original" }))
-                    }
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
-                  >
-                    <option value="cutout" className="bg-white text-slate-950">{customizationCopy.bgRemoved}</option>
-                    <option value="original" className="bg-white text-slate-950">{customizationCopy.original}</option>
-                  </select>
-                </label>
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoMode}</span>
+                      <select
+                        data-no-auto-translate="true"
+                        value={
+                          selectedPhotoTarget === "videoExtraPhoto"
+                            ? personalization.videoExtraPhotoRenderMode
+                            : personalization.photoRenderMode
+                        }
+                        onChange={(event) =>
+                          setPersonalization((prev) => ({
+                            ...prev,
+                            ...(selectedPhotoTarget === "videoExtraPhoto"
+                              ? {
+                                  videoExtraPhotoRenderMode: event.target.value as
+                                    | "cutout"
+                                    | "original",
+                                }
+                              : {
+                                  photoRenderMode: event.target.value as "cutout" | "original",
+                                }),
+                          }))
+                        }
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
+                      >
+                        <option value="cutout" className="bg-white text-slate-950">{customizationCopy.bgRemoved}</option>
+                        <option value="original" className="bg-white text-slate-950">{customizationCopy.original}</option>
+                      </select>
+                    </label>
 
+                    {isVideoPreview ? (
+                      <label className="block">
+                        <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                          Animation
+                        </span>
+                        <select
+                          data-no-auto-translate="true"
+                          value={
+                            selectedPhotoTarget === "videoExtraPhoto"
+                              ? personalization.videoExtraPhotoAnimation
+                              : personalization.photoAnimation
+                          }
+                          onChange={(event) =>
+                            setPersonalization((prev) => ({
+                              ...prev,
+                              ...(selectedPhotoTarget === "videoExtraPhoto"
+                                ? {
+                                    videoExtraPhotoAnimation: parseVideoPhotoAnimation(
+                                      event.target.value,
+                                    ),
+                                  }
+                                : {
+                                    photoAnimation: parseVideoPhotoAnimation(
+                                      event.target.value,
+                                    ),
+                                  }),
+                            }))
+                          }
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
+                        >
+                          {VIDEO_PHOTO_ANIMATION_OPTIONS.map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              className="bg-white text-slate-950"
+                            >
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
 
-                <label className="block">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoSize} {Math.round(safePersonalization.photoScale)}%</span>
-                  <input
-                    type="range"
-                    min={12}
-                    max={90}
-                    value={safePersonalization.photoScale}
-                    onChange={(event) =>
-                      setPersonalization((prev) =>
-                        clampPhotoSafeArea(
-                          { ...prev, photoScale: Number(event.target.value) },
-                          fileMeta,
-                        ),
-                      )
-                    }
-                    className="mt-3 w-full accent-[var(--portal-green)]"
-                  />
-                </label>
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {customizationCopy.photoSize}{" "}
+                        {Math.round(
+                          selectedPhotoTarget === "videoExtraPhoto"
+                            ? safePersonalization.videoExtraPhotoScale
+                            : safePersonalization.photoScale,
+                        )}
+                        %
+                      </span>
+                      <input
+                        type="range"
+                        min={12}
+                        max={90}
+                        value={
+                          selectedPhotoTarget === "videoExtraPhoto"
+                            ? safePersonalization.videoExtraPhotoScale
+                            : safePersonalization.photoScale
+                        }
+                        onChange={(event) =>
+                          setPersonalization((prev) =>
+                            clampPhotoSafeArea(
+                              selectedPhotoTarget === "videoExtraPhoto"
+                                ? { ...prev, videoExtraPhotoScale: Number(event.target.value) }
+                                : { ...prev, photoScale: Number(event.target.value) },
+                              fileMeta,
+                            ),
+                          )
+                        }
+                        className="mt-3 w-full accent-[var(--portal-green)]"
+                      />
+                    </label>
+                  </div>
+                </div>
 
                 <label className="flex items-center gap-2 text-sm text-white/90">
                   <input
@@ -1183,10 +1436,28 @@ export default function AdminAppPostersPage() {
                   <div className="overflow-auto p-0 sm:p-1">
                     <div className="mx-auto inline-block max-w-full align-top leading-none">
                       <div ref={previewFrameRef} className="relative overflow-visible align-top">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={filePreviewUrl} alt="Poster preview" className="block h-auto max-h-[62vh] w-auto max-w-full object-contain align-top sm:max-h-[72vh]" />
+                        {isVideoPreview ? (
+                          <video
+                            ref={previewVideoRef}
+                            src={filePreviewUrl}
+                            className="block h-auto max-h-[62vh] w-auto max-w-full bg-slate-950 object-contain align-top sm:max-h-[72vh]"
+                            controls={videoPreviewStarted}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            onEnded={() => {
+                              void replayVideoPreviewFromStart();
+                            }}
+                          />
+                        ) : (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={filePreviewUrl} alt="Poster preview" className="block h-auto max-h-[62vh] w-auto max-w-full object-contain align-top sm:max-h-[72vh]" />
+                          </>
+                        )}
 
                         <div
+                          key={`main-photo-${personalization.photoAnimation}-${videoPreviewCycle}`}
                           onPointerDown={(event) => startDrag("photo", event)}
                           className={`absolute touch-none overflow-hidden ${
                             isPhotoDragging ? "cursor-grabbing" : "cursor-grab"
@@ -1197,6 +1468,10 @@ export default function AdminAppPostersPage() {
                             width: `${safePersonalization.photoScale}%`,
                             aspectRatio: photoShapeAspectRatio(safePersonalization.photoShape),
                             ...photoShapeFrameStyle(safePersonalization.photoShape),
+                            ...resolveVideoPhotoAnimationStyle(
+                              safePersonalization.photoAnimation,
+                              isVideoPreview && videoPreviewStarted,
+                            ),
                           }}
                         >
                           {renderPosterPhotoPreview({
@@ -1208,6 +1483,56 @@ export default function AdminAppPostersPage() {
                             alt: "Sample user",
                           })}
                         </div>
+
+                        {isVideoPreview && personalization.showVideoExtraPhoto ? (
+                          <div
+                            key={`extra-photo-${personalization.videoExtraPhotoAnimation}-${videoPreviewCycle}`}
+                            onPointerDown={(event) => startDrag("videoExtraPhoto", event)}
+                            className={`absolute touch-none overflow-hidden ${
+                              isVideoExtraPhotoDragging ? "cursor-grabbing" : "cursor-grab"
+                            }`}
+                            style={{
+                              left: `${safePersonalization.videoExtraPhotoX}%`,
+                              top: `${safePersonalization.videoExtraPhotoY}%`,
+                              width: `${safePersonalization.videoExtraPhotoScale}%`,
+                              zIndex: 2,
+                              touchAction: "none",
+                              aspectRatio: photoShapeAspectRatio(
+                                safePersonalization.videoExtraPhotoShape,
+                              ),
+                              ...photoShapeFrameStyle(
+                                safePersonalization.videoExtraPhotoShape,
+                              ),
+                              ...resolveVideoPhotoAnimationStyle(
+                                safePersonalization.videoExtraPhotoAnimation,
+                                videoPreviewStarted,
+                              ),
+                            }}
+                          >
+                            {renderPosterPhotoPreview({
+                              shape: safePersonalization.videoExtraPhotoShape,
+                              renderMode: safePersonalization.videoExtraPhotoRenderMode,
+                              edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
+                              frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
+                              src: PERSONALIZATION_SAMPLE.photoUrl,
+                              alt: "Second sample user",
+                            })}
+                            <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-950/82 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg">
+                              Add Photo
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {isVideoPreview && !videoPreviewStarted ? (
+                          <button
+                            type="button"
+                            onClick={startVideoPreviewPlayback}
+                            className="absolute left-1/2 top-1/2 z-10 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/78 text-white shadow-2xl ring-1 ring-white/15 transition hover:bg-slate-950/88"
+                            aria-label="Play video preview"
+                          >
+                            <span className="ml-1 text-3xl leading-none">▶</span>
+                          </button>
+                        ) : null}
 
                         {!personalization.showBottomStrip ? (
                           <div
@@ -1258,6 +1583,7 @@ export default function AdminAppPostersPage() {
           </div>
         </div>
       ) : null}
+      <style jsx global>{VIDEO_PHOTO_ANIMATION_GLOBAL_CSS}</style>
     </section>
   );
 }

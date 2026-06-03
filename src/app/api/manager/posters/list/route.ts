@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { loadScopedCreatorIds } from "@/lib/server/manager-scope";
+import {
+  clampVideoPosterCustomization,
+  defaultVideoPosterCustomization,
+  type VideoPosterFit,
+} from "@/lib/video-poster-preview";
 
 type PhotoShape =
   | "circle"
@@ -66,7 +71,13 @@ interface PosterPersonalization {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  showWhatsapp: boolean;
   sampleName: string;
+  videoFit: VideoPosterFit;
+  videoScale: number;
+  videoOffsetX: number;
+  videoOffsetY: number;
+  videoCornerRadius: number;
 }
 
 interface PosterListItem {
@@ -78,7 +89,9 @@ interface PosterListItem {
   title: string;
   categoryId: string;
   categoryLabel: string;
+  mediaType: string;
   imageUrl: string;
+  videoUrl: string;
   status: string;
   reviewComment: string;
   duplicateStatus: string;
@@ -136,7 +149,9 @@ const defaultPersonalization: PosterPersonalization = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  showWhatsapp: false,
   sampleName: "User Name",
+  ...defaultVideoPosterCustomization,
 };
 
 function parsePersonalization(input: unknown): PosterPersonalization {
@@ -190,10 +205,27 @@ function parsePersonalization(input: unknown): PosterPersonalization {
         ? raw.showBottomStrip
         : defaultPersonalization.showBottomStrip,
     stripHeight: numberInRange(raw.stripHeight, defaultPersonalization.stripHeight, 8, 40),
+    showWhatsapp:
+      typeof raw.showWhatsapp === "boolean"
+        ? raw.showWhatsapp
+        : defaultPersonalization.showWhatsapp,
     sampleName:
       typeof raw.sampleName === "string" && raw.sampleName.trim().length > 0
         ? raw.sampleName.trim()
         : defaultPersonalization.sampleName,
+    ...clampVideoPosterCustomization({
+      ...defaultVideoPosterCustomization,
+      videoFit: raw.videoFit === "cover" ? "cover" : defaultVideoPosterCustomization.videoFit,
+      videoScale: numberInRange(raw.videoScale, defaultVideoPosterCustomization.videoScale, 50, 200),
+      videoOffsetX: numberInRange(raw.videoOffsetX, defaultVideoPosterCustomization.videoOffsetX, 0, 100),
+      videoOffsetY: numberInRange(raw.videoOffsetY, defaultVideoPosterCustomization.videoOffsetY, 0, 100),
+      videoCornerRadius: numberInRange(
+        raw.videoCornerRadius,
+        defaultVideoPosterCustomization.videoCornerRadius,
+        0,
+        48,
+      ),
+    }),
   };
 }
 
@@ -267,7 +299,9 @@ export async function GET(req: NextRequest) {
           title: String(item.data.title ?? "Untitled"),
           categoryId: String(item.data.categoryId ?? ""),
           categoryLabel: String(item.data.categoryLabel ?? ""),
+          mediaType: String(item.data.mediaType ?? "image"),
           imageUrl: String(item.data.imageUrl ?? ""),
+          videoUrl: String(item.data.videoUrl ?? ""),
           status: String(item.data.status ?? "pending"),
           reviewComment: String(item.data.reviewComment ?? ""),
           duplicateStatus: String(item.data.duplicateStatus ?? "unique"),

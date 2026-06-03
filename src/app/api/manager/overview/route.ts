@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
+import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import {
   buildCategoryLeaderboards,
   buildCategoryPerformance,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/server/dashboard-metrics";
 import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
+import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
 function dayKeyInIst(epochMs: number) {
@@ -51,17 +53,23 @@ export async function GET(req: NextRequest) {
     const banners = await loadAppBanners();
     const announcements = await loadCreatorAnnouncements();
     const scopedCreatorDocs = await loadScopedCreatorProfiles(actor);
+    const manualCategoryIds = (await listManualEventCategories()).map((item) => item.id);
     const scopedCreatorProfiles = scopedCreatorDocs.map((doc) => {
       const data = doc.data();
+      const rawAssignedCategories = Array.isArray(data.assignedCategories)
+        ? data.assignedCategories.map(String)
+        : [];
+      const { assignedCategories } = filterKnownAssignedCategories(
+        rawAssignedCategories,
+        manualCategoryIds,
+      );
       return {
         creatorPublicId: String(data.creatorPublicId ?? doc.id),
         name: String(data.name ?? "-"),
         email: String(data.email ?? ""),
         phone: String(data.phone ?? ""),
         status: String(data.status ?? "pending_invite"),
-        assignedCategories: Array.isArray(data.assignedCategories)
-          ? data.assignedCategories.map(String)
-          : [],
+        assignedCategories,
       };
     });
     const creatorIds = new Set(scopedCreatorProfiles.map((item) => item.creatorPublicId));

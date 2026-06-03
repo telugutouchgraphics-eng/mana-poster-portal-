@@ -4,7 +4,11 @@ import nodemailer from "nodemailer";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth } from "@/lib/firebase/admin";
 import { adminDb } from "@/lib/firebase/admin";
-import { ManagedPortalRole, resolveManagedAuthEmail } from "@/lib/server/managed-auth";
+import {
+  ManagedPortalRole,
+  normalizeLoginIdentifier,
+  resolveManagedAuthEmail,
+} from "@/lib/server/managed-auth";
 
 const OTP_COLLECTION = "loginOtpChallenges";
 const OTP_COOKIE_NAME = "mp_portal_otp";
@@ -122,8 +126,13 @@ export async function verifyManagedPassword(authEmail: string, password: string)
 }
 
 export async function createOtpChallenge(identifier: string, role: ManagedPortalRole, password: string) {
-  const resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
-  await verifyManagedPassword(resolved.authEmail, password);
+  let resolved;
+  try {
+    resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
+    await verifyManagedPassword(resolved.authEmail, password);
+  } catch {
+    throw new Error("Invalid login credentials.");
+  }
   return issueOtpChallenge({
     uid: resolved.uid,
     role,
@@ -134,7 +143,12 @@ export async function createOtpChallenge(identifier: string, role: ManagedPortal
 }
 
 export async function createPasswordResetChallenge(identifier: string, role: ManagedPortalRole) {
-  const resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
+  let resolved;
+  try {
+    resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
+  } catch {
+    return issueDecoyPasswordResetChallenge(identifier, role);
+  }
   return issueOtpChallenge({
     uid: resolved.uid,
     role,
@@ -142,6 +156,35 @@ export async function createPasswordResetChallenge(identifier: string, role: Man
     contactEmail: resolved.contactEmail,
     purpose: "password_reset",
   });
+}
+
+async function issueDecoyPasswordResetChallenge(identifier: string, role: ManagedPortalRole) {
+  const challengeRef = adminDb.collection(OTP_COLLECTION).doc();
+  const now = Date.now();
+  const expiresAt = now + OTP_TTL_MS;
+  const code = randomOtp();
+  const normalizedIdentifier = normalizeLoginIdentifier(identifier);
+
+  await challengeRef.set({
+    uid: "__decoy__",
+    role,
+    authEmail: "__decoy__@invalid.local",
+    contactEmail: normalizedIdentifier,
+    purpose: "password_reset",
+    createdAt: now,
+    expiresAt,
+    attempts: 0,
+    maxAttempts: OTP_MAX_ATTEMPTS,
+    codeHash: hashOtp(challengeRef.id, code),
+    decoy: true,
+  });
+
+  return {
+    challengeId: challengeRef.id,
+    authEmail: "",
+    maskedEmail: "your registered email",
+    expiresAt,
+  };
 }
 
 async function issueOtpChallenge(input: {
@@ -214,6 +257,7 @@ export async function verifyOtpChallenge(challengeId: string, otp: string) {
         role?: ManagedPortalRole;
         contactEmail?: string;
         purpose?: "login" | "password_reset";
+        decoy?: boolean;
         expiresAt?: number;
         attempts?: number;
         maxAttempts?: number;
@@ -236,6 +280,11 @@ export async function verifyOtpChallenge(challengeId: string, otp: string) {
   if (attempts >= maxAttempts) {
     await challengeRef.delete().catch(() => undefined);
     throw new Error("Too many invalid OTP attempts. Please request a new code.");
+  }
+
+  if (data.decoy === true) {
+    await challengeRef.set({ attempts: attempts + 1 }, { merge: true });
+    throw new Error("Invalid OTP.");
   }
 
   const nextHash = hashOtp(challengeId, otp);

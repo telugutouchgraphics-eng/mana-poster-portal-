@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       challengeId: result.challengeId,
-      maskedEmail: result.maskedEmail,
+      maskedEmail: "your registered email",
       expiresAt: result.expiresAt,
     });
   } catch (error) {

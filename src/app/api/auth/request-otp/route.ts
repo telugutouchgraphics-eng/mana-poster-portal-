@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       challengeId: result.challengeId,
-      authEmail: result.authEmail,
       maskedEmail: result.maskedEmail,
       expiresAt: result.expiresAt,
     });

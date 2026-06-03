@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DashboardLanguageSwitch } from "@/components/i18n/dashboard-language-switch";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { DashboardNotifications } from "@/components/layout/dashboard-notifications";
 
 export function DashboardSessionActions({
   links = [],
@@ -19,6 +20,7 @@ export function DashboardSessionActions({
 
   return (
     <>
+      <DashboardNotifications />
       <DashboardLanguageSwitch />
       {links.map((link) => (
         <Link

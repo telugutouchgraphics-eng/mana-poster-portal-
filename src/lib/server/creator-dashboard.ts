@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import type { RequestUser } from "@/lib/server/auth";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
-import { pruneInactiveAssignedCategories } from "@/lib/server/categories";
+import { filterKnownAssignedCategories } from "@/lib/server/categories";
+import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 
 export interface CreatorAccessContext {
   uid: string;
@@ -16,7 +17,6 @@ async function buildContextFromProfile(
   actorUid: string,
   creatorPublicId: string,
   userData: Record<string, unknown> | undefined,
-  options: { skipSideEffects: boolean },
 ): Promise<CreatorAccessContext> {
   const profileSnap = await adminDb.collection("creatorProfiles").doc(creatorPublicId).get();
   if (!profileSnap.exists) {
@@ -31,25 +31,18 @@ async function buildContextFromProfile(
   const assignedCategories = Array.isArray(profile.assignedCategories)
     ? profile.assignedCategories.map(String)
     : [];
-  const { assignedCategories: activeAssignedCategories, removedCategoryIds } =
-    pruneInactiveAssignedCategories(assignedCategories);
-
-  if (!options.skipSideEffects && removedCategoryIds.length > 0) {
-    await adminDb.collection("creatorProfiles").doc(creatorPublicId).set(
-      {
-        assignedCategories: activeAssignedCategories,
-        updatedAt: Date.now(),
-      },
-      { merge: true },
-    );
-  }
+  const manualCategoryIds = (await listManualEventCategories()).map((item) => item.id);
+  const { assignedCategories: sanitizedAssignedCategories } = filterKnownAssignedCategories(
+    assignedCategories,
+    manualCategoryIds,
+  );
 
   return {
     uid: actorUid,
     creatorPublicId,
     name: String(profile.name ?? userData?.name ?? ""),
     email: String(profile.email ?? userData?.email ?? ""),
-    assignedCategories: activeAssignedCategories,
+    assignedCategories: sanitizedAssignedCategories,
   };
 }
 
@@ -61,11 +54,11 @@ async function loadLinkedCreatorContext(actor: RequestUser): Promise<CreatorAcce
     throw new Error("Creator profile is not linked.");
   }
 
-  return buildContextFromProfile(actor.uid, creatorPublicId, userData, { skipSideEffects: false });
+  return buildContextFromProfile(actor.uid, creatorPublicId, userData);
 }
 
 async function loadCreatorContextByPublicId(actorUid: string, creatorPublicId: string) {
-  return buildContextFromProfile(actorUid, creatorPublicId, undefined, { skipSideEffects: true });
+  return buildContextFromProfile(actorUid, creatorPublicId, undefined);
 }
 
 /**
