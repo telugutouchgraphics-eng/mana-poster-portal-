@@ -134,12 +134,6 @@ function isImageFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("image/"));
 }
 
-function isServerAcceptedImage(file: File): boolean {
-  return ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
-    (file.type || "").toLowerCase(),
-  );
-}
-
 function isVideoPoster(poster: Pick<AdminPoster, "mediaType" | "videoUrl">): boolean {
   return poster.mediaType === "video" && Boolean(poster.videoUrl);
 }
@@ -269,7 +263,7 @@ async function preparePosterFileForUpload(file: File): Promise<File> {
   if (!isImageFile(file)) {
     return file;
   }
-  if (file.size <= MAX_IMAGE_UPLOAD_BYTES && isServerAcceptedImage(file)) {
+  if (file.size <= MAX_IMAGE_UPLOAD_BYTES) {
     return file;
   }
   throw new Error(`Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`);
@@ -1305,10 +1299,10 @@ export default function AdminUploadStudioPage() {
                     Select photo slot, adjust shape and size, then drag it inside the preview.
                   </p>
 
-                  {isVideoPreview ? (
-                    <div className="mt-4 grid gap-3">
-                      <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-3 py-3 text-sm text-white/90">
-                        <span>Second Photo</span>
+                  <div className="mt-4 grid gap-3">
+                    <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                      <span className="font-medium">Add Photo</span>
+                      <span className="relative inline-flex items-center">
                         <input
                           type="checkbox"
                           checked={personalization.showVideoExtraPhoto}
@@ -1318,38 +1312,41 @@ export default function AdminUploadStudioPage() {
                               showVideoExtraPhoto: event.target.checked,
                             }))
                           }
+                          className="peer sr-only"
                         />
-                      </label>
+                        <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                        <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                      </span>
+                    </label>
 
-                      <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
-                        <div className="grid grid-cols-2 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhotoTarget("photo")}
-                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                              selectedPhotoTarget === "photo"
-                                ? "bg-white text-slate-950"
-                                : "text-white/80 hover:bg-white/10"
-                            }`}
-                          >
-                            Main Photo
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
-                            disabled={!personalization.showVideoExtraPhoto}
-                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                              selectedPhotoTarget === "videoExtraPhoto"
-                                ? "bg-white text-slate-950"
-                                : "text-white/80 hover:bg-white/10"
-                            } disabled:cursor-not-allowed disabled:opacity-40`}
-                          >
-                            Second Photo
-                          </button>
-                        </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
+                      <div className="grid grid-cols-2 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoTarget("photo")}
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                            selectedPhotoTarget === "photo"
+                              ? "bg-white text-slate-950"
+                              : "text-white/80 hover:bg-white/10"
+                          }`}
+                        >
+                          Main Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                          disabled={!personalization.showVideoExtraPhoto}
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                            selectedPhotoTarget === "videoExtraPhoto"
+                              ? "bg-white text-slate-950"
+                              : "text-white/80 hover:bg-white/10"
+                          } disabled:cursor-not-allowed disabled:opacity-40`}
+                        >
+                          Add Photo
+                        </button>
                       </div>
                     </div>
-                  ) : null}
+                  </div>
 
                   <div className="mt-4 grid gap-4">
                     <label className="block">
@@ -1514,23 +1511,28 @@ export default function AdminUploadStudioPage() {
                   {customizationCopy.dragHelp}
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-white/90">
-                  <input
-                    type="checkbox"
-                    checked={personalization.showBottomStrip}
-                    onChange={(event) =>
-                      setPersonalization((prev) =>
-                        clampPhotoSafeArea(
-                          {
-                            ...prev,
-                            showBottomStrip: event.target.checked,
-                          },
-                          fileMeta,
-                        ),
-                      )
-                    }
-                  />
-                  {customizationCopy.showGradientStrip}
+                <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                  <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+                  <span className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={personalization.showBottomStrip}
+                      onChange={(event) =>
+                        setPersonalization((prev) =>
+                          clampPhotoSafeArea(
+                            {
+                              ...prev,
+                              showBottomStrip: event.target.checked,
+                            },
+                            fileMeta,
+                          ),
+                        )
+                      }
+                      className="peer sr-only"
+                    />
+                    <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                    <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                  </span>
                 </label>
               </div>
             </section>
@@ -1594,7 +1596,7 @@ export default function AdminUploadStudioPage() {
                           })}
                         </div>
 
-                        {isVideoPreview && personalization.showVideoExtraPhoto ? (
+                        {personalization.showVideoExtraPhoto ? (
                           <div
                             key={`extra-photo-${personalization.videoExtraPhotoAnimation}-${videoPreviewCycle}`}
                             onPointerDown={startVideoExtraPhotoDrag}
@@ -1626,7 +1628,7 @@ export default function AdminUploadStudioPage() {
                               edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
                               frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
                               src: PERSONALIZATION_SAMPLE.photoUrl,
-                              alt: "Second sample user",
+                              alt: "Add photo sample user",
                             })}
                             <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-950/82 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg">
                               Add Photo

@@ -249,7 +249,7 @@ function resolvedRenderShape(shape: PhotoShape): PhotoShape {
 
 function resolvedEdgeStyle(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): PhotoEdgeStyle {
   if (shape === "transparent_bottom_fade") return "bottom_fade";
-  if (shape === "transparent_soft_round") return "feather";
+  if (shape === "transparent_soft_round") return "bottom_fade";
   if (shape === "transparent_clean" || shape === "transparent_sharp_round") return "sharp";
   return edgeStyle;
 }
@@ -343,8 +343,11 @@ function frameDecorationStyle(shape: PhotoShape, frameStyle: PhotoFrameStyle): C
   return base;
 }
 
-function imageMask(edgeStyle: PhotoEdgeStyle): string | undefined {
+function imageMask(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): string | undefined {
   const normalized = normalizedEdgeStyle(edgeStyle);
+  if (shape === "transparent_soft_round") {
+    return "radial-gradient(112% 96% at 50% 20%, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.98) 68%, rgba(0,0,0,0.86) 77%, rgba(0,0,0,0.56) 86%, rgba(0,0,0,0.22) 93%, rgba(0,0,0,0) 100%)";
+  }
   if (normalized === "bottom_fade") {
     return "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 56%, rgba(0,0,0,0.98) 68%, rgba(0,0,0,0.82) 78%, rgba(0,0,0,0.44) 88%, rgba(0,0,0,0.12) 94%, rgba(0,0,0,0) 100%)";
   }
@@ -363,7 +366,7 @@ function imageStyle(
   const isCutout = renderMode === "cutout";
   const normalized = normalizedEdgeStyle(edgeStyle);
   const radius = roundedRadius(shape);
-  const mask = imageMask(edgeStyle);
+  const mask = imageMask(shape, edgeStyle);
   const isBlurLayer = layer === "blur";
   const cutoutPosition =
     shape === "flower"

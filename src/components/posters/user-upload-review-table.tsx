@@ -29,6 +29,14 @@ interface PersonalizationConfig {
   photoX: number;
   photoY: number;
   photoScale: number;
+  showVideoExtraPhoto: boolean;
+  videoExtraPhotoShape: PhotoShape;
+  videoExtraPhotoRenderMode: "cutout" | "original";
+  videoExtraPhotoEdgeStyle: PhotoEdgeStyle;
+  videoExtraPhotoFrameStyle: PhotoFrameStyle;
+  videoExtraPhotoX: number;
+  videoExtraPhotoY: number;
+  videoExtraPhotoScale: number;
   nameX: number;
   nameY: number;
   showBottomStrip: boolean;
@@ -77,6 +85,14 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
   photoX: 78,
   photoY: 42,
   photoScale: 44,
+  showVideoExtraPhoto: false,
+  videoExtraPhotoShape: "circle",
+  videoExtraPhotoRenderMode: "cutout",
+  videoExtraPhotoEdgeStyle: "soft_fade",
+  videoExtraPhotoFrameStyle: "none",
+  videoExtraPhotoX: 24,
+  videoExtraPhotoY: 44,
+  videoExtraPhotoScale: 28,
   nameX: 50,
   nameY: 82,
   showBottomStrip: true,
@@ -145,8 +161,15 @@ function clampPhotoSafeArea(
     12,
     Math.max(12, Math.min(90, maxScaleX, maxScaleY)),
   );
+  const videoExtraPhotoScale = clampNumber(
+    config.videoExtraPhotoScale,
+    12,
+    Math.max(12, Math.min(90, maxScaleX, maxScaleY)),
+  );
   const halfX = photoScale / 2;
   const halfY = (photoScale * aspect) / 2;
+  const extraHalfX = videoExtraPhotoScale / 2;
+  const extraHalfY = (videoExtraPhotoScale * aspect) / 2;
   return {
     ...config,
     photoScale,
@@ -155,6 +178,17 @@ function clampPhotoSafeArea(
       config.photoY,
       margin + halfY - bleed,
       100 - margin - halfY + bottomBleed,
+    ),
+    videoExtraPhotoScale,
+    videoExtraPhotoX: clampNumber(
+      config.videoExtraPhotoX,
+      margin + extraHalfX,
+      100 - margin - extraHalfX,
+    ),
+    videoExtraPhotoY: clampNumber(
+      config.videoExtraPhotoY,
+      margin + extraHalfY - bleed,
+      100 - margin - extraHalfY + bottomBleed,
     ),
   };
 }
@@ -242,11 +276,16 @@ function CustomizationModal({
   fileMeta,
   previewFrameRef,
   isPhotoDragging,
+  isVideoExtraPhotoDragging,
   isNameDragging,
   onPhotoWheel,
+  onVideoExtraPhotoWheel,
   startPhotoDrag,
+  startVideoExtraPhotoDrag,
   startNameDrag,
   customizationCopy,
+  selectedPhotoTarget,
+  setSelectedPhotoTarget,
 }: {
   row: UserUploadRow | null;
   value: PersonalizationConfig;
@@ -255,10 +294,15 @@ function CustomizationModal({
   fileMeta: ImageMeta | null;
   previewFrameRef: RefObject<HTMLDivElement | null>;
   isPhotoDragging: boolean;
+  isVideoExtraPhotoDragging: boolean;
   isNameDragging: boolean;
   onPhotoWheel: (event: ReactWheelEvent<HTMLDivElement>) => void;
+  onVideoExtraPhotoWheel: (event: ReactWheelEvent<HTMLDivElement>) => void;
   startPhotoDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  startVideoExtraPhotoDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
   startNameDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  selectedPhotoTarget: "photo" | "videoExtraPhoto";
+  setSelectedPhotoTarget: (next: "photo" | "videoExtraPhoto") => void;
   customizationCopy: {
     customize: string;
     previewPlacement: string;
@@ -306,17 +350,81 @@ function CustomizationModal({
           </div>
 
           <div className="mt-5 space-y-4 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-200">
+                Photo Controls
+              </p>
+              <p className="mt-2 text-xs leading-5 text-slate-300">
+                Select photo slot, adjust shape and size, then drag it inside the preview.
+              </p>
+
+              <div className="mt-4 grid gap-3">
+                <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                  <span className="font-medium">Add Photo</span>
+                  <span className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={value.showVideoExtraPhoto}
+                      onChange={(event) =>
+                        onChange({
+                          ...value,
+                          showVideoExtraPhoto: event.target.checked,
+                        })
+                      }
+                      className="peer sr-only"
+                    />
+                    <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                    <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                  </span>
+                </label>
+
+                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPhotoTarget("photo")}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        selectedPhotoTarget === "photo"
+                          ? "bg-white text-slate-950"
+                          : "text-white/80 hover:bg-white/10"
+                      }`}
+                    >
+                      Main Photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                      disabled={!value.showVideoExtraPhoto}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        selectedPhotoTarget === "videoExtraPhoto"
+                          ? "bg-white text-slate-950"
+                          : "text-white/80 hover:bg-white/10"
+                      } disabled:cursor-not-allowed disabled:opacity-40`}
+                    >
+                      Add Photo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <label className="block">
               <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
                 {customizationCopy.photoShape}
               </span>
               <select
                 data-no-auto-translate="true"
-                value={value.photoShape}
+                value={
+                  selectedPhotoTarget === "videoExtraPhoto"
+                    ? value.videoExtraPhotoShape
+                    : value.photoShape
+                }
                 onChange={(e) =>
                   onChange({
                     ...value,
-                    photoShape: e.target.value as PhotoShape,
+                    ...(selectedPhotoTarget === "videoExtraPhoto"
+                      ? { videoExtraPhotoShape: e.target.value as PhotoShape }
+                      : { photoShape: e.target.value as PhotoShape }),
                   })
                 }
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
@@ -350,11 +458,23 @@ function CustomizationModal({
               </span>
               <select
                 data-no-auto-translate="true"
-                value={value.photoRenderMode}
+                value={
+                  selectedPhotoTarget === "videoExtraPhoto"
+                    ? value.videoExtraPhotoRenderMode
+                    : value.photoRenderMode
+                }
                 onChange={(e) =>
                   onChange({
                     ...value,
-                    photoRenderMode: e.target.value as "cutout" | "original",
+                    ...(selectedPhotoTarget === "videoExtraPhoto"
+                      ? {
+                          videoExtraPhotoRenderMode: e.target.value as
+                            | "cutout"
+                            | "original",
+                        }
+                      : {
+                          photoRenderMode: e.target.value as "cutout" | "original",
+                        }),
                   })
                 }
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
@@ -370,17 +490,32 @@ function CustomizationModal({
 
             <label className="block">
               <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                {customizationCopy.photoSize} ({Math.round(safePersonalization.photoScale)}%)
+                {customizationCopy.photoSize} (
+                {Math.round(
+                  selectedPhotoTarget === "videoExtraPhoto"
+                    ? safePersonalization.videoExtraPhotoScale
+                    : safePersonalization.photoScale,
+                )}
+                %)
               </span>
               <input
                 type="range"
                 min={12}
                 max={90}
-                value={safePersonalization.photoScale}
+                value={
+                  selectedPhotoTarget === "videoExtraPhoto"
+                    ? safePersonalization.videoExtraPhotoScale
+                    : safePersonalization.photoScale
+                }
                 onChange={(event) =>
                   onChange(
                     clampPhotoSafeArea(
-                      { ...value, photoScale: Number(event.target.value) },
+                      selectedPhotoTarget === "videoExtraPhoto"
+                        ? {
+                            ...value,
+                            videoExtraPhotoScale: Number(event.target.value),
+                          }
+                        : { ...value, photoScale: Number(event.target.value) },
                       fileMeta,
                     ),
                   )
@@ -393,23 +528,28 @@ function CustomizationModal({
               {customizationCopy.dragHelp}
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-white/90">
-              <input
-                type="checkbox"
-                checked={value.showBottomStrip}
-                onChange={(event) =>
-                  onChange(
-                    clampPhotoSafeArea(
-                      {
-                        ...value,
-                        showBottomStrip: event.target.checked,
-                      },
-                      fileMeta,
-                    ),
-                  )
-                }
-              />
-              {customizationCopy.showGradientStrip}
+            <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+              <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+              <span className="relative inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={value.showBottomStrip}
+                  onChange={(event) =>
+                    onChange(
+                      clampPhotoSafeArea(
+                        {
+                          ...value,
+                          showBottomStrip: event.target.checked,
+                        },
+                        fileMeta,
+                      ),
+                    )
+                  }
+                  className="peer sr-only"
+                />
+                <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+              </span>
             </label>
 
             <div className="pt-2">
@@ -464,6 +604,40 @@ function CustomizationModal({
                       alt: "Sample user",
                     })}
                   </div>
+
+                  {value.showVideoExtraPhoto ? (
+                    <div
+                      onPointerDown={startVideoExtraPhotoDrag}
+                      onWheel={onVideoExtraPhotoWheel}
+                      className={`absolute touch-none overflow-hidden ${
+                        isVideoExtraPhotoDragging ? "cursor-grabbing" : "cursor-grab"
+                      }`}
+                      style={{
+                        left: `${safePersonalization.videoExtraPhotoX}%`,
+                        top: `${safePersonalization.videoExtraPhotoY}%`,
+                        width: `${safePersonalization.videoExtraPhotoScale}%`,
+                        zIndex: 2,
+                        aspectRatio: photoShapeAspectRatio(
+                          safePersonalization.videoExtraPhotoShape,
+                        ),
+                        ...photoShapeFrameStyle(
+                          safePersonalization.videoExtraPhotoShape,
+                        ),
+                      }}
+                    >
+                      {renderPosterPhotoPreview({
+                        shape: safePersonalization.videoExtraPhotoShape,
+                        renderMode: safePersonalization.videoExtraPhotoRenderMode,
+                        edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
+                        frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
+                        src: PERSONALIZATION_SAMPLE.photoUrl,
+                        alt: "Add photo sample user",
+                      })}
+                      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-950/82 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg">
+                        Add Photo
+                      </div>
+                    </div>
+                  ) : null}
 
                   {!value.showBottomStrip ? (
                     <div
@@ -547,10 +721,14 @@ export function UserUploadReviewTable() {
     null,
   );
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
+  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] = useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
+  const [selectedPhotoTarget, setSelectedPhotoTarget] = useState<
+    "photo" | "videoExtraPhoto"
+  >("photo");
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
-    target: "photo" | "name" | null;
+    target: "photo" | "videoExtraPhoto" | "name" | null;
     dragging: boolean;
     startX: number;
     startY: number;
@@ -693,13 +871,21 @@ export function UserUploadReviewTable() {
       );
       setPersonalizationMap((prev) => {
         const current = normalizePersonalization(prev[customizeRow.id]);
-        const next =
-          dragRef.current.target === "photo"
+        const next = dragRef.current.target === "photo"
+          ? clampPhotoSafeArea(
+              {
+                ...current,
+                photoX: nextX,
+                photoY: nextY,
+              },
+              customizeFileMeta,
+            )
+          : dragRef.current.target === "videoExtraPhoto"
             ? clampPhotoSafeArea(
                 {
                   ...current,
-                  photoX: nextX,
-                  photoY: nextY,
+                  videoExtraPhotoX: nextX,
+                  videoExtraPhotoY: nextY,
                 },
                 customizeFileMeta,
               )
@@ -719,6 +905,7 @@ export function UserUploadReviewTable() {
       dragRef.current.dragging = false;
       dragRef.current.target = null;
       setIsPhotoDragging(false);
+      setIsVideoExtraPhotoDragging(false);
       setIsNameDragging(false);
     }
 
@@ -743,6 +930,14 @@ export function UserUploadReviewTable() {
     }));
   }, [customizeFileMeta, customizeRow]);
 
+  useEffect(() => {
+    if (!customizeRow) return;
+    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
+    if (!current.showVideoExtraPhoto && selectedPhotoTarget === "videoExtraPhoto") {
+      setSelectedPhotoTarget("photo");
+    }
+  }, [customizeRow, personalizationMap, selectedPhotoTarget]);
+
   function startPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (!customizeRow) return;
     const current = normalizePersonalization(personalizationMap[customizeRow.id]);
@@ -757,6 +952,26 @@ export function UserUploadReviewTable() {
       initialY: current.photoY,
     };
     setIsPhotoDragging(true);
+    setIsVideoExtraPhotoDragging(false);
+  }
+
+  function startVideoExtraPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!customizeRow) return;
+    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setSelectedPhotoTarget("videoExtraPhoto");
+    dragRef.current = {
+      target: "videoExtraPhoto",
+      dragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: current.videoExtraPhotoX,
+      initialY: current.videoExtraPhotoY,
+    };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(true);
+    setIsNameDragging(false);
   }
 
   function startNameDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -772,6 +987,8 @@ export function UserUploadReviewTable() {
       initialX: current.nameX,
       initialY: current.nameY,
     };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(false);
     setIsNameDragging(true);
   }
 
@@ -787,6 +1004,25 @@ export function UserUploadReviewTable() {
           {
             ...current,
             photoScale: current.photoScale + direction * 2,
+          },
+          customizeFileMeta,
+        ),
+      };
+    });
+  }
+
+  function onVideoExtraPhotoWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (!customizeRow) return;
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    setPersonalizationMap((prev) => {
+      const current = normalizePersonalization(prev[customizeRow.id]);
+      return {
+        ...prev,
+        [customizeRow.id]: clampPhotoSafeArea(
+          {
+            ...current,
+            videoExtraPhotoScale: current.videoExtraPhotoScale + direction * 2,
           },
           customizeFileMeta,
         ),
@@ -1106,10 +1342,15 @@ export function UserUploadReviewTable() {
         fileMeta={customizeFileMeta}
         previewFrameRef={previewFrameRef}
         isPhotoDragging={isPhotoDragging}
+        isVideoExtraPhotoDragging={isVideoExtraPhotoDragging}
         isNameDragging={isNameDragging}
         onPhotoWheel={onPhotoWheel}
+        onVideoExtraPhotoWheel={onVideoExtraPhotoWheel}
         startPhotoDrag={startPhotoDrag}
+        startVideoExtraPhotoDrag={startVideoExtraPhotoDrag}
         startNameDrag={startNameDrag}
+        selectedPhotoTarget={selectedPhotoTarget}
+        setSelectedPhotoTarget={setSelectedPhotoTarget}
         customizationCopy={customizationCopy}
         onClose={() => setCustomizeRow(null)}
       />

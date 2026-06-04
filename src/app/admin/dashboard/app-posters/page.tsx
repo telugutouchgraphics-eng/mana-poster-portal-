@@ -119,8 +119,6 @@ const defaultPersonalization: PersonalizationConfig = {
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
-const MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_SOURCE_IMAGE_LABEL = "12 MB";
 const MAX_VIDEO_UPLOAD_LABEL = "5 MB";
 function isVideoFile(file: File | null): boolean {
   if (!file) return false;
@@ -130,12 +128,6 @@ function isVideoFile(file: File | null): boolean {
 function isImageFile(file: File | null): boolean {
   if (!file) return false;
   return (file.type || "").toLowerCase().startsWith("image/");
-}
-
-function isServerAcceptedImage(file: File): boolean {
-  return ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
-    (file.type || "").toLowerCase(),
-  );
 }
 
 function isVideoPoster(poster: Pick<AppPosterItem, "mediaType" | "videoUrl">): boolean {
@@ -164,8 +156,8 @@ function validatePosterFile(file: File | null): string | null {
   ];
   const allowedVideoMimeTypes = ["video/mp4", "video/quicktime", "video/webm"];
   if (allowedImageMimeTypes.includes(mimeType) || mimeType.startsWith("image/")) {
-    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
-      return `Poster image must be ${MAX_SOURCE_IMAGE_LABEL} or smaller.`;
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      return `Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`;
     }
     return null;
   }
@@ -178,77 +170,14 @@ function validatePosterFile(file: File | null): string | null {
   return "Only PNG, JPG, WEBP, MP4, MOV, or WEBM files are allowed.";
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error("Unable to prepare image for upload."));
-        }
-      },
-      "image/jpeg",
-      quality,
-    );
-  });
-}
-
 async function preparePosterFileForUpload(file: File): Promise<File> {
   if (!isImageFile(file)) {
     return file;
   }
-  if (file.size <= MAX_IMAGE_UPLOAD_BYTES && isServerAcceptedImage(file)) {
+  if (file.size <= MAX_IMAGE_UPLOAD_BYTES) {
     return file;
   }
-
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new window.Image();
-    image.decoding = "async";
-    const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("This image format is not supported. Please choose JPG, PNG, or WEBP."));
-    });
-    image.src = objectUrl;
-    await loaded;
-
-    const sourceWidth = image.naturalWidth || image.width;
-    const sourceHeight = image.naturalHeight || image.height;
-    if (!sourceWidth || !sourceHeight) {
-      throw new Error("Unable to read image size.");
-    }
-
-    let maxSide = 1600;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
-      const width = Math.max(1, Math.round(sourceWidth * scale));
-      const height = Math.max(1, Math.round(sourceHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        throw new Error("Unable to optimize image on this device.");
-      }
-      context.drawImage(image, 0, 0, width, height);
-
-      for (const quality of [0.84, 0.76, 0.68, 0.6, 0.52]) {
-        const blob = await canvasToBlob(canvas, quality);
-        if (blob.size <= MAX_IMAGE_UPLOAD_BYTES) {
-          const outputName = file.name.replace(/\.[^.]+$/, "") || "poster";
-          return new File([blob], `${outputName}.jpg`, {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          });
-        }
-      }
-      maxSide = Math.round(maxSide * 0.78);
-    }
-    throw new Error(`Image could not be compressed under ${MAX_IMAGE_UPLOAD_LABEL}. Please choose a smaller image.`);
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  throw new Error(`Poster image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`);
 }
 
 
@@ -1215,10 +1144,10 @@ export default function AdminAppPostersPage() {
                     Select photo slot, adjust shape and size, then drag it inside the preview.
                   </p>
 
-                  {isVideoPreview ? (
-                    <div className="mt-4 grid gap-3">
-                      <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-3 py-3 text-sm text-white/90">
-                        <span>Second Photo</span>
+                  <div className="mt-4 grid gap-3">
+                    <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                      <span className="font-medium">Add Photo</span>
+                      <span className="relative inline-flex items-center">
                         <input
                           type="checkbox"
                           checked={personalization.showVideoExtraPhoto}
@@ -1228,38 +1157,41 @@ export default function AdminAppPostersPage() {
                               showVideoExtraPhoto: event.target.checked,
                             }))
                           }
+                          className="peer sr-only"
                         />
-                      </label>
+                        <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                        <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                      </span>
+                    </label>
 
-                      <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
-                        <div className="grid grid-cols-2 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhotoTarget("photo")}
-                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                              selectedPhotoTarget === "photo"
-                                ? "bg-white text-slate-950"
-                                : "text-white/80 hover:bg-white/10"
-                            }`}
-                          >
-                            Main Photo
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
-                            disabled={!personalization.showVideoExtraPhoto}
-                            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                              selectedPhotoTarget === "videoExtraPhoto"
-                                ? "bg-white text-slate-950"
-                                : "text-white/80 hover:bg-white/10"
-                            } disabled:cursor-not-allowed disabled:opacity-40`}
-                          >
-                            Second Photo
-                          </button>
-                        </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-1">
+                      <div className="grid grid-cols-2 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoTarget("photo")}
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                            selectedPhotoTarget === "photo"
+                              ? "bg-white text-slate-950"
+                              : "text-white/80 hover:bg-white/10"
+                          }`}
+                        >
+                          Main Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                          disabled={!personalization.showVideoExtraPhoto}
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                            selectedPhotoTarget === "videoExtraPhoto"
+                              ? "bg-white text-slate-950"
+                              : "text-white/80 hover:bg-white/10"
+                          } disabled:cursor-not-allowed disabled:opacity-40`}
+                        >
+                          Add Photo
+                        </button>
                       </div>
                     </div>
-                  ) : null}
+                  </div>
 
                   <div className="mt-4 grid gap-4">
                     <label className="block">
@@ -1408,23 +1340,28 @@ export default function AdminAppPostersPage() {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-white/90">
-                  <input
-                    type="checkbox"
-                    checked={personalization.showBottomStrip}
-                    onChange={(event) =>
-                      setPersonalization((prev) =>
-                        clampPhotoSafeArea(
-                          {
-                            ...prev,
-                            showBottomStrip: event.target.checked,
-                          },
-                          fileMeta,
-                        ),
-                      )
-                    }
-                  />
-                  {customizationCopy.showGradientStrip}
+                <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                  <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+                  <span className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={personalization.showBottomStrip}
+                      onChange={(event) =>
+                        setPersonalization((prev) =>
+                          clampPhotoSafeArea(
+                            {
+                              ...prev,
+                              showBottomStrip: event.target.checked,
+                            },
+                            fileMeta,
+                          ),
+                        )
+                      }
+                      className="peer sr-only"
+                    />
+                    <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-300" />
+                    <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                  </span>
                 </label>
 
               </div>
@@ -1484,7 +1421,7 @@ export default function AdminAppPostersPage() {
                           })}
                         </div>
 
-                        {isVideoPreview && personalization.showVideoExtraPhoto ? (
+                        {personalization.showVideoExtraPhoto ? (
                           <div
                             key={`extra-photo-${personalization.videoExtraPhotoAnimation}-${videoPreviewCycle}`}
                             onPointerDown={(event) => startDrag("videoExtraPhoto", event)}
@@ -1515,7 +1452,7 @@ export default function AdminAppPostersPage() {
                               edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
                               frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
                               src: PERSONALIZATION_SAMPLE.photoUrl,
-                              alt: "Second sample user",
+                              alt: "Add photo sample user",
                             })}
                             <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-950/82 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg">
                               Add Photo
