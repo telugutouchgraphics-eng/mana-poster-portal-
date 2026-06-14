@@ -7,6 +7,8 @@ import {
   filterCreatorCompetitionSnapshots,
   loadCompetitions,
 } from "@/lib/server/competitions";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
       loadCompetitions(),
       loadPortalAnalyticsSnapshot(),
     ]);
+    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
     const snapshots = filterCreatorCompetitionSnapshots(
       await buildCompetitionSnapshots(
         competitions,
@@ -41,7 +44,13 @@ export async function GET(req: NextRequest) {
       },
       competitions: snapshots.map((snapshot) => ({
         ...snapshot,
-        categoryLabels: buildCompetitionCategoryLabels(snapshot.competition.categoryIds),
+        categoryLabels: buildCompetitionCategoryLabels(snapshot.competition.categoryIds).map(
+          (label, index) =>
+            localizeCategoryLabel(
+              { id: snapshot.competition.categoryIds[index] ?? "", label },
+              region,
+            ),
+        ),
         myEntry:
           snapshot.leaderboard.find(
             (item) => item.creatorPublicId === creator.creatorPublicId,

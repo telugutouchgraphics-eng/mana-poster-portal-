@@ -6,6 +6,7 @@ import {
 } from "./dynamic-event-catalog";
 import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
 import { getIstEndOfDay, getNextIstWeekdayStart } from "./ist-schedule";
+import { POLITICAL_PARTY_CATEGORIES } from "@/lib/political-party-categories";
 
 export interface CategoryDef {
   id: string;
@@ -270,6 +271,7 @@ export function getVisibleAssignableCategories(
 
 export const CREATOR_ASSIGNABLE_CATEGORIES: CategoryDef[] = uniqueById([
   ...PERMANENT_CREATOR_CATEGORIES,
+  ...POLITICAL_PARTY_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
   ...DYNAMIC_META_CATEGORIES,
   ...WEEKDAY_DYNAMIC_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),
   ...DYNAMIC_EVENT_CATEGORIES.map((item) => ({ id: item.id, label: item.label })),

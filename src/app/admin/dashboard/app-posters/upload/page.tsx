@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
@@ -412,6 +413,7 @@ function statusClass(status: string): string {
 export default function AdminUploadStudioPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -465,7 +467,11 @@ export default function AdminUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) return;
-      const response = await fetch("/api/admin/app-posters?source=upload_posters", {
+      const params = new URLSearchParams({
+        source: "upload_posters",
+        regionId: region.id,
+      });
+      const response = await fetch(`/api/admin/app-posters?${params.toString()}`, {
         headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
       });
       const next = (await response.json()) as AdminAppPostersResponse;
@@ -490,7 +496,7 @@ export default function AdminUploadStudioPage() {
   useEffect(() => {
     void loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   useEffect(() => {
     if (!file) {
@@ -691,6 +697,7 @@ export default function AdminUploadStudioPage() {
         const title = `Admin ${activeCategory?.label ?? categoryId}`;
         body.set("title", title);
         body.set("categoryId", categoryId);
+        body.set("regionId", region.id);
         if (manualPublishDateEnabled) {
           body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
         }
@@ -703,6 +710,7 @@ export default function AdminUploadStudioPage() {
         });
       } else {
         body.set("categoryId", categoryId);
+        body.set("regionId", region.id);
         body.set("uploadSource", "upload_posters");
         if (manualPublishDateEnabled) {
           body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);

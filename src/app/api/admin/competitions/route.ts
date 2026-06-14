@@ -12,6 +12,11 @@ import {
   buildCompetitionSnapshots,
   loadCompetitions,
 } from "@/lib/server/competitions";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import {
+  localizeCategoryLabel,
+  localizeCategoryList,
+} from "@/lib/dashboard-category-localization";
 
 const rewardTierSchema = z.object({
   rank: z.number().int().min(1).max(25),
@@ -37,6 +42,7 @@ export async function GET(req: NextRequest) {
       loadCompetitions(),
       loadPortalAnalyticsSnapshot(),
     ]);
+    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
     const now = Date.now();
     const nextTenDays = now + 10 * 24 * 60 * 60 * 1000;
     const snapshots = await buildCompetitionSnapshots(
@@ -47,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      categories: getVisibleAssignableCategories(new Date(), 2, 10, 2)
+      categories: localizeCategoryList(getVisibleAssignableCategories(new Date(), 2, 10, 2)
         .filter((item) => item.isDynamic)
         .filter((item) => !item.id.startsWith("weekday_"))
         .filter(
@@ -58,10 +64,16 @@ export async function GET(req: NextRequest) {
           id: item.id,
           label: item.label,
           eventDateLabel: item.eventDateLabel ?? "",
-        })),
+        })), region),
       competitions: snapshots.map((snapshot) => ({
         ...snapshot,
-        categoryLabels: buildCompetitionCategoryLabels(snapshot.competition.categoryIds),
+        categoryLabels: buildCompetitionCategoryLabels(snapshot.competition.categoryIds).map(
+          (label, index) =>
+            localizeCategoryLabel(
+              { id: snapshot.competition.categoryIds[index] ?? "", label },
+              region,
+            ),
+        ),
       })),
     });
   } catch (error) {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
@@ -409,6 +410,7 @@ function statusClass(status: string): string {
 export default function CreatorUploadStudioPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const searchParams = useSearchParams();
   const requestedCategoryId = (searchParams.get("categoryId") ?? "").trim();
   const [, setLoading] = useState(true);
@@ -466,12 +468,9 @@ export default function CreatorUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) return;
-      const response = await fetch(
-        withCreatorImpersonationQuery("/api/creator/dashboard", searchParams),
-        {
-          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-        },
-      );
+      const response = await fetch(withCreatorImpersonationQuery(`/api/creator/dashboard?regionId=${encodeURIComponent(region.id)}`, searchParams), {
+        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+      });
       const next = (await response.json()) as CreatorDashboardResponse;
       if (!response.ok || !next.ok) {
         throw new Error(next.error ?? t("creator.upload.unableLoadWorkspace", portalLanguage(language)));
@@ -501,7 +500,7 @@ export default function CreatorUploadStudioPage() {
   useEffect(() => {
     void loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, requestedCategoryId, searchParams]);
+  }, [user, requestedCategoryId, searchParams, region.id]);
 
   useEffect(() => {
     if (!file) {
@@ -697,6 +696,7 @@ export default function CreatorUploadStudioPage() {
       const uploadFile = file ? await preparePosterFileForUpload(file) : null;
       const body = new FormData();
       body.set("categoryId", categoryId);
+      body.set("regionId", region.id);
       if (manualPublishDateEnabled) {
         body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
       }

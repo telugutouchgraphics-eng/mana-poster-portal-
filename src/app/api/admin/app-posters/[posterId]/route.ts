@@ -25,6 +25,8 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -32,6 +34,7 @@ const payloadSchema = z.object({
   title: z.string().trim().min(1).max(120),
   categoryId: z.string().trim().min(1),
   requestedPublishDate: z.string().trim().optional(),
+  regionId: z.string().trim().optional(),
 });
 
 const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
@@ -268,7 +271,9 @@ export async function PATCH(
       title: formData.get("title"),
       categoryId: formData.get("categoryId"),
       requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
+    const region = getDashboardRegion(parsed.regionId);
     let personalizationConfig: unknown = undefined;
     const personalizationRaw = formData.get("personalizationConfig");
     if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
@@ -301,6 +306,7 @@ export async function PATCH(
     if (!category) {
       return NextResponse.json({ ok: false, error: "Valid category is required." }, { status: 400 });
     }
+    const categoryLabel = localizeCategoryLabel(category, region);
     const updatedAt = Date.now();
     const uploadSource = resolveAdminPosterUploadSource(
       existing.storageFolderKey ?? existing.createdBySurface,
@@ -407,13 +413,21 @@ export async function PATCH(
       {
         title: parsed.title,
         categoryId: parsed.categoryId,
-        categoryLabel: category.label,
+        categoryLabel,
+        regionId: region.id,
+        regionName: region.name,
+        regionLanguage: region.primaryLanguage,
         requestedPublishAt,
         publishAt: schedule.publishAt,
         eventStartAt: schedule.eventStartAt,
         eventEndAt: schedule.eventEndAt,
         dynamicCategoryId: schedule.dynamicCategoryId,
-        dynamicCategoryLabel: schedule.dynamicCategoryLabel,
+        dynamicCategoryLabel: schedule.dynamicCategoryId
+          ? localizeCategoryLabel(
+              { id: schedule.dynamicCategoryId, label: schedule.dynamicCategoryLabel },
+              region,
+            )
+          : "",
         performanceWindowStartAt: schedule.publishAt || updatedAt,
         performanceWindowEndAt: (schedule.publishAt || updatedAt) + 24 * 60 * 60 * 1000,
         ...(personalizationConfig != null ? { personalizationConfig } : {}),

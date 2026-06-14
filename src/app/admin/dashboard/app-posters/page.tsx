@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import {
   PHOTO_SHAPE_GROUPS,
@@ -311,6 +312,7 @@ function statusClass(status: string): string {
 export default function AdminAppPostersPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -354,7 +356,8 @@ export default function AdminAppPostersPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) return;
-      const response = await fetch("/api/admin/app-posters", {
+      const params = new URLSearchParams({ regionId: region.id });
+      const response = await fetch(`/api/admin/app-posters?${params.toString()}`, {
         headers: { authorization: `Bearer ${token}` },
       });
       const data = (await response.json()) as AppPostersResponse;
@@ -375,7 +378,7 @@ export default function AdminAppPostersPage() {
   useEffect(() => {
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   useEffect(() => {
     if (!file) {
@@ -530,6 +533,7 @@ export default function AdminAppPostersPage() {
       const uploadFile = await preparePosterFileForUpload(file);
       const body = new FormData();
       body.set("categoryId", categoryId);
+      body.set("regionId", region.id);
       body.set("uploadSource", "app_posters");
       body.set("media", uploadFile);
       body.set("personalizationConfig", JSON.stringify(clampPhotoSafeArea(personalization, fileMeta)));
@@ -704,6 +708,7 @@ export default function AdminAppPostersPage() {
       const body = new FormData();
       body.set("title", editTitle.trim());
       body.set("categoryId", editCategoryId);
+      body.set("regionId", region.id);
       if (editFile) {
         const fileError = validatePosterFile(editFile);
         if (fileError) {

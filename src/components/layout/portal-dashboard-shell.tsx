@@ -5,10 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { DashboardAutoTranslate } from "@/components/i18n/dashboard-auto-translate";
-import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { DashboardRegionSelect } from "@/components/regions/dashboard-region-select";
 
 const BRAND_TAGLINE_EN = "Your Daily Telugu Poster App";
-const BRAND_TAGLINE_TE = "మీ దైనందిన తెలుగు పోస్టర్ యాప్";
 
 interface DashboardNavItem {
   href: string;
@@ -37,12 +36,10 @@ export function PortalDashboardShell({
   children,
 }: PortalDashboardShellProps) {
   const pathname = usePathname();
-  const { language } = useDashboardLanguage();
-  const isTelugu = language === "telugu";
-  const brandTagline = isTelugu ? BRAND_TAGLINE_TE : BRAND_TAGLINE_EN;
-  const menuLabel = isTelugu ? "మెనూ" : "Menu";
-  const openNavLabel = isTelugu ? "నావిగేషన్ మెనూ తెరవండి" : "Open navigation menu";
-  const closeNavLabel = isTelugu ? "నావిగేషన్ మెనూ మూసివేయండి" : "Close navigation menu";
+  const brandTagline = BRAND_TAGLINE_EN;
+  const menuLabel = "Menu";
+  const openNavLabel = "Open navigation menu";
+  const closeNavLabel = "Close navigation menu";
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const activeHref =
     navItems
@@ -189,6 +186,7 @@ export function PortalDashboardShell({
                 </div>
                 {actions ? (
                   <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <DashboardRegionSelect />
                     {actions}
                   </div>
                 ) : null}

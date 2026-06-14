@@ -20,6 +20,8 @@ import {
 } from "@/lib/server/dashboard-metrics";
 import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
 import { buildCreatorUploadWindow, getIstDayKey } from "@/lib/server/ist-schedule";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -86,6 +88,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const now = Date.now();
+    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
     const today = dayKey(now);
     const uploadWindow = buildCreatorUploadWindow(now);
     const todayUploadDayKey = getIstDayKey(now);
@@ -112,7 +115,13 @@ export async function GET(req: NextRequest) {
         id: doc.id,
         title: String(doc.data().title ?? "Untitled"),
         categoryId: String(doc.data().categoryId ?? ""),
-        categoryLabel: String(doc.data().categoryLabel ?? ""),
+        categoryLabel: localizeCategoryLabel(
+          {
+            id: String(doc.data().categoryId ?? ""),
+            label: String(doc.data().categoryLabel ?? ""),
+          },
+          region,
+        ),
         mediaType: String(doc.data().mediaType ?? "image"),
         imageUrl: String(doc.data().imageUrl ?? ""),
         videoUrl: String(doc.data().videoUrl ?? ""),
@@ -173,7 +182,10 @@ export async function GET(req: NextRequest) {
       const meta = visibleCategoryMeta.get(categoryId);
       return {
         id: categoryId,
-        label: categoryMap[categoryId] ?? categoryId,
+        label: localizeCategoryLabel(
+          { id: categoryId, label: categoryMap[categoryId] ?? categoryId },
+          region,
+        ),
         isDynamic: categoryId.startsWith("weekday_") || Boolean(meta?.isDynamic),
         eventDateLabel: meta?.eventDateLabel ?? "",
         eventStartAt: meta?.eventStartAt ?? 0,

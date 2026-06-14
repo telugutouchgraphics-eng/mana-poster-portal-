@@ -12,6 +12,8 @@ import {
   getIstWeekday,
   parseIstDateKeyToEpoch,
 } from "@/lib/server/ist-schedule";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -20,6 +22,7 @@ const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
   requestedPublishDate: z.string().trim().optional(),
+  regionId: z.string().trim().optional(),
 });
 
 const photoShapeSchema = z.enum([
@@ -179,7 +182,9 @@ export async function POST(req: NextRequest) {
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
       requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
+    const region = getDashboardRegion(parsed.regionId);
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
     if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
@@ -213,6 +218,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const categoryLabel = localizeCategoryLabel(category, region);
 
     const media = formData.get("media") ?? formData.get("image");
     if (!(media instanceof File)) {
@@ -349,7 +355,10 @@ export async function POST(req: NextRequest) {
       managerName,
       title,
       categoryId: parsed.categoryId,
-      categoryLabel: category.label,
+      categoryLabel,
+      regionId: region.id,
+      regionName: region.name,
+      regionLanguage: region.primaryLanguage,
       mediaType: mediaKind,
       imageHash,
       imagePath: mediaKind === "image" ? filePath : "",
@@ -395,7 +404,7 @@ export async function POST(req: NextRequest) {
         id: posterRef.id,
         title,
         categoryId: parsed.categoryId,
-        categoryLabel: category.label,
+        categoryLabel,
         mediaType: mediaKind,
         imageUrl: mediaKind === "image" ? assetUrl : "",
         videoUrl: mediaKind === "video" ? assetUrl : "",

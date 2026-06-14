@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { DashboardLanguageProvider } from "@/components/i18n/dashboard-language-provider";
+import { DashboardRegionProvider } from "@/components/regions/dashboard-region-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,7 +43,9 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full bg-[var(--background)] text-[var(--foreground)]">
         <AuthProvider>
-          <DashboardLanguageProvider>{children}</DashboardLanguageProvider>
+          <DashboardLanguageProvider>
+            <DashboardRegionProvider>{children}</DashboardRegionProvider>
+          </DashboardLanguageProvider>
         </AuthProvider>
       </body>
     </html>

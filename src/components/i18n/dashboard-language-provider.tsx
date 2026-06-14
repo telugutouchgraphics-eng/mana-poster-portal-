@@ -15,8 +15,6 @@ import {
   languageCodeFor,
 } from "@/lib/i18n/dashboard-languages";
 
-const STORAGE_KEY = "mana-poster-dashboard-language";
-
 interface DashboardLanguageContextValue {
   language: DashboardLanguage;
   setLanguage: (value: DashboardLanguage) => void;
@@ -28,13 +26,7 @@ interface DashboardLanguageContextValue {
 const DashboardLanguageContext = createContext<DashboardLanguageContextValue | null>(null);
 
 export function DashboardLanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<DashboardLanguage>(() => {
-    if (typeof window === "undefined") {
-      return "english";
-    }
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved && isDashboardLanguage(saved) ? saved : "english";
-  });
+  const [language, setLanguageState] = useState<DashboardLanguage>("english");
   const [translating, setTranslating] = useState(false);
 
   useEffect(() => {
@@ -42,9 +34,9 @@ export function DashboardLanguageProvider({ children }: { children: ReactNode })
   }, [language]);
 
   function setLanguage(value: DashboardLanguage) {
-    setLanguageState(value);
-    window.localStorage.setItem(STORAGE_KEY, value);
-    document.documentElement.lang = languageCodeFor(value);
+    const next = isDashboardLanguage(value) ? value : "english";
+    setLanguageState(next);
+    document.documentElement.lang = languageCodeFor(next);
   }
 
   const value = useMemo(

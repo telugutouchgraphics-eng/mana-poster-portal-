@@ -26,6 +26,12 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import {
+  localizeCategoryLabel,
+  localizeCategoryList,
+} from "@/lib/dashboard-category-localization";
+import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -33,6 +39,7 @@ const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
   requestedPublishDate: z.string().trim().optional(),
+  regionId: z.string().trim().optional(),
   /** FormData.get returns null when missing; Zod .default only runs for undefined. */
   uploadSource: z.preprocess(
     (val) => (val === null || val === "" ? undefined : val),
@@ -188,12 +195,13 @@ function mapPoster(id: string, data: Record<string, unknown>) {
   };
 }
 
-async function buildAdminAppPosterCategories() {
+async function buildAdminAppPosterCategories(regionId?: string | null) {
   const visibleCategories = getVisibleAssignableCategories(new Date(), 2, 7, 2).filter(
     (item) => item.id !== "all",
   );
+  const politicalCategories = politicalPartyCategoriesForRegion(regionId);
   const manualCategories = await listVisibleManualEventCategories();
-  const mergedVisible = [...visibleCategories, ...manualCategories];
+  const mergedVisible = [...visibleCategories, ...politicalCategories, ...manualCategories];
   const visibleIds = new Set(mergedVisible.map((item) => item.id));
   const weekdayCategories = CREATOR_ASSIGNABLE_CATEGORIES.filter(
     (item) => item.id.startsWith("weekday_") && item.id !== "weekday_special",
@@ -203,10 +211,10 @@ async function buildAdminAppPosterCategories() {
     isDynamic: true,
   }));
 
-  return [
+  return localizeCategoryList([
     ...mergedVisible,
     ...weekdayCategories.filter((item) => !visibleIds.has(item.id)),
-  ];
+  ], regionId);
 }
 
 async function resolveAdminPosterSchedule(
@@ -288,6 +296,7 @@ export async function GET(req: NextRequest) {
       sourceParam === "upload_posters" || sourceParam === "app_posters"
         ? sourceParam
         : "app_posters";
+    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
     const snap = await adminDb
       .collection("creatorPosters")
       .where("createdByRole", "==", "admin")
@@ -302,10 +311,20 @@ export async function GET(req: NextRequest) {
         }
         return !surface || surface === "app_posters";
       })
+      .map((poster) => ({
+        ...poster,
+        categoryLabel: localizeCategoryLabel(
+          {
+            id: poster.categoryId,
+            label: poster.categoryLabel || poster.categoryId,
+          },
+          region,
+        ),
+      }))
       .sort((a, b) => b.createdAt - a.createdAt);
     return NextResponse.json({
       ok: true,
-      categories: await buildAdminAppPosterCategories(),
+      categories: await buildAdminAppPosterCategories(region.id),
       posters,
     });
   } catch (error) {
@@ -321,8 +340,10 @@ export async function POST(req: NextRequest) {
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
       requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      regionId: String(formData.get("regionId") ?? "").trim() || undefined,
       uploadSource: formData.get("uploadSource"),
     });
+    const region = getDashboardRegion(parsed.regionId);
 
     const manualCategory = await getManualEventCategoryById(parsed.categoryId);
     const category =
@@ -338,6 +359,7 @@ export async function POST(req: NextRequest) {
     if (!category) {
       return NextResponse.json({ ok: false, error: "Valid category is required." }, { status: 400 });
     }
+    const categoryLabel = localizeCategoryLabel(category, region);
 
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
@@ -447,7 +469,7 @@ export async function POST(req: NextRequest) {
       `${storageFolder}/${parsed.categoryId}/${posterRef.id}/${now}-${safeOriginal}`,
     );
 
-    const title = `Admin ${category.label}`;
+    const title = `Admin ${categoryLabel}`;
     await posterRef.set({
       id: posterRef.id,
       creatorPublicId: "ADMIN",
@@ -457,7 +479,10 @@ export async function POST(req: NextRequest) {
       managerName: actor.email ?? "Admin",
       title,
       categoryId: parsed.categoryId,
-      categoryLabel: category.label,
+      categoryLabel,
+      regionId: region.id,
+      regionName: region.name,
+      regionLanguage: region.primaryLanguage,
       mediaType: mediaKind,
       imageHash,
       imagePath: mediaKind === "image" ? uploaded.filePath : "",
@@ -497,7 +522,12 @@ export async function POST(req: NextRequest) {
       eventStartAt: schedule.eventStartAt,
       eventEndAt: schedule.eventEndAt,
       dynamicCategoryId: schedule.dynamicCategoryId,
-      dynamicCategoryLabel: schedule.dynamicCategoryLabel,
+      dynamicCategoryLabel: schedule.dynamicCategoryId
+        ? localizeCategoryLabel(
+            { id: schedule.dynamicCategoryId, label: schedule.dynamicCategoryLabel },
+            region,
+          )
+        : "",
       approvedAt: now,
       performanceWindowStartAt: schedule.publishAt || now,
       performanceWindowEndAt: (schedule.publishAt || now) + 24 * 60 * 60 * 1000,
@@ -517,10 +547,12 @@ export async function POST(req: NextRequest) {
       action: "admin.app-poster.create",
       targetType: "creatorPoster",
       targetId: posterRef.id,
-      message: `Uploaded app poster: ${category.label}`,
+      message: `Uploaded app poster: ${categoryLabel}`,
       metadata: {
         categoryId: parsed.categoryId,
-        categoryLabel: category.label,
+        categoryLabel,
+        regionId: region.id,
+        regionName: region.name,
         uploadSource: parsed.uploadSource,
         publishAt: schedule.publishAt,
         eventStartAt: schedule.eventStartAt,
@@ -534,7 +566,7 @@ export async function POST(req: NextRequest) {
         id: posterRef.id,
         title,
         categoryId: parsed.categoryId,
-        categoryLabel: category.label,
+        categoryLabel,
         mediaType: mediaKind,
         imageUrl: mediaKind === "image" ? uploaded.imageUrl : "",
         videoUrl: mediaKind === "video" ? uploaded.imageUrl : "",

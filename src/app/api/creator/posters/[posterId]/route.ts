@@ -12,6 +12,8 @@ import {
   parseIstDateKeyToEpoch,
 } from "@/lib/server/ist-schedule";
 import { normalizeStoredPosterFrameSize } from "@/lib/video-frame-size";
+import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -20,6 +22,7 @@ const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
   requestedPublishDate: z.string().trim().optional(),
+  regionId: z.string().trim().optional(),
 });
 
 const photoShapeSchema = z.enum([
@@ -191,7 +194,9 @@ export async function PATCH(
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
       requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
+    const region = getDashboardRegion(parsed.regionId);
 
     if (!creator.assignedCategories.includes(parsed.categoryId)) {
       return NextResponse.json(
@@ -207,6 +212,7 @@ export async function PATCH(
     if (!category) {
       return NextResponse.json({ ok: false, error: "Invalid category." }, { status: 400 });
     }
+    const categoryLabel = localizeCategoryLabel(category, region);
 
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
@@ -265,7 +271,10 @@ export async function PATCH(
     }
     const nextUpdate: Record<string, unknown> = {
       categoryId: parsed.categoryId,
-      categoryLabel: category.label,
+      categoryLabel,
+      regionId: region.id,
+      regionName: region.name,
+      regionLanguage: region.primaryLanguage,
       personalizationConfig,
       status: "pending",
       reviewComment: "",

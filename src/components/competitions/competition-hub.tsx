@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 
@@ -238,6 +239,7 @@ function CoinIcon() {
 export function CompetitionHub({ mode }: CompetitionHubProps) {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const creatorTelugu = mode === "creator" && language === "telugu";
   const texts = useMemo(
     () => competitionHubTexts(mode, creatorTelugu),
@@ -272,8 +274,11 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
       }
       const endpoint =
         mode === "admin"
-          ? "/api/admin/competitions"
-          : withCreatorImpersonationQuery("/api/creator/competitions", searchParams);
+          ? `/api/admin/competitions?regionId=${encodeURIComponent(region.id)}`
+          : withCreatorImpersonationQuery(
+              `/api/creator/competitions?regionId=${encodeURIComponent(region.id)}`,
+              searchParams,
+            );
       const response = await fetch(endpoint, {
         headers:
           mode === "creator"
@@ -295,7 +300,7 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
     } finally {
       setLoading(false);
     }
-  }, [mode, user, searchParams, texts.loginRequired, texts.loadFailed]);
+  }, [mode, user, region.id, searchParams, texts.loginRequired, texts.loadFailed]);
 
   useEffect(() => {
     if (!user) return;

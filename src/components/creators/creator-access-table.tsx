@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface CreatorRow {
   creatorPublicId: string;
@@ -71,6 +72,7 @@ export function CreatorAccessTable({
   showPayoutActions = false,
 }: CreatorAccessTableProps) {
   const { user, roles } = useAuth();
+  const { region } = useDashboardRegion();
   const isAdminViewer = showPayoutActions && roles.includes("admin");
   const [rows, setRows] = useState<CreatorRow[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -120,7 +122,7 @@ export function CreatorAccessTable({
 
   const loadCategories = useCallback(async () => {
     const headers = await authHeader();
-    const response = await fetch("/api/categories/list", { headers });
+    const response = await fetch(`/api/categories/list?regionId=${encodeURIComponent(region.id)}`, { headers });
     const data = (await response.json()) as {
       ok: boolean;
       categories?: CategoryDef[];
@@ -130,7 +132,7 @@ export function CreatorAccessTable({
       throw new Error(data.error ?? "Unable to load categories.");
     }
     setCategories(data.categories);
-  }, [authHeader]);
+  }, [authHeader, region.id]);
 
   const loadCreators = useCallback(async () => {
     setLoading(true);
@@ -141,7 +143,7 @@ export function CreatorAccessTable({
         query
       )}&bankStatus=${encodeURIComponent(bankStatus)}&payoutStatus=${encodeURIComponent(
         payoutStatus
-      )}`;
+      )}&regionId=${encodeURIComponent(region.id)}`;
       const response = await fetch(url, { headers });
       const data = (await response.json()) as {
         ok: boolean;
@@ -162,7 +164,7 @@ export function CreatorAccessTable({
     } finally {
       setLoading(false);
     }
-  }, [authHeader, bankStatus, payoutStatus, query, status]);
+  }, [authHeader, bankStatus, payoutStatus, query, status, region.id]);
 
   const loadManagers = useCallback(async () => {
     if (!isAdminViewer) {
