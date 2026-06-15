@@ -19,6 +19,10 @@ const payloadSchema = z.object({
   status: z.enum(["approved", "rejected", "deleted"]),
   rejectionReason: z.string().trim().max(300).optional(),
   personalizationConfig: z.record(z.string(), z.unknown()).optional(),
+  categoryId: z.string().trim().min(1).optional(),
+  categoryLabel: z.string().trim().min(1).optional(),
+  imageUrl: z.string().trim().url().optional(),
+  imagePath: z.string().trim().min(1).optional(),
 });
 
 async function sendUserUploadStatusNotification(
@@ -81,10 +85,11 @@ export async function POST(
     const current = uploadSnap.data() as Record<string, unknown>;
     const userId = String(current.userId ?? "").trim();
     const userName = String(current.userName ?? "").trim() || "User";
-    const categoryId = String(current.categoryId ?? "").trim();
-    const categoryLabel = String(current.categoryLabel ?? "").trim();
-    const imageUrl = String(current.imageUrl ?? "").trim();
-    const imagePath = String(current.imagePath ?? "").trim();
+    const categoryId = payload.categoryId ?? String(current.categoryId ?? "").trim();
+    const categoryLabel =
+      payload.categoryLabel ?? String(current.categoryLabel ?? "").trim();
+    const imageUrl = payload.imageUrl ?? String(current.imageUrl ?? "").trim();
+    const imagePath = payload.imagePath ?? String(current.imagePath ?? "").trim();
     const currentStatus = String(current.status ?? "pending")
       .trim()
       .toLowerCase();
@@ -115,6 +120,15 @@ export async function POST(
     const appVisibleFromAt = Number(current.appVisibleFromAt ?? 0);
     const nextExpiresAt = now + USER_UPLOAD_RETENTION_MS;
     if (payload.status === "approved") {
+      if (!imageUrl || !imagePath) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Poster image is required before uploading.",
+          },
+          { status: 400 },
+        );
+      }
       const schedule = await resolveUserUploadPublishSchedule(
         categoryId,
         uploadCreatedAt,
@@ -189,6 +203,17 @@ export async function POST(
               )
             : (current.personalizationConfig ??
               defaultUserUploadPersonalizationConfig),
+        categoryId,
+        categoryLabel,
+        imageUrl,
+        imagePath,
+        hasImage: Boolean(imageUrl && imagePath),
+        submissionType:
+          String(current.quoteText ?? "").trim() && imageUrl
+            ? "image_quote"
+            : imageUrl
+              ? "image"
+              : String(current.submissionType ?? "").trim(),
         reviewedByUid: actor.uid,
         reviewedByEmail: actor.email ?? "",
         reviewedAt: now,

@@ -8,6 +8,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
 import {
@@ -57,6 +58,9 @@ interface UserUploadRow {
   userEmail: string;
   userMobile: string;
   imageUrl: string;
+  imagePath: string;
+  quoteText: string;
+  submissionType: string;
   categoryId: string;
   categoryLabel: string;
   status: string;
@@ -67,6 +71,16 @@ interface UserUploadRow {
   createdAt: number;
   updatedAt: number;
   expiresAt: number;
+}
+
+interface CategoryOption {
+  id: string;
+  label: string;
+}
+
+interface ManagerUploadAsset {
+  imageUrl: string;
+  imagePath: string;
 }
 
 const REVIEW_TABS = [
@@ -255,14 +269,21 @@ function PreviewModal({
             Close
           </button>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={row.imageUrl}
-            alt={row.categoryLabel || "User upload"}
-            className="mx-auto h-auto max-h-[78vh] w-full object-contain"
-          />
-        </div>
+        {row.imageUrl ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={row.imageUrl}
+              alt={row.categoryLabel || "User upload"}
+              className="mx-auto h-auto max-h-[78vh] w-full object-contain"
+            />
+          </div>
+        ) : null}
+        {row.quoteText ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-950">
+            {row.quoteText}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -703,11 +724,14 @@ function CustomizationModal({
 export function UserUploadReviewTable() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const [rows, setRows] = useState<UserUploadRow[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [status, setStatus] = useState("pending");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
   const [rejectionReasonMap, setRejectionReasonMap] = useState<
     Record<string, string>
@@ -716,6 +740,12 @@ export function UserUploadReviewTable() {
   const [customizeRow, setCustomizeRow] = useState<UserUploadRow | null>(null);
   const [personalizationMap, setPersonalizationMap] = useState<
     Record<string, PersonalizationConfig>
+  >({});
+  const [selectedCategoryMap, setSelectedCategoryMap] = useState<
+    Record<string, string>
+  >({});
+  const [managerImageMap, setManagerImageMap] = useState<
+    Record<string, ManagerUploadAsset>
   >({});
   const [customizeFileMeta, setCustomizeFileMeta] = useState<ImageMeta | null>(
     null,
@@ -790,6 +820,13 @@ export function UserUploadReviewTable() {
         });
         return next;
       });
+      setSelectedCategoryMap((prev) => {
+        const next = { ...prev };
+        uploads.forEach((item) => {
+          next[item.id] = next[item.id] ?? item.categoryId;
+        });
+        return next;
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Unable to load user uploads.",
@@ -801,10 +838,32 @@ export function UserUploadReviewTable() {
     }
   }, [authHeader, query, status]);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/categories/list?regionId=${encodeURIComponent(region.id)}`,
+        { headers },
+      );
+      const data = (await response.json()) as {
+        ok: boolean;
+        categories?: CategoryOption[];
+        error?: string;
+      };
+      if (!response.ok || !data.ok || !data.categories) {
+        throw new Error(data.error ?? "Unable to load categories.");
+      }
+      setCategoryOptions(data.categories.filter((item) => item.id !== "all"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load categories.");
+    }
+  }, [authHeader, region.id]);
+
   useEffect(() => {
     if (!user) return;
     void loadUploads();
-  }, [user, loadUploads]);
+    void loadCategories();
+  }, [user, loadUploads, loadCategories]);
 
   useEffect(() => {
     if (!user) return;
@@ -835,8 +894,27 @@ export function UserUploadReviewTable() {
         height: 1080,
       });
     };
+    if (!customizeRow.imageUrl) {
+      setCustomizeFileMeta(null);
+      return;
+    }
     image.src = customizeRow.imageUrl;
   }, [customizeRow]);
+
+  function effectiveRow(row: UserUploadRow): UserUploadRow {
+    const managerImage = managerImageMap[row.id];
+    const selectedCategoryId = selectedCategoryMap[row.id] ?? row.categoryId;
+    const selectedCategory = categoryOptions.find(
+      (item) => item.id === selectedCategoryId,
+    );
+    return {
+      ...row,
+      imageUrl: managerImage?.imageUrl ?? row.imageUrl,
+      imagePath: managerImage?.imagePath ?? row.imagePath,
+      categoryId: selectedCategoryId,
+      categoryLabel: selectedCategory?.label ?? row.categoryLabel,
+    };
+  }
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1034,9 +1112,23 @@ export function UserUploadReviewTable() {
     uploadId: string,
     nextStatus: "approved" | "rejected" | "deleted",
   ) {
+    const row = rows.find((item) => item.id === uploadId);
+    const managerImage = managerImageMap[uploadId];
+    const selectedCategoryId = selectedCategoryMap[uploadId] ?? row?.categoryId ?? "";
+    const selectedCategory = categoryOptions.find(
+      (item) => item.id === selectedCategoryId,
+    );
     const reason = (rejectionReasonMap[uploadId] ?? "").trim();
     if (nextStatus === "rejected" && !reason) {
       setError("Rejection reason is required.");
+      return;
+    }
+    if (nextStatus === "approved" && !((row?.imageUrl ?? "") || managerImage?.imageUrl)) {
+      setError("Please pick poster image before upload.");
+      return;
+    }
+    if (nextStatus === "approved" && !selectedCategoryId) {
+      setError("Please select category before upload.");
       return;
     }
     setBusyMap((prev) => ({ ...prev, [uploadId]: true }));
@@ -1054,6 +1146,19 @@ export function UserUploadReviewTable() {
           body: JSON.stringify({
             status: nextStatus,
             rejectionReason: reason,
+            categoryId: nextStatus === "approved" ? selectedCategoryId : undefined,
+            categoryLabel:
+              nextStatus === "approved"
+                ? (selectedCategory?.label ?? row?.categoryLabel ?? selectedCategoryId)
+                : undefined,
+            imageUrl:
+              nextStatus === "approved"
+                ? (managerImage?.imageUrl ?? row?.imageUrl)
+                : undefined,
+            imagePath:
+              nextStatus === "approved"
+                ? (managerImage?.imagePath ?? row?.imagePath)
+                : undefined,
             personalizationConfig:
               nextStatus === "approved"
                 ? normalizePersonalization(personalizationMap[uploadId])
@@ -1071,11 +1176,73 @@ export function UserUploadReviewTable() {
       if (customizeRow?.id === uploadId) {
         setCustomizeRow(null);
       }
+      setManagerImageMap((prev) => {
+        const next = { ...prev };
+        delete next[uploadId];
+        return next;
+      });
       await loadUploads();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to review upload.");
     } finally {
       setBusyMap((prev) => ({ ...prev, [uploadId]: false }));
+    }
+  }
+
+  async function uploadManagerImage(row: UserUploadRow, file: File | null) {
+    if (!file) return;
+    if (!file.type.toLowerCase().startsWith("image/")) {
+      setError("Please choose an image file.");
+      return;
+    }
+    setBusyMap((prev) => ({ ...prev, [row.id]: true }));
+    setError(null);
+    try {
+      const headers = await authHeader();
+      const body = new FormData();
+      body.set("image", file);
+      body.set("folder", `creator-posters/community_user_pending/${row.id}`);
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        headers,
+        body,
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        imageUrl?: string;
+        imagePath?: string;
+        error?: string;
+      };
+      if (!response.ok || !data.ok || !data.imageUrl || !data.imagePath) {
+        throw new Error(data.error ?? "Unable to upload image.");
+      }
+      const nextAsset = {
+        imageUrl: data.imageUrl,
+        imagePath: data.imagePath,
+      };
+      setManagerImageMap((prev) => ({
+        ...prev,
+        [row.id]: nextAsset,
+      }));
+      setCustomizeRow({ ...row, imageUrl: nextAsset.imageUrl });
+      setNotice("Image added. You can customize and upload now.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to upload image.");
+    } finally {
+      setBusyMap((prev) => ({ ...prev, [row.id]: false }));
+    }
+  }
+
+  async function copyQuote(row: UserUploadRow) {
+    const quote = row.quoteText.trim();
+    if (!quote) return;
+    try {
+      await navigator.clipboard.writeText(quote);
+      setError(null);
+      setNotice("Quote copied. Create poster image and upload it in the related category.");
+    } catch {
+      setNotice(null);
+      setError("Unable to copy quote. Please select and copy manually.");
     }
   }
 
@@ -1199,6 +1366,11 @@ export function UserUploadReviewTable() {
             {error}
           </p>
         ) : null}
+        {notice ? (
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {notice}
+          </p>
+        ) : null}
 
         <div className="mt-5 grid gap-4">
           {loading ? (
@@ -1210,18 +1382,27 @@ export function UserUploadReviewTable() {
               No uploads found for selected filters.
             </div>
           ) : (
-            rows.map((row) => (
+            rows.map((row) => {
+              const displayRow = effectiveRow(row);
+              const hasPosterImage = Boolean(displayRow.imageUrl);
+              return (
               <article
                 key={row.id}
                 className="grid gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
               >
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={row.imageUrl}
-                    alt={row.categoryLabel || "User upload"}
-                    className="mx-auto h-auto max-h-[56vh] w-full object-contain"
-                  />
+                  {displayRow.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={displayRow.imageUrl}
+                      alt={displayRow.categoryLabel || "User upload"}
+                      className="mx-auto h-auto max-h-[56vh] w-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex min-h-56 items-center justify-center rounded-lg bg-amber-50 p-4 text-center text-sm font-semibold text-amber-900">
+                      Quote-only submission
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1243,8 +1424,47 @@ export function UserUploadReviewTable() {
                     </p>
                     <p>{row.userEmail || row.userMobile || "-"}</p>
                     <p className="mt-1">
-                      Category: {row.categoryLabel || row.categoryId || "-"}
+                      User selected category: {row.categoryLabel || row.categoryId || "-"}
                     </p>
+                    {row.status !== "approved" ? (
+                      <label className="mt-3 block">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Publish category
+                        </span>
+                        <select
+                          value={selectedCategoryMap[row.id] ?? row.categoryId}
+                          onChange={(event) =>
+                            setSelectedCategoryMap((prev) => ({
+                              ...prev,
+                              [row.id]: event.target.value,
+                            }))
+                          }
+                          className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--portal-purple)]"
+                        >
+                          {categoryOptions.length === 0 ? (
+                            <option value={row.categoryId}>
+                              {row.categoryLabel || row.categoryId || "Category"}
+                            </option>
+                          ) : (
+                            categoryOptions.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.label}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </label>
+                    ) : null}
+                    {row.quoteText ? (
+                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+                          User quote
+                        </p>
+                        <p className="whitespace-pre-wrap text-sm font-semibold leading-6">
+                          {row.quoteText}
+                        </p>
+                      </div>
+                    ) : null}
                     {row.status === "rejected" && row.rejectionReason ? (
                       <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">
                         Reason: {row.rejectionReason}
@@ -1276,23 +1496,47 @@ export function UserUploadReviewTable() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setPreviewRow(row)}
+                      onClick={() => setPreviewRow(displayRow)}
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                       Preview
                     </button>
                     {row.status !== "approved" ? (
                       <>
+                        <label className="cursor-pointer rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100">
+                          Pick image
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            disabled={busyMap[row.id]}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null;
+                              event.target.value = "";
+                              void uploadManagerImage(row, file);
+                            }}
+                            className="hidden"
+                          />
+                        </label>
                         <button
                           type="button"
-                          onClick={() => setCustomizeRow(row)}
-                          className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                          disabled={!hasPosterImage}
+                          onClick={() => setCustomizeRow(displayRow)}
+                          className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
                         >
                           Customization
                         </button>
+                        {row.quoteText ? (
+                          <button
+                            type="button"
+                            onClick={() => void copyQuote(row)}
+                            className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+                          >
+                            Copy quote
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          disabled={busyMap[row.id]}
+                          disabled={busyMap[row.id] || !hasPosterImage}
                           onClick={() => void reviewUpload(row.id, "approved")}
                           className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
                         >
@@ -1321,7 +1565,8 @@ export function UserUploadReviewTable() {
                   </div>
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </div>
       </section>

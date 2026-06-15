@@ -7,7 +7,7 @@ const MAX_FILE_SIZE = 500 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    await requireRole(req, ["admin", "manager"]);
     const formData = await req.formData();
     const image = formData.get("image");
     const folder = String(formData.get("folder") ?? "landing/uploads").replace(/[^a-z0-9/_-]/gi, "");

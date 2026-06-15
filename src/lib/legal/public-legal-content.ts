@@ -1,6 +1,6 @@
 export const SUPPORT_EMAIL = "manaposter2026@gmail.com";
 
-export const LEGAL_LAST_UPDATED = "May 21, 2026";
+export const LEGAL_LAST_UPDATED = "June 15, 2026";
 
 export const privacySections = [
   {
@@ -11,7 +11,7 @@ export const privacySections = [
   {
     title: "How We Use Data",
     body:
-      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, review uploads, prevent abuse, and provide customer support.",
+      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, review uploads, prevent abuse, and provide customer support. If a user enables optional location access in the app, we use Android native location permission and store only approximate city, district, state, country code, update time, and a random feed seed to prioritize nearby statuses and provide privacy-safe aggregate admin insights. Exact GPS latitude/longitude is not stored or displayed for this feature.",
   },
   {
     title: "Community Uploads and Review",
@@ -36,7 +36,7 @@ export const privacySections = [
   {
     title: "Reporting and Abusive Content",
     body:
-      `If you see abusive, infringing, impersonating, deceptive, political-misuse, or spam content, you can report it through the app support flow or by emailing ${SUPPORT_EMAIL}. Complaints, moderation decisions, review evidence, and limited enforcement records may be retained for abuse prevention, legal compliance, and user safety.`,
+      `If you see abusive, infringing, impersonating, deceptive, political-misuse, privacy-violating, or spam content, you can report it through the in-app report flow, app support flow, or by emailing ${SUPPORT_EMAIL}. Status/reply reports may include the report reason, optional details, reporter account details, reported content previews, approximate location fields if enabled on the reported status, moderation action notes, close/re-open history, and user email update records. Complaints, moderation decisions, review evidence, and limited enforcement records may be retained for abuse prevention, legal compliance, and user safety.`,
   },
 ] as const;
 
@@ -59,7 +59,7 @@ export const termsSections = [
   {
     title: "Community Uploads, Moderation, and Reporting",
     body:
-      `Users may upload posters for manager review. Uploading third-party content without rights, impersonation, abusive or offensive content, deceptive political misuse, spam uploads, repeated low-quality uploads, illegal notices, fake claims, or material you do not have rights to use is prohibited. Managers and admins may approve, reject, customize, delay, unpublish, or remove uploads. Rejected uploads may include a reason. Abusive or infringing content can be reported through the app support flow or by emailing ${SUPPORT_EMAIL}.`,
+      `Users may upload posters for manager review. Uploading third-party content without rights, impersonation, abusive or offensive content, deceptive political misuse, spam uploads, repeated low-quality uploads, illegal notices, fake claims, or material you do not have rights to use is prohibited. Managers and admins may approve, reject, customize, delay, unpublish, or remove uploads. Rejected uploads may include a reason. Abusive or infringing status/reply content can be reported through the in-app report flow, app support flow, or by emailing ${SUPPORT_EMAIL}. Managers and admins may review reports, send reasonable email updates to the reporter, close reports after action, or re-open reports if further review is needed. Admin location insights are aggregate city/district/state views only and must not be used as exact user tracking.`,
   },
   {
     title: "Manager and Admin Review Authority",

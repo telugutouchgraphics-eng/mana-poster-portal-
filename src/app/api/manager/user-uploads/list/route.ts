@@ -9,6 +9,9 @@ interface UserUploadListItem {
   userEmail: string;
   userMobile: string;
   imageUrl: string;
+  imagePath: string;
+  quoteText: string;
+  submissionType: string;
   categoryId: string;
   categoryLabel: string;
   status: string;
@@ -45,6 +48,9 @@ export async function GET(req: NextRequest) {
           userEmail: String(data.userEmail ?? "").trim(),
           userMobile: String(data.userMobile ?? "").trim(),
           imageUrl: String(data.imageUrl ?? "").trim(),
+          imagePath: String(data.imagePath ?? "").trim(),
+          quoteText: String(data.quoteText ?? "").trim(),
+          submissionType: String(data.submissionType ?? "").trim(),
           categoryId: String(data.categoryId ?? "").trim(),
           categoryLabel: String(data.categoryLabel ?? "").trim(),
           status: String(data.status ?? "pending")
@@ -68,6 +74,8 @@ export async function GET(req: NextRequest) {
           item.userName,
           item.userEmail,
           item.userMobile,
+          item.quoteText,
+          item.submissionType,
           item.categoryLabel,
           item.categoryId,
         ]
