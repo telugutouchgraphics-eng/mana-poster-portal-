@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
     const ctaLabel = String(formData.get("ctaLabel") ?? "").trim();
     const ctaTarget = String(formData.get("ctaTarget") ?? "").trim();
     const placement = String(formData.get("placement") ?? "home_category_banner").trim();
+    const targetState = String(formData.get("targetState") ?? "").trim();
+    const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
+    const targetCity = String(formData.get("targetCity") ?? "").trim();
     const active = String(formData.get("active") ?? "true").trim() !== "false";
     const sortOrder = Number(formData.get("sortOrder") ?? 100);
     const image = formData.get("image");
@@ -58,6 +61,9 @@ export async function POST(req: NextRequest) {
       ctaLabel,
       ctaTarget,
       placement,
+      targetState,
+      targetDistrict,
+      targetCity,
       active,
       sortOrder: Number.isFinite(sortOrder) ? sortOrder : 100,
       createdAt: now,

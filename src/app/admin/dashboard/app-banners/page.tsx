@@ -11,8 +11,18 @@ interface AppBannerItem {
   ctaLabel: string;
   ctaTarget: string;
   placement: string;
+  targetState?: string;
+  targetDistrict?: string;
+  targetCity?: string;
   active: boolean;
   sortOrder: number;
+}
+
+interface LocationInsightRow {
+  key: string;
+  state: string;
+  district: string;
+  city: string;
 }
 
 const BANNER_POSITION_OPTIONS = [
@@ -38,6 +48,10 @@ export default function AdminAppBannersPage() {
   const [subtitle, setSubtitle] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaTarget, setCtaTarget] = useState("");
+  const [targetState, setTargetState] = useState("");
+  const [targetDistrict, setTargetDistrict] = useState("");
+  const [targetCity, setTargetCity] = useState("");
+  const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
   const [sortOrder, setSortOrder] = useState("10");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -66,6 +80,16 @@ export default function AdminAppBannersPage() {
     } else {
       setMessage(data.error ?? "Unable to load banners.");
     }
+    const insightsResponse = await fetch("/api/admin/location-insights", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const insightsData = (await insightsResponse.json()) as {
+      ok: boolean;
+      insights?: { locations?: LocationInsightRow[] };
+    };
+    if (insightsResponse.ok && insightsData.ok) {
+      setLocationRows(insightsData.insights?.locations ?? []);
+    }
   }
 
   useEffect(() => {
@@ -78,6 +102,9 @@ export default function AdminAppBannersPage() {
     setSubtitle("");
     setCtaLabel("");
     setCtaTarget("");
+    setTargetState("");
+    setTargetDistrict("");
+    setTargetCity("");
     setSortOrder("10");
     setFile(null);
     setEditingId(null);
@@ -90,6 +117,9 @@ export default function AdminAppBannersPage() {
     setSubtitle(item.subtitle);
     setCtaLabel(item.ctaLabel);
     setCtaTarget(item.ctaTarget);
+    setTargetState(item.targetState ?? "");
+    setTargetDistrict(item.targetDistrict ?? "");
+    setTargetCity(item.targetCity ?? "");
     setSortOrder(String(item.sortOrder));
     setFile(null);
     setCurrentPreview(item.imageUrl);
@@ -126,6 +156,9 @@ export default function AdminAppBannersPage() {
       body.set("ctaLabel", ctaLabel);
       body.set("ctaTarget", ctaTarget);
       body.set("sortOrder", sortOrder);
+      body.set("targetState", targetState.trim());
+      body.set("targetDistrict", targetDistrict.trim());
+      body.set("targetCity", targetCity.trim());
       body.set("active", "true");
       body.set("placement", "home_category_banner");
       if (file) {
@@ -179,6 +212,24 @@ export default function AdminAppBannersPage() {
   }
 
   const previewImage = previewUrl ?? currentPreview;
+  const stateOptions = Array.from(new Set(locationRows.map((row) => row.state).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const districtOptions = Array.from(
+    new Set(
+      locationRows
+        .filter((row) => !targetState || row.state === targetState)
+        .map((row) => row.district)
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+  const cityOptions = Array.from(
+    new Set(
+      locationRows
+        .filter((row) => !targetState || row.state === targetState)
+        .filter((row) => !targetDistrict || row.district === targetDistrict)
+        .map((row) => row.city)
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
@@ -195,6 +246,60 @@ export default function AdminAppBannersPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <input value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} placeholder="Button label (optional)" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
             <input value={ctaTarget} onChange={(e) => setCtaTarget(e.target.value)} placeholder="Button target path/url" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
+          </div>
+          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
+            <p className="text-sm font-bold text-emerald-900">Area targeting</p>
+            <p className="mt-1 text-xs leading-6 text-emerald-700">
+              Optional. Leave all empty to show this banner to everyone.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">State</span>
+                <select
+                  value={targetState}
+                  onChange={(event) => {
+                    setTargetState(event.target.value);
+                    setTargetDistrict("");
+                    setTargetCity("");
+                  }}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="">All states</option>
+                  {stateOptions.map((state) => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">District</span>
+                <select
+                  value={targetDistrict}
+                  onChange={(event) => {
+                    setTargetDistrict(event.target.value);
+                    setTargetCity("");
+                  }}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="">All districts</option>
+                  {districtOptions.map((district) => (
+                    <option key={district} value={district}>{district}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">City</span>
+                <select
+                  value={targetCity}
+                  onChange={(event) => setTargetCity(event.target.value)}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="">All cities</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
           <div className="grid gap-4">
             <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white">
@@ -252,6 +357,9 @@ export default function AdminAppBannersPage() {
                       <p className="mt-1 text-sm text-slate-600">{item.subtitle || "No subtitle"}</p>
                       <p className="mt-2 text-xs text-slate-500">
                         Placement: App Home Banner | Position: {bannerPositionLabel(item.sortOrder)}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        Area: {[item.targetCity, item.targetDistrict, item.targetState].filter(Boolean).join(", ") || "All areas"}
                       </p>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>

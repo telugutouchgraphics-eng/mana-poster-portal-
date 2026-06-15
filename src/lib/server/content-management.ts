@@ -21,6 +21,9 @@ export interface AppBannerRecord {
   ctaLabel: string;
   ctaTarget: string;
   placement: string;
+  targetState?: string;
+  targetDistrict?: string;
+  targetCity?: string;
   active: boolean;
   sortOrder: number;
   createdAt: number;

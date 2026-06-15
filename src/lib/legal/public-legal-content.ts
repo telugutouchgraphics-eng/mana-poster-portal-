@@ -11,7 +11,7 @@ export const privacySections = [
   {
     title: "How We Use Data",
     body:
-      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, review uploads, prevent abuse, and provide customer support. If a user enables optional location access in the app, we use Android native location permission and store only approximate city, district, state, country code, update time, and a random feed seed to prioritize nearby statuses and provide privacy-safe aggregate admin insights. Exact GPS latitude/longitude is not stored or displayed for this feature.",
+      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, review uploads, prevent abuse, and provide customer support. If a user enables optional location access in the app, we use Android native location permission and store only approximate city, district, state, country code, update time, and a random feed seed to prioritize nearby statuses, show area-relevant banners, support area-targeted admin notifications, and provide privacy-safe aggregate admin insights. Exact GPS latitude/longitude is not stored or displayed for this feature.",
   },
   {
     title: "Community Uploads and Review",

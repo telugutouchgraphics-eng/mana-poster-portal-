@@ -142,10 +142,12 @@ function cleanLocationText(value: unknown) {
 function readUserArea(data: FirebaseFirestore.DocumentData) {
   const area = data.locationArea;
   if (area && typeof area === "object" && !Array.isArray(area)) {
+    const city = trimValue(area.city);
+    const state = trimValue(area.state);
     return {
-      state: trimValue(area.state),
-      district: trimValue(area.district),
-      city: trimValue(area.city),
+      state,
+      district: trimValue(area.district) || city || state,
+      city,
     };
   }
   return { state: "", district: "", city: "" };

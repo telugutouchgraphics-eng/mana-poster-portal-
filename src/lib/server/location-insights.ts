@@ -23,16 +23,20 @@ function readArea(data: Record<string, unknown>) {
   const area = data.locationArea;
   if (area && typeof area === "object" && !Array.isArray(area)) {
     const map = area as Record<string, unknown>;
+    const city = cleanText(map.city);
+    const state = cleanText(map.state);
     return {
-      state: cleanText(map.state),
-      district: cleanText(map.district),
-      city: cleanText(map.city),
+      state,
+      district: cleanText(map.district) || city || state,
+      city,
     };
   }
+  const city = cleanText(data.locationCity);
+  const state = cleanText(data.locationState);
   return {
-    state: cleanText(data.locationState),
-    district: cleanText(data.locationDistrict),
-    city: cleanText(data.locationCity),
+    state,
+    district: cleanText(data.locationDistrict) || city || state,
+    city,
   };
 }
 
