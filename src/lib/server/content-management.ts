@@ -62,7 +62,10 @@ export interface AdminPushNotificationRecord {
   imageUrl: string;
   imagePath: string;
   route: string;
-  audience: "all_users" | "creators_only";
+  audience: "all_users" | "creators_only" | "area_users";
+  targetState?: string;
+  targetDistrict?: string;
+  targetCity?: string;
   category: string;
   status: "scheduled" | "sent" | "failed" | "processing";
   targetCount: number;

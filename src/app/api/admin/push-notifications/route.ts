@@ -13,7 +13,7 @@ import {
 } from "@/lib/server/push-notifications";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
-const AUDIENCE_OPTIONS = new Set<PushAudience>(["all_users", "creators_only"]);
+const AUDIENCE_OPTIONS = new Set<PushAudience>(["all_users", "creators_only", "area_users"]);
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
 
 export async function GET(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       notifications,
-      audiences: ["all_users", "creators_only"],
+      audiences: ["all_users", "creators_only", "area_users"],
     });
   } catch (error) {
     const message =
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
     const audience = String(formData.get("audience") ?? "all_users").trim() as PushAudience;
     const route = audience === "creators_only" ? "creator_dashboard" : requestedRoute;
     const category = "";
+    const targetState = String(formData.get("targetState") ?? "").trim();
+    const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
+    const targetCity = String(formData.get("targetCity") ?? "").trim();
     const image = formData.get("image");
 
     if (!title || !message) {
@@ -55,6 +58,12 @@ export async function POST(req: NextRequest) {
     if (!AUDIENCE_OPTIONS.has(audience)) {
       return NextResponse.json(
         { ok: false, error: "Valid audience is required." },
+        { status: 400 },
+      );
+    }
+    if (audience === "area_users" && !targetState && !targetDistrict && !targetCity) {
+      return NextResponse.json(
+        { ok: false, error: "Select at least one State, District, or City for area targeting." },
         { status: 400 },
       );
     }
@@ -95,6 +104,9 @@ export async function POST(req: NextRequest) {
       imagePath,
       route,
       audience,
+      targetState,
+      targetDistrict,
+      targetCity,
       category,
       scheduledFor,
       createdByUid: actor.uid,
@@ -119,6 +131,9 @@ export async function POST(req: NextRequest) {
         route,
         imageUrl,
         audience,
+        targetState,
+        targetDistrict,
+        targetCity,
         category,
         title,
         message,

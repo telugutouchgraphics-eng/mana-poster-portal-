@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { adminDb, adminMessaging } from "@/lib/firebase/admin";
 import { deleteAdminAsset } from "@/lib/server/content-management";
 
-export type PushAudience = "all_users" | "creators_only";
+export type PushAudience = "all_users" | "creators_only" | "area_users";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
 const PUSH_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 
@@ -44,6 +44,9 @@ export interface PushHistoryRecord {
   imagePath: string;
   route: string;
   audience: PushAudience;
+  targetState: string;
+  targetDistrict: string;
+  targetCity: string;
   category: string;
   status: PushStatus;
   targetCount: number;
@@ -132,7 +135,54 @@ async function loadUserDeviceTokens(userIds: string[]) {
   return uniqueTokens(tokens);
 }
 
-async function resolveAudienceTargets(audience: PushAudience) {
+function cleanLocationText(value: unknown) {
+  return trimValue(value).toLowerCase();
+}
+
+function readUserArea(data: FirebaseFirestore.DocumentData) {
+  const area = data.locationArea;
+  if (area && typeof area === "object" && !Array.isArray(area)) {
+    return {
+      state: trimValue(area.state),
+      district: trimValue(area.district),
+      city: trimValue(area.city),
+    };
+  }
+  return { state: "", district: "", city: "" };
+}
+
+function areaMatches(
+  area: { state: string; district: string; city: string },
+  target: { state: string; district: string; city: string },
+) {
+  const targetState = cleanLocationText(target.state);
+  const targetDistrict = cleanLocationText(target.district);
+  const targetCity = cleanLocationText(target.city);
+  if (!targetState && !targetDistrict && !targetCity) {
+    return false;
+  }
+  return (
+    (!targetState || cleanLocationText(area.state) === targetState) &&
+    (!targetDistrict || cleanLocationText(area.district) === targetDistrict) &&
+    (!targetCity || cleanLocationText(area.city) === targetCity)
+  );
+}
+
+async function loadAreaUserUids(target: { state: string; district: string; city: string }) {
+  const snap = await adminDb.collection("users").where("locationEnabled", "==", true).get();
+  const ids: string[] = [];
+  for (const doc of snap.docs) {
+    if (areaMatches(readUserArea(doc.data()), target)) {
+      ids.push(doc.id);
+    }
+  }
+  return ids;
+}
+
+async function resolveAudienceTargets(
+  audience: PushAudience,
+  targetLocation: { state: string; district: string; city: string },
+) {
   if (audience === "all_users") {
     return { mode: "topic" as const, topic: "all_users", targets: [] as Array<{ token: string; refPath?: string }> };
   }
@@ -143,6 +193,15 @@ async function resolveAudienceTargets(audience: PushAudience) {
       mode: "tokens" as const,
       topic: "",
       targets: await loadUserDeviceTokens(creatorUids),
+    };
+  }
+
+  if (audience === "area_users") {
+    const userUids = await loadAreaUserUids(targetLocation);
+    return {
+      mode: "tokens" as const,
+      topic: "",
+      targets: await loadUserDeviceTokens(userUids),
     };
   }
 
@@ -200,7 +259,11 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
     { merge: true },
   );
 
-  const target = await resolveAudienceTargets(record.audience);
+  const target = await resolveAudienceTargets(record.audience, {
+    state: record.targetState,
+    district: record.targetDistrict,
+    city: record.targetCity,
+  });
 
   if (target.mode === "topic") {
     const sentAt = Date.now();
@@ -307,6 +370,9 @@ export async function createPushHistoryRecord(input: {
   imagePath: string;
   route: string;
   audience: PushAudience;
+  targetState: string;
+  targetDistrict: string;
+  targetCity: string;
   category: string;
   scheduledFor: number | null;
   createdByUid: string;
@@ -324,6 +390,9 @@ export async function createPushHistoryRecord(input: {
     imagePath: input.imagePath,
     route: trimValue(input.route) || "home",
     audience: input.audience,
+    targetState: trimValue(input.targetState),
+    targetDistrict: trimValue(input.targetDistrict),
+    targetCity: trimValue(input.targetCity),
     category: trimValue(input.category),
     status: input.scheduledFor && input.scheduledFor > now ? "scheduled" : "processing",
     targetCount: 0,

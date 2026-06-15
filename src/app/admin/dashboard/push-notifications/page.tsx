@@ -12,7 +12,10 @@ interface PushNotificationItem {
   bodyKey: string;
   imageUrl: string;
   route: string;
-  audience: "all_users" | "creators_only";
+  audience: "all_users" | "creators_only" | "area_users";
+  targetState?: string;
+  targetDistrict?: string;
+  targetCity?: string;
   category: string;
   status: "scheduled" | "sent" | "failed" | "processing";
   targetCount: number;
@@ -25,12 +28,23 @@ interface PushNotificationItem {
   createdByEmail: string;
 }
 
+interface LocationInsightRow {
+  key: string;
+  state: string;
+  district: string;
+  city: string;
+}
+
 export default function AdminPushNotificationsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<PushNotificationItem[]>([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [audience, setAudience] = useState<"all_users" | "creators_only">("all_users");
+  const [audience, setAudience] = useState<"all_users" | "creators_only" | "area_users">("all_users");
+  const [targetState, setTargetState] = useState("");
+  const [targetDistrict, setTargetDistrict] = useState("");
+  const [targetCity, setTargetCity] = useState("");
+  const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -50,9 +64,20 @@ export default function AdminPushNotificationsPage() {
     };
     if (response.ok && data.ok) {
       setItems(data.notifications ?? []);
-      return;
     }
-    setStatusMessage(data.error ?? "Unable to load push notification history.");
+    if (!response.ok || !data.ok) {
+      setStatusMessage(data.error ?? "Unable to load push notification history.");
+    }
+    const insightsResponse = await fetch("/api/admin/location-insights", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const insightsData = (await insightsResponse.json()) as {
+      ok: boolean;
+      insights?: { locations?: LocationInsightRow[] };
+    };
+    if (insightsResponse.ok && insightsData.ok) {
+      setLocationRows(insightsData.insights?.locations ?? []);
+    }
   }
 
   useEffect(() => {
@@ -81,6 +106,9 @@ export default function AdminPushNotificationsPage() {
       formData.set("route", audience === "creators_only" ? "creator_dashboard" : "home");
       formData.set("audience", audience);
       formData.set("category", "");
+      formData.set("targetState", audience === "area_users" ? targetState.trim() : "");
+      formData.set("targetDistrict", audience === "area_users" ? targetDistrict.trim() : "");
+      formData.set("targetCity", audience === "area_users" ? targetCity.trim() : "");
       if (imageFile) {
         formData.set("image", imageFile);
       }
@@ -99,6 +127,9 @@ export default function AdminPushNotificationsPage() {
       setTitle("");
       setMessage("");
       setAudience("all_users");
+      setTargetState("");
+      setTargetDistrict("");
+      setTargetCity("");
       setImageFile(null);
       const input = document.getElementById("push-image-input") as HTMLInputElement | null;
       if (input) {
@@ -112,6 +143,27 @@ export default function AdminPushNotificationsPage() {
       setBusy(false);
     }
   }
+
+  const stateOptions = Array.from(
+    new Set(locationRows.map((row) => row.state).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
+  const districtOptions = Array.from(
+    new Set(
+      locationRows
+        .filter((row) => !targetState || row.state === targetState)
+        .map((row) => row.district)
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+  const cityOptions = Array.from(
+    new Set(
+      locationRows
+        .filter((row) => !targetState || row.state === targetState)
+        .filter((row) => !targetDistrict || row.district === targetDistrict)
+        .map((row) => row.city)
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">
@@ -140,14 +192,80 @@ export default function AdminPushNotificationsPage() {
               <span className="font-semibold">Audience</span>
               <select
                 value={audience}
-                onChange={(event) => setAudience(event.target.value as "all_users" | "creators_only")}
+                onChange={(event) => {
+                  const next = event.target.value as "all_users" | "creators_only" | "area_users";
+                  setAudience(next);
+                  if (next !== "area_users") {
+                    setTargetState("");
+                    setTargetDistrict("");
+                    setTargetCity("");
+                  }
+                }}
                 className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
               >
                 <option value="all_users">All users</option>
                 <option value="creators_only">Creators only</option>
+                <option value="area_users">Area users</option>
               </select>
             </label>
           </div>
+
+          {audience === "area_users" ? (
+            <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
+              <p className="text-sm font-bold text-emerald-900">Area targeting</p>
+              <p className="mt-1 text-xs leading-6 text-emerald-700">
+                Sends only to users who allowed location and match selected approximate area. Exact GPS is not used.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <label className="space-y-2 text-sm text-emerald-950">
+                  <span className="font-semibold">State</span>
+                  <select
+                    value={targetState}
+                    onChange={(event) => {
+                      setTargetState(event.target.value);
+                      setTargetDistrict("");
+                      setTargetCity("");
+                    }}
+                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                  >
+                    <option value="">Any state</option>
+                    {stateOptions.map((state) => (
+                      <option key={state} value={state}>{state}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-emerald-950">
+                  <span className="font-semibold">District</span>
+                  <select
+                    value={targetDistrict}
+                    onChange={(event) => {
+                      setTargetDistrict(event.target.value);
+                      setTargetCity("");
+                    }}
+                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                  >
+                    <option value="">Any district</option>
+                    {districtOptions.map((district) => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-emerald-950">
+                  <span className="font-semibold">City</span>
+                  <select
+                    value={targetCity}
+                    onChange={(event) => setTargetCity(event.target.value)}
+                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                  >
+                    <option value="">Any city</option>
+                    {cityOptions.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          ) : null}
 
           <label className="space-y-2 text-sm text-slate-700">
             <span className="font-semibold">Notification message</span>
@@ -248,6 +366,13 @@ export default function AdminPushNotificationsPage() {
                       Route: {item.route} | Audience: {item.audience}
                       {item.category ? ` | Category: ${item.category}` : ""}
                     </p>
+                    {item.audience === "area_users" ? (
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        Area: {[item.targetCity, item.targetDistrict, item.targetState]
+                          .filter(Boolean)
+                          .join(", ") || "Selected area"}
+                      </p>
+                    ) : null}
                     <p className="mt-1 text-xs text-slate-500">
                       Targets: {item.targetCount} | Delivered: {item.deliveredCount} | Failed: {item.failedCount}
                     </p>
