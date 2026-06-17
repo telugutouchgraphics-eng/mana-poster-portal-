@@ -7,11 +7,14 @@ import {
   filterCreatorCompetitionSnapshots,
   loadCompetitions,
 } from "@/lib/server/competitions";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
+    const actor = await requireRole(req, ["creator", "admin"]);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const creator = await resolveCreatorReadContext(req);
     if (!creator) {
       return NextResponse.json({
@@ -26,12 +29,14 @@ export async function GET(req: NextRequest) {
       loadCompetitions(),
       loadPortalAnalyticsSnapshot(),
     ]);
-    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
+    const posters = analytics.posters.filter((item) => item.regionId === region.id);
     const snapshots = filterCreatorCompetitionSnapshots(
       await buildCompetitionSnapshots(
         competitions,
-        analytics.posters,
+        posters,
         analytics.creatorProfiles,
+        Date.now(),
+        region.id,
       ),
       creator.assignedCategories,
     );

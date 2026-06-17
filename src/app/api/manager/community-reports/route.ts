@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { listCommunityReports } from "@/lib/server/community-reports";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin", "manager"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const url = new URL(req.url);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const reports = await listCommunityReports({
       status: url.searchParams.get("status"),
       q: url.searchParams.get("q"),
+      regionId: region.id,
     });
     return NextResponse.json({ ok: true, reports });
   } catch (error) {

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { DashboardAutoTranslate } from "@/components/i18n/dashboard-auto-translate";
 import { DashboardRegionSelect } from "@/components/regions/dashboard-region-select";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 const BRAND_TAGLINE_EN = "Your Daily Telugu Poster App";
 
@@ -36,6 +37,7 @@ export function PortalDashboardShell({
   children,
 }: PortalDashboardShellProps) {
   const pathname = usePathname();
+  const { region } = useDashboardRegion();
   const brandTagline = BRAND_TAGLINE_EN;
   const menuLabel = "Menu";
   const openNavLabel = "Open navigation menu";
@@ -212,7 +214,10 @@ export function PortalDashboardShell({
               </nav>
             </header>
 
-            <div className="portal-dashboard-content mt-5 space-y-5 pb-6 sm:mt-6 sm:space-y-6">
+            <div
+              key={region.id}
+              className="portal-dashboard-content mt-5 space-y-5 pb-6 sm:mt-6 sm:space-y-6"
+            >
               {children}
             </div>
           </section>

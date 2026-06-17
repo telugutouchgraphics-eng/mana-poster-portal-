@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import {
   buildMonthlyCalendarMetrics,
@@ -22,12 +23,19 @@ export async function GET(req: NextRequest) {
     const scope = currentMonthScope();
     const year = Number(url.searchParams.get("year") ?? scope.year);
     const month = Number(url.searchParams.get("month") ?? scope.month);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const requestedCreatorId = String(
       url.searchParams.get("creatorPublicId") ?? "",
     ).trim();
 
     const scopedProfiles = await loadScopedCreatorProfiles(actor);
     const creators = scopedProfiles
+      .filter((doc) => {
+        const assignedRegionIds = Array.isArray(doc.data().assignedRegionIds)
+          ? doc.data().assignedRegionIds.map(String)
+          : [];
+        return assignedRegionIds.length === 0 || assignedRegionIds.includes(region.id);
+      })
       .map((doc) => {
         const data = doc.data();
         return {
@@ -46,7 +54,7 @@ export async function GET(req: NextRequest) {
         : "";
 
     const metrics = selectedCreatorId
-      ? await loadDailyPosterMetrics([selectedCreatorId])
+      ? await loadDailyPosterMetrics([selectedCreatorId], region.id)
       : [];
     const calendar = selectedCreatorId
       ? buildMonthlyCalendarMetrics(metrics, year, month)

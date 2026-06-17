@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { loadPortalAnalyticsSnapshot } from "@/lib/server/dashboard-metrics";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
+import { loadActorAllowedRegionIds } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim().toLowerCase();
@@ -15,8 +17,20 @@ export async function GET(req: NextRequest) {
       Math.max(1, Number(url.searchParams.get("pageSize") ?? 10) || 10),
     );
     const snapshot = await loadPortalAnalyticsSnapshot();
+    const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const actorHasAllRegions = allowedRegionIds.length === DASHBOARD_REGIONS.length;
+    const allowedCreatorIds = new Set(
+      snapshot.creatorProfiles
+        .filter((creator) =>
+          creator.assignedRegionIds.length === 0
+            ? actorHasAllRegions
+            : creator.assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId)),
+        )
+        .map((creator) => creator.creatorPublicId),
+    );
 
     const filteredRows = snapshot.payouts
+      .filter((item) => allowedCreatorIds.has(item.creatorPublicId))
       .filter((item) => (status === "all" ? true : item.status.toLowerCase() === status))
       .filter((item) => {
         if (!q) return true;

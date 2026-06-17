@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface UploadTrendItem {
@@ -67,10 +68,16 @@ function MetricCard({
 export default function AdminOverviewPage() {
   const { user, name } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region, regions } = useDashboardRegion();
   const lang = portalLanguage(language);
+  const [overviewRegionId, setOverviewRegionId] = useState(region.id);
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const overviewRegionName =
+    overviewRegionId === "all"
+      ? "All States / UTs"
+      : regions.find((item) => item.id === overviewRegionId)?.name ?? region.name;
 
   async function load() {
     const token = await user?.getIdToken();
@@ -78,8 +85,9 @@ export default function AdminOverviewPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/overview", {
+      const response = await fetch(`/api/admin/overview?regionId=${encodeURIComponent(overviewRegionId)}`, {
         headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
       const payload = (await response.json()) as AdminOverviewResponse;
       if (!response.ok || !payload.ok || !payload.headline) {
@@ -96,7 +104,11 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang]);
+  }, [user, lang, overviewRegionId]);
+
+  useEffect(() => {
+    setOverviewRegionId(region.id);
+  }, [region.id]);
 
   const trendMax = useMemo(
     () => Math.max(1, ...(data?.uploadsTrend?.map((item) => item.uploads) ?? [1])),
@@ -115,6 +127,27 @@ export default function AdminOverviewPage() {
         <p className="mt-3 max-w-3xl text-sm leading-7 text-white/90">
           {t("admin.overview.description", lang)}
         </p>
+        <div className="mt-5 flex flex-col gap-2 sm:max-w-xs">
+          <label className="text-[11px] font-black uppercase tracking-[0.24em] text-white/75">
+            Overview Data
+          </label>
+          <select
+            value={overviewRegionId}
+            onChange={(event) => setOverviewRegionId(event.target.value)}
+            className="min-h-11 rounded-2xl border border-white/25 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none"
+            aria-label="Select overview state or union territory"
+          >
+            <option value="all">All States / UTs</option>
+            {regions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} - {item.primaryLanguage}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs font-semibold text-white/75">
+            Showing: {overviewRegionName}
+          </p>
+        </div>
       </div>
 
       {error ? (

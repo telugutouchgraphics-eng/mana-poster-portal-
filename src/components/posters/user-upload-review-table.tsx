@@ -788,8 +788,8 @@ export function UserUploadReviewTable() {
     try {
       const headers = await authHeader();
       const response = await fetch(
-        `/api/manager/user-uploads/list?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}`,
-        { headers },
+        `/api/manager/user-uploads/list?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
+        { headers, cache: "no-store" },
       );
       const data = (await response.json()) as {
         ok: boolean;
@@ -836,7 +836,7 @@ export function UserUploadReviewTable() {
         setLoading(false);
       }
     }
-  }, [authHeader, query, status]);
+  }, [authHeader, query, region.id, status]);
 
   const loadCategories = useCallback(async () => {
     try {

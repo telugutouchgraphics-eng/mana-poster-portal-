@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuth, resolveVisibleRoles } from "@/lib/server/auth";
 import { normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
+import { loadActorAllowedRegionIds } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(req: NextRequest) {
     const data = userSnap.data();
     const docRoles = normalizeRoles(data?.roles);
     const roles = resolveVisibleRoles(user.email, docRoles, user.roles);
+    const assignedRegionIds = await loadActorAllowedRegionIds(user);
     return NextResponse.json({
       ok: true,
       uid: user.uid,
@@ -18,6 +20,7 @@ export async function GET(req: NextRequest) {
       roles,
       name: data?.name ?? null,
       creatorPublicId: data?.creatorPublicId ?? null,
+      assignedRegionIds,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unauthorized";

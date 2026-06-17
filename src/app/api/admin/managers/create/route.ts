@@ -15,11 +15,13 @@ import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import { generateManagedPassword } from "@/lib/server/password";
 import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
+import { assertActorCanAssignRegions } from "@/lib/server/region-scope";
 
 const requestSchema = z.object({
   name: z.string().trim().min(2),
   email: z.string().trim().email(),
   phone: z.string().trim().min(8).max(20),
+  regionIds: z.array(z.string().trim().min(1)).min(1),
 });
 
 export async function POST(req: NextRequest) {
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest) {
     });
     const actor = await requireRole(req, ["admin"]);
     const payload = requestSchema.parse(await req.json());
+    const assignedRegionIds = await assertActorCanAssignRegions(actor, payload.regionIds);
     const now = Date.now();
     const normalizedEmail = payload.email.toLowerCase();
     const authEmail = buildRoleAuthEmail(normalizedEmail, "manager");
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
             authEmail,
             name: payload.name,
             phone: payload.phone,
+            assignedRegionIds,
             updatedAt: now,
             createdAt: userSnap.exists ? userSnap.data()?.createdAt ?? now : now,
             managerAssignedByUid: actor.uid,
@@ -122,6 +126,7 @@ export async function POST(req: NextRequest) {
           authEmail,
           name: payload.name,
           phone: payload.phone,
+          assignedRegionIds,
           updatedAt: now,
           createdAt: userSnap.exists ? userSnap.data()?.createdAt ?? now : now,
           managerAssignedByUid: actor.uid,
@@ -144,6 +149,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         managerPublicId,
         email: normalizedEmail,
+        assignedRegionIds,
       },
     });
 
@@ -157,6 +163,7 @@ export async function POST(req: NextRequest) {
       setupLink: recoveryResetLink,
       email: normalizedEmail,
       name: payload.name,
+      assignedRegionIds,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Manager create failed.";

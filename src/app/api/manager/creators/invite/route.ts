@@ -11,11 +11,13 @@ import { enforceRateLimit } from "@/lib/server/rate-limit";
 import { generateManagedPassword } from "@/lib/server/password";
 import { isAppRole, mergeRoles, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
 import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
+import { assertActorCanAssignRegions } from "@/lib/server/region-scope";
 
 const requestSchema = z.object({
   name: z.string().trim().min(2),
   email: z.string().trim().email(),
   phone: z.string().trim().min(8).max(20),
+  regionIds: z.array(z.string().trim().min(1)).min(1),
 });
 
 async function findExistingCreatorByEmailOrPhone(email: string, phone: string) {
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
     });
     const actor = await requireRole(req, ["manager", "admin"]);
     const payload = requestSchema.parse(await req.json());
+    const assignedRegionIds = await assertActorCanAssignRegions(actor, payload.regionIds);
     const now = Date.now();
     const token = generateInviteToken();
     const tokenHash = hashInviteToken(token);
@@ -126,6 +129,7 @@ export async function POST(req: NextRequest) {
         name: payload.name,
         email: normalizedEmail,
         phone: payload.phone,
+        assignedRegionIds,
         status: "pending_invite",
         assignedByUid: actor.uid,
         assignedByRole: actor.role,
@@ -142,6 +146,7 @@ export async function POST(req: NextRequest) {
         email: normalizedEmail,
         name: payload.name,
         phone: payload.phone,
+        assignedRegionIds,
         tokenHash,
         status: "pending",
         createdByUid: actor.uid,
@@ -212,6 +217,7 @@ export async function POST(req: NextRequest) {
           authEmail,
           name: payload.name,
           phone: payload.phone,
+          assignedRegionIds,
           creatorPublicId: result.creatorPublicId,
           activeDeviceId: null,
           activeDeviceMeta: null,
@@ -227,6 +233,7 @@ export async function POST(req: NextRequest) {
           status: "active",
           authUid,
           authEmail,
+          assignedRegionIds,
           loginPassword: FieldValue.delete(),
           updatedAt: now,
         },
@@ -268,6 +275,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         inviteId: result.inviteId,
         email: normalizedEmail,
+        assignedRegionIds,
       },
     });
 
@@ -279,6 +287,7 @@ export async function POST(req: NextRequest) {
       initialPassword: seedPassword,
       loginLink,
       setupLink,
+      assignedRegionIds,
       whatsappMessage,
     });
   } catch (error) {
@@ -289,4 +298,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
-

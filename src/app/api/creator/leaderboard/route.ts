@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
 import { loadPortalAnalyticsSnapshot } from "@/lib/server/dashboard-metrics";
 import { loadActivePosterPerformanceMetrics } from "@/lib/server/performance-metrics";
+import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
+    const actor = await requireRole(req, ["creator", "admin"]);
     const creator = await resolveCreatorReadContext(req);
     if (!creator) {
       return NextResponse.json({
@@ -15,8 +18,9 @@ export async function GET(req: NextRequest) {
         leaderboard: [],
       });
     }
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const [activePosters, analytics] = await Promise.all([
-      loadActivePosterPerformanceMetrics(),
+      loadActivePosterPerformanceMetrics(Date.now(), region.id),
       loadPortalAnalyticsSnapshot(),
     ]);
 

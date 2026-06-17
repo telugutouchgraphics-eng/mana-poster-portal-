@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 import { languageCodeFor } from "@/lib/i18n/dashboard-languages";
@@ -125,6 +126,7 @@ function statusTone(status: string) {
 
 export function CreatorEarningsConsole() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const searchParams = useSearchParams();
   const { language } = useDashboardLanguage();
   const [payload, setPayload] = useState<EarningsPayload | null>(null);
@@ -152,8 +154,8 @@ export function CreatorEarningsConsole() {
     try {
       const headers = await authHeader();
       const response = await fetch(
-        withCreatorImpersonationQuery("/api/creator/earnings", searchParams),
-        { headers },
+        withCreatorImpersonationQuery(`/api/creator/earnings?regionId=${encodeURIComponent(region.id)}`, searchParams),
+        { headers, cache: "no-store" },
       );
       const data = (await response.json()) as EarningsPayload;
       if (!response.ok || !data.ok) {
@@ -176,7 +178,7 @@ export function CreatorEarningsConsole() {
     } finally {
       setLoading(false);
     }
-  }, [authHeader, searchParams]);
+  }, [authHeader, region.id, searchParams]);
 
   useEffect(() => {
     if (!user) {

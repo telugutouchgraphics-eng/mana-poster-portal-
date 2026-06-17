@@ -3,6 +3,7 @@ import { getIstDayKey } from "@/lib/server/ist-schedule";
 
 export interface DailyPosterMetric {
   creatorPublicId: string;
+  regionId: string;
   posterId: string;
   posterTitle: string;
   categoryId: string;
@@ -25,6 +26,7 @@ export interface CalendarDayMetric {
 
 export interface RecentPosterPerformanceMetric {
   creatorPublicId: string;
+  regionId: string;
   posterId: string;
   posterTitle: string;
   categoryId: string;
@@ -67,6 +69,7 @@ function normalizeDateKey(input: unknown): string {
 
 export async function loadDailyPosterMetrics(
   creatorPublicIds: string[],
+  regionId?: string | null,
 ): Promise<DailyPosterMetric[]> {
   if (creatorPublicIds.length === 0) {
     return [];
@@ -78,19 +81,23 @@ export async function loadDailyPosterMetrics(
   ]);
 
   const creatorSet = new Set(creatorPublicIds);
+  const selectedRegionId = String(regionId ?? "").trim();
   const posterMap = new Map(
-    posterSnap.docs.map((doc) => {
-      const data = doc.data();
-      return [
-        doc.id,
-        {
-          title: String(data.title ?? "Poster"),
-          categoryId: String(data.categoryId ?? ""),
-          categoryLabel: String(data.categoryLabel ?? ""),
-          creatorPublicId: String(data.creatorPublicId ?? ""),
-        },
-      ] as const;
-    }),
+    posterSnap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return [
+          doc.id,
+          {
+            title: String(data.title ?? "Poster"),
+            regionId: String(data.regionId ?? "").trim(),
+            categoryId: String(data.categoryId ?? ""),
+            categoryLabel: String(data.categoryLabel ?? ""),
+            creatorPublicId: String(data.creatorPublicId ?? ""),
+          },
+        ] as const;
+      })
+      .filter(([, item]) => !selectedRegionId || item.regionId === selectedRegionId),
   );
 
   return statsSnap.docs
@@ -102,6 +109,9 @@ export async function loadDailyPosterMetrics(
       }
       const posterId = String(data.posterId ?? data.templateId ?? "").trim();
       const posterMeta = posterMap.get(posterId);
+      if (!posterMeta) {
+        return null;
+      }
       const dateKey =
         normalizeDateKey(data.dateKey) ||
         normalizeDateKey(data.dayKey) ||
@@ -122,6 +132,7 @@ export async function loadDailyPosterMetrics(
 
       return {
         creatorPublicId,
+        regionId: posterMeta.regionId,
         posterId,
         posterTitle: String(
           data.posterTitle ?? posterMeta?.title ?? "Poster",
@@ -143,16 +154,19 @@ export async function loadDailyPosterMetrics(
 
 export async function loadActivePosterPerformanceMetrics(
   now = Date.now(),
+  regionId?: string | null,
 ): Promise<RecentPosterPerformanceMetric[]> {
   const [statsSnap, posterSnap] = await Promise.all([
     adminDb.collection("creatorPosterDailyStats").get(),
     adminDb.collection("creatorPosters").get(),
   ]);
 
+  const selectedRegionId = String(regionId ?? "").trim();
   const recentPosters = posterSnap.docs
     .map((doc) => ({
       posterId: doc.id,
       creatorPublicId: String(doc.data().creatorPublicId ?? "").trim(),
+      regionId: String(doc.data().regionId ?? "").trim(),
       posterTitle: String(doc.data().title ?? "Poster").trim(),
       categoryId: String(doc.data().categoryId ?? "").trim(),
       categoryLabel: String(doc.data().categoryLabel ?? "").trim(),
@@ -165,6 +179,7 @@ export async function loadActivePosterPerformanceMetrics(
     .filter(
       (item) =>
         item.status === "approved" &&
+        (!selectedRegionId || item.regionId === selectedRegionId) &&
         item.publishAt > 0 &&
         item.publishAt <= now &&
         item.performanceWindowEndAt > now,
@@ -268,8 +283,9 @@ export async function loadActivePosterPerformanceMetrics(
 export async function loadRecentPosterPerformanceMetrics(
   creatorPublicId: string,
   now = Date.now(),
+  regionId?: string | null,
 ): Promise<RecentPosterPerformanceMetric[]> {
-  const activePosters = await loadActivePosterPerformanceMetrics(now);
+  const activePosters = await loadActivePosterPerformanceMetrics(now, regionId);
   return activePosters
     .filter((item) => item.creatorPublicId === creatorPublicId)
     .sort((a, b) => b.createdAt - a.createdAt);

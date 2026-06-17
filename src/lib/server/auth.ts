@@ -2,13 +2,12 @@ import { DecodedIdToken } from "firebase-admin/auth";
 import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { requireOtpSession } from "@/lib/server/otp-auth";
+import { isPermanentDashboardAdminEmail } from "@/lib/server/permanent-admins";
 import { AppRole } from "@/lib/types/roles";
 import { isAppRole, mergeRoles, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
 
-const PERMANENT_PORTAL_EMAILS = new Set<string>();
-
 export function isPermanentPortalEmail(email?: string | null): boolean {
-  return Boolean(email && PERMANENT_PORTAL_EMAILS.has(email.toLowerCase()));
+  return isPermanentDashboardAdminEmail(email);
 }
 
 export function assertManagedRoleAssignmentAllowed(
@@ -95,7 +94,7 @@ export async function requireAuth(
     throw new Error("Missing bearer token.");
   }
 
-  const decoded = await adminAuth.verifyIdToken(token);
+  const decoded = await adminAuth.verifyIdToken(token, true);
   const roles = await resolveRoles(decoded.uid, decoded);
   const role = pickPrimaryRole(roles);
   if (roles.some((item) => item === "admin" || item === "manager" || item === "creator")) {

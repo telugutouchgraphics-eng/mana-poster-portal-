@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 
 type ReportStatus = "open" | "closed" | "all";
@@ -57,6 +58,7 @@ function contentPreview(row: CommunityReportRow) {
 
 export function CommunityReportsTable({ role }: { role: PortalRole }) {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [rows, setRows] = useState<CommunityReportRow[]>([]);
   const [status, setStatus] = useState<ReportStatus>("open");
   const [query, setQuery] = useState("");
@@ -80,8 +82,8 @@ export function CommunityReportsTable({ role }: { role: PortalRole }) {
     try {
       const headers = await authHeader();
       const response = await fetch(
-        `${basePath}?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}`,
-        { headers },
+        `${basePath}?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
+        { headers, cache: "no-store" },
       );
       const data = (await response.json()) as {
         ok: boolean;
@@ -111,7 +113,7 @@ export function CommunityReportsTable({ role }: { role: PortalRole }) {
     } finally {
       setLoading(false);
     }
-  }, [authHeader, basePath, query, status]);
+  }, [authHeader, basePath, query, region.id, status]);
 
   useEffect(() => {
     void loadReports();

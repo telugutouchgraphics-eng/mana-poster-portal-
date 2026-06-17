@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
 function displayAdminEmail(email: string) {
   return email.trim().toLowerCase().replace("+manaposter-admin@", "@");
@@ -16,6 +18,8 @@ interface DashboardAdminAccessRow {
   phone: string;
   loginPassword: string;
   dashboardAdminStatus: string;
+  assignedRegionIds: string[];
+  permanentAdmin?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -29,10 +33,12 @@ interface CreateDashboardAdminResponse {
   loginLink?: string;
   initialPassword?: string;
   existingUser?: boolean;
+  assignedRegionIds?: string[];
 }
 
 export function DashboardAdminAccessConsole() {
   const { user, signOut } = useAuth();
+  const { regions, region } = useDashboardRegion();
   const router = useRouter();
   const [credentialEmail, setCredentialEmail] = useState("");
   const [credentialPassword, setCredentialPassword] = useState("");
@@ -44,17 +50,28 @@ export function DashboardAdminAccessConsole() {
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([region.id]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createResult, setCreateResult] = useState<CreateDashboardAdminResponse | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [rows, setRows] = useState<DashboardAdminAccessRow[]>([]);
+  const [regionMap, setRegionMap] = useState<Record<string, string[]>>({});
+  const [expandedAdminRows, setExpandedAdminRows] = useState<Record<string, boolean>>({});
   const [rowsBusy, setRowsBusy] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
 
   useEffect(() => {
     setCredentialEmail(displayAdminEmail(user?.email ?? ""));
   }, [user?.email]);
+
+  useEffect(() => {
+    setSelectedRegionIds((prev) => {
+      const allowed = new Set(regions.map((item) => item.id));
+      const scoped = prev.filter((item) => allowed.has(item));
+      return scoped.length > 0 ? scoped : region.id ? [region.id] : [];
+    });
+  }, [region.id, regions]);
 
   const authHeader = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -82,6 +99,11 @@ export function DashboardAdminAccessConsole() {
         throw new Error(data.error ?? "Unable to load dashboard admin access.");
       }
       setRows(data.admins);
+      setRegionMap(
+        Object.fromEntries(
+          data.admins.map((row) => [row.uid, row.assignedRegionIds ?? []]),
+        ),
+      );
     } catch (error) {
       setRowsError(
         error instanceof Error ? error.message : "Unable to load dashboard admin access.",
@@ -147,6 +169,7 @@ export function DashboardAdminAccessConsole() {
           name: adminName.trim(),
           email: adminEmail.trim(),
           phone: adminPhone.trim(),
+          regionIds: selectedRegionIds,
         }),
       });
       const data = (await response.json()) as CreateDashboardAdminResponse;
@@ -157,6 +180,7 @@ export function DashboardAdminAccessConsole() {
       setAdminName("");
       setAdminEmail("");
       setAdminPhone("");
+      setSelectedRegionIds(region.id ? [region.id] : []);
       await loadAdmins();
     } catch (error) {
       setCreateError(
@@ -194,11 +218,81 @@ export function DashboardAdminAccessConsole() {
     }
   }
 
+  async function saveAdminRegions(row: DashboardAdminAccessRow) {
+    try {
+      const headers = await authHeader();
+      const nextRegionIds = regionMap[row.uid] ?? [];
+      const response = await fetch(
+        `/api/admin/dashboard-access/${encodeURIComponent(row.uid)}/toggle-status`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ regionIds: nextRegionIds }),
+        },
+      );
+      const data = (await response.json()) as {
+        ok: boolean;
+        assignedRegionIds?: string[];
+        error?: string;
+      };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to update admin states.");
+      }
+      const savedRegionIds = data.assignedRegionIds ?? nextRegionIds;
+      setRows((prev) =>
+        prev.map((item) =>
+          item.uid === row.uid ? { ...item, assignedRegionIds: savedRegionIds } : item,
+        ),
+      );
+      setRegionMap((prev) => ({ ...prev, [row.uid]: savedRegionIds }));
+    } catch (error) {
+      setRowsError(error instanceof Error ? error.message : "Unable to update admin states.");
+    }
+  }
+
+  async function deleteAdminAccess(row: DashboardAdminAccessRow) {
+    if (row.uid === currentUid) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete dashboard admin access for ${row.email || row.name || "this admin"}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/admin/dashboard-access/${encodeURIComponent(row.uid)}/toggle-status`,
+        {
+          method: "DELETE",
+          headers,
+        },
+      );
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to delete dashboard admin access.");
+      }
+      await loadAdmins();
+    } catch (error) {
+      setRowsError(
+        error instanceof Error ? error.message : "Unable to delete dashboard admin access.",
+      );
+    }
+  }
+
   const currentUid = user?.uid ?? "";
   const activeCount = useMemo(
     () => rows.filter((item) => item.dashboardAdminStatus === "active").length,
     [rows],
   );
+
+  function toggleAdminRow(uid: string) {
+    setExpandedAdminRows((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  }
 
   return (
     <section className="space-y-6">
@@ -292,9 +386,24 @@ export function DashboardAdminAccessConsole() {
               required
               className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
             />
+            <div className="md:col-span-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                Assign States / UTs
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                This admin will see only these state dashboards and data.
+              </p>
+              <div className="mt-3">
+                <RegionMultiSelectDropdown
+                  regions={regions}
+                  selectedRegionIds={selectedRegionIds}
+                  onChange={setSelectedRegionIds}
+                />
+              </div>
+            </div>
             <button
               type="submit"
-              disabled={createBusy}
+              disabled={createBusy || selectedRegionIds.length === 0}
               className="md:col-span-3 rounded-2xl bg-[var(--portal-green)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:opacity-60"
             >
               {createBusy ? "Granting access..." : "Grant Dashboard Access"}
@@ -313,6 +422,12 @@ export function DashboardAdminAccessConsole() {
               <p className="mt-1">Dashboard ID: {createResult.dashboardAdminLoginId}</p>
               <p className="mt-1">Login email: {createResult.email}</p>
               <p className="mt-1">System password: {createResult.initialPassword}</p>
+              <p className="mt-1">
+                States:{" "}
+                {(createResult.assignedRegionIds ?? [])
+                  .map((regionId) => regions.find((item) => item.id === regionId)?.name ?? regionId)
+                  .join(", ")}
+              </p>
               <p className="mt-1 break-all">Login link: {createResult.loginLink}</p>
               <p className="mt-1 text-emerald-700">
                 {createResult.existingUser
@@ -361,30 +476,82 @@ export function DashboardAdminAccessConsole() {
           ) : (
             rows.map((row) => {
               const selfRow = row.uid === currentUid;
+              const expanded = expandedAdminRows[row.uid] === true;
               return (
                 <div key={`mobile-${row.uid}`} className="rounded-[24px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                  <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleAdminRow(row.uid)}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-950">{row.name || "Admin user"}</p>
-                      <p className="mt-1 break-all text-xs text-slate-500">{row.email}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {expanded ? "Hide details" : "Tap to view details"}
+                      </p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${row.dashboardAdminStatus === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
-                      {row.dashboardAdminStatus}
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {expanded ? "Close" : "Open"}
                     </span>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs text-slate-600">
-                    <p>Dashboard ID: {row.dashboardAdminLoginId || "-"}</p>
-                    <p>Phone: {row.phone || "-"}</p>
-                    <p>System password: {row.loginPassword || "-"}</p>
-                    <p>{selfRow ? "Current login" : "Managed admin"}</p>
-                  </div>
-                  <button
-                    disabled={selfRow}
-                    onClick={() => void toggleStatus(row)}
-                    className="mt-4 w-full rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {row.dashboardAdminStatus === "active" ? "Deactivate access" : "Activate access"}
                   </button>
+                  {expanded ? (
+                    <>
+                      <div className="mt-3 grid gap-2 text-xs text-slate-600">
+                        <p className="break-all">Email: {row.email}</p>
+                        <p>Dashboard ID: {row.dashboardAdminLoginId || "-"}</p>
+                        <p>Phone: {row.phone || "-"}</p>
+                        <p>System password: {row.loginPassword || "-"}</p>
+                        <p>Status: {row.dashboardAdminStatus}</p>
+                        <p>{row.permanentAdmin ? "Permanent all-state admin" : selfRow ? "Current login" : "Managed admin"}</p>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                          Assigned States / UTs
+                        </p>
+                        {row.permanentAdmin ? (
+                          <p className="mt-2 text-xs font-semibold text-slate-700">
+                            All States / UTs
+                          </p>
+                        ) : (
+                          <>
+                            <div className="mt-2">
+                              <RegionMultiSelectDropdown
+                                regions={regions}
+                                selectedRegionIds={regionMap[row.uid] ?? []}
+                                onChange={(nextRegionIds) =>
+                                  setRegionMap((prev) => ({ ...prev, [row.uid]: nextRegionIds }))
+                                }
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              disabled={selfRow || (regionMap[row.uid] ?? []).length === 0}
+                              onClick={() => void saveAdminRegions(row)}
+                              className="mt-3 w-full rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Save States
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <div className="mt-4 grid gap-2">
+                        <button
+                          disabled={selfRow}
+                          onClick={() => void toggleStatus(row)}
+                          className="w-full rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {row.dashboardAdminStatus === "active" ? "Deactivate access" : "Activate access"}
+                        </button>
+                        <button
+                          disabled={selfRow}
+                          onClick={() => void deleteAdminAccess(row)}
+                          className="w-full rounded-xl bg-rose-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete access
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               );
             })
@@ -401,58 +568,112 @@ export function DashboardAdminAccessConsole() {
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">States</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody>
               {rowsBusy ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     Loading dashboard admin access...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     No dashboard admin access records found.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => {
                   const selfRow = row.uid === currentUid;
+                  const expanded = expandedAdminRows[row.uid] === true;
                   return (
-                    <tr key={row.uid} className="border-t border-slate-100/80 bg-white align-top">
-                      <td className="px-4 py-4">
-                        <p className="font-semibold text-slate-900">{row.name || "Admin user"}</p>
-                        <p className="mt-1 text-xs text-slate-500">{selfRow ? "Current login" : "Managed admin"}</p>
-                      </td>
-                      <td className="px-4 py-4 text-slate-700">{row.dashboardAdminLoginId || "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{row.email}</td>
-                      <td className="px-4 py-4 text-slate-700">{row.phone || "-"}</td>
-                      <td className="px-4 py-4 font-mono text-xs text-slate-700">{row.loginPassword || "-"}</td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            row.dashboardAdminStatus === "active"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {row.dashboardAdminStatus}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <button
-                          disabled={selfRow}
-                          onClick={() => void toggleStatus(row)}
-                          className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {row.dashboardAdminStatus === "active"
-                            ? "Deactivate access"
-                            : "Activate access"}
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={row.uid}>
+                      <tr className="border-t border-slate-100/80 bg-white">
+                        <td colSpan={8} className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleAdminRow(row.uid)}
+                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-[var(--portal-surface-soft)]"
+                          >
+                            <span>
+                              <span className="block font-semibold text-slate-900">
+                                {row.name || "Admin user"}
+                              </span>
+                              <span className="mt-1 block text-xs text-slate-500">
+                                {row.permanentAdmin ? "Permanent all-state admin" : selfRow ? "Current login" : "Managed admin"}
+                              </span>
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                              {expanded ? "Close" : "Open"}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr className="border-t border-slate-100/80 bg-white align-top">
+                          <td className="px-4 py-4 text-slate-700">{row.name || "Admin user"}</td>
+                          <td className="px-4 py-4 text-slate-700">{row.dashboardAdminLoginId || "-"}</td>
+                          <td className="px-4 py-4 text-slate-700">{row.email}</td>
+                          <td className="px-4 py-4 text-slate-700">{row.phone || "-"}</td>
+                          <td className="px-4 py-4 font-mono text-xs text-slate-700">{row.loginPassword || "-"}</td>
+                          <td className="px-4 py-4">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                row.dashboardAdminStatus === "active"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-slate-200 text-slate-600"
+                              }`}
+                            >
+                              {row.dashboardAdminStatus}
+                            </span>
+                          </td>
+                          <td className="min-w-[260px] px-4 py-4">
+                            {row.permanentAdmin ? (
+                              <p className="text-xs font-semibold text-slate-700">All States / UTs</p>
+                            ) : (
+                              <div className="space-y-2">
+                                <RegionMultiSelectDropdown
+                                  regions={regions}
+                                  selectedRegionIds={regionMap[row.uid] ?? []}
+                                  onChange={(nextRegionIds) =>
+                                    setRegionMap((prev) => ({ ...prev, [row.uid]: nextRegionIds }))
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  disabled={selfRow || (regionMap[row.uid] ?? []).length === 0}
+                                  onClick={() => void saveAdminRegions(row)}
+                                  className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Save States
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                disabled={selfRow}
+                                onClick={() => void toggleStatus(row)}
+                                className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {row.dashboardAdminStatus === "active" ? "Deactivate access" : "Activate access"}
+                              </button>
+                              <button
+                                disabled={selfRow}
+                                onClick={() => void deleteAdminAccess(row)}
+                                className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Delete access
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })
               )}

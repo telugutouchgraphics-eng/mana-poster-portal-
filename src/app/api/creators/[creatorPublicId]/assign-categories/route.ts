@@ -5,6 +5,13 @@ import { isValidCategoryId } from "@/lib/server/categories";
 import { isValidManualEventCategoryId } from "@/lib/server/manual-event-categories";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { assertCreatorInScope } from "@/lib/server/manager-scope";
+import {
+  getUpcomingWeekdayAssignableCategories,
+  getVisibleAssignableCategories,
+} from "@/lib/server/categories";
+import { listVisibleManualEventCategories } from "@/lib/server/manual-event-categories";
+import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -14,6 +21,7 @@ const MAX_ASSIGNED_CATEGORIES = 200;
 
 const requestSchema = z.object({
   categoryIds: z.array(z.string().trim().min(1)).max(MAX_ASSIGNED_CATEGORIES),
+  regionId: z.string().trim().min(1),
 });
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -21,11 +29,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     const actor = await requireRole(req, ["admin", "manager"]);
     const { creatorPublicId } = await params;
     const payload = requestSchema.parse(await req.json());
+    const region = await assertActorCanAccessRegion(actor, payload.regionId);
     const uniqueIds = Array.from(new Set(payload.categoryIds));
+    const visibleRegionCategories = [
+      ...getVisibleAssignableCategories(new Date(), 2, 7, 2),
+      ...politicalPartyCategoriesForRegion(region.id),
+      ...getUpcomingWeekdayAssignableCategories(),
+      ...(await listVisibleManualEventCategories(Date.now(), region.id)),
+    ];
+    const visibleRegionCategoryIds = new Set(visibleRegionCategories.map((item) => item.id));
+    const outOfRegionId = uniqueIds.find((id) => !visibleRegionCategoryIds.has(id));
+    if (outOfRegionId) {
+      return NextResponse.json(
+        { ok: false, error: `Category is not available for selected State / UT: ${outOfRegionId}` },
+        { status: 400 },
+      );
+    }
     const invalidIds = await Promise.all(
       uniqueIds.map(async (id) => ({
         id,
-        valid: isValidCategoryId(id) || (await isValidManualEventCategoryId(id)),
+        valid: isValidCategoryId(id) || (await isValidManualEventCategoryId(id, region.id)),
       })),
     );
     const invalidId = invalidIds.find((item) => !item.valid)?.id;

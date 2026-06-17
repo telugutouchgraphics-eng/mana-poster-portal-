@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
 interface CreatorRow {
   creatorPublicId: string;
@@ -14,6 +15,7 @@ interface CreatorRow {
   managerEmail?: string;
   managerName?: string;
   assignedCategories: string[];
+  assignedRegionIds: string[];
   createdAt?: number;
   totalUploads?: number;
   approvedCount?: number;
@@ -72,7 +74,7 @@ export function CreatorAccessTable({
   showPayoutActions = false,
 }: CreatorAccessTableProps) {
   const { user, roles } = useAuth();
-  const { region } = useDashboardRegion();
+  const { region, regions } = useDashboardRegion();
   const isAdminViewer = showPayoutActions && roles.includes("admin");
   const [rows, setRows] = useState<CreatorRow[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -84,6 +86,7 @@ export function CreatorAccessTable({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMap, setSelectedMap] = useState<Record<string, string[]>>({});
+  const [regionMap, setRegionMap] = useState<Record<string, string[]>>({});
   const [linkResult, setLinkResult] = useState<Record<string, string>>({});
   const [setupLinkResult, setSetupLinkResult] = useState<Record<string, string>>({});
   const [passwordByCreator, setPasswordByCreator] = useState<Record<string, string>>({});
@@ -158,6 +161,11 @@ export function CreatorAccessTable({
         Object.fromEntries(
           data.creators.map((row) => [row.creatorPublicId, row.assignedCategories])
         )
+      );
+      setRegionMap(
+        Object.fromEntries(
+          data.creators.map((row) => [row.creatorPublicId, row.assignedRegionIds ?? []]),
+        ),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load creators.");
@@ -249,6 +257,7 @@ export function CreatorAccessTable({
           },
           body: JSON.stringify({
             categoryIds: sanitizedCategoryIds,
+            regionId: region.id,
           }),
         }
       );
@@ -267,6 +276,44 @@ export function CreatorAccessTable({
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Category assignment failed.");
+    }
+  }
+
+  async function assignRegions(creatorPublicId: string) {
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/creators/${encodeURIComponent(creatorPublicId)}/assign-regions`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({
+            regionIds: regionMap[creatorPublicId] ?? [],
+          }),
+        },
+      );
+      const data = (await response.json()) as {
+        ok: boolean;
+        assignedRegionIds?: string[];
+        error?: string;
+      };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "State assignment failed.");
+      }
+      const nextRegionIds = data.assignedRegionIds ?? [];
+      setRegionMap((prev) => ({ ...prev, [creatorPublicId]: nextRegionIds }));
+      setRows((prev) =>
+        prev.map((row) =>
+          row.creatorPublicId === creatorPublicId
+            ? { ...row, assignedRegionIds: nextRegionIds }
+            : row,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "State assignment failed.");
     }
   }
 
@@ -617,7 +664,11 @@ export function CreatorAccessTable({
                 key={`mobile-${row.creatorPublicId}`}
                 className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(row.creatorPublicId)}
+                  className="flex w-full items-start justify-between gap-3 text-left"
+                >
                   <div className="min-w-0">
                     <p data-no-auto-translate="true" className="truncate text-base font-semibold text-slate-900">{row.name}</p>
                     <p data-no-auto-translate="true" className="mt-1 truncate font-mono text-[11px] text-slate-500">
@@ -625,77 +676,76 @@ export function CreatorAccessTable({
                     </p>
                   </div>
                   <span className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                    {row.status}
-                  </span>
-                </div>
-
-                <div className="mt-3 space-y-1 text-sm text-slate-600">
-                  <p data-no-auto-translate="true" className="break-all">{row.email}</p>
-                  <p>{row.phone}</p>
-                  <p>
-                    Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
-                    {row.pendingCount ?? 0}
-                  </p>
-                  {isAdminViewer ? (
-                    <p>Manager: {row.managerName || row.managerEmail || row.managerUid || "-"}</p>
-                  ) : null}
-                </div>
-
-                {(selectedMap[row.creatorPublicId] ?? []).length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(selectedMap[row.creatorPublicId] ?? []).map((id) => {
-                      const meta = categoryMetaMap[id];
-                      return (
-                        <span
-                          key={`mobile-chip-${row.creatorPublicId}-${id}`}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            meta?.isDynamic
-                              ? "bg-sky-100 text-sky-800"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {categoryNameMap[id] ?? id}
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs text-slate-500">No categories assigned.</p>
-                )}
-
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => toggleExpanded(row.creatorPublicId)}
-                    className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                  >
                     {expandedRows[row.creatorPublicId] ? "Close" : "Open"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryModalFor(row.creatorPublicId)}
-                    className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                  >
-                    Categories
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleAccessDropdown(row.creatorPublicId)}
-                    className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                  >
-                    Access
-                  </button>
-                  {showPayoutActions ? (
-                    <button
-                      type="button"
-                      onClick={() => togglePaymentsDropdown(row.creatorPublicId)}
-                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                    >
-                      Payments
-                    </button>
-                  ) : null}
-                </div>
+                  </span>
+                </button>
 
-                {accessDropdownOpen[row.creatorPublicId] ? (
+                {expandedRows[row.creatorPublicId] ? (
+                  <>
+                    <div className="mt-3 space-y-1 text-sm text-slate-600">
+                      <p data-no-auto-translate="true" className="break-all">{row.email}</p>
+                      <p>{row.phone}</p>
+                      <p>Status: {row.status}</p>
+                      <p>
+                        Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
+                        {row.pendingCount ?? 0}
+                      </p>
+                      {isAdminViewer ? (
+                        <p>Manager: {row.managerName || row.managerEmail || row.managerUid || "-"}</p>
+                      ) : null}
+                    </div>
+
+                    {(selectedMap[row.creatorPublicId] ?? []).length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(selectedMap[row.creatorPublicId] ?? []).map((id) => {
+                          const meta = categoryMetaMap[id];
+                          return (
+                            <span
+                              key={`mobile-chip-${row.creatorPublicId}-${id}`}
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                                meta?.isDynamic
+                                  ? "bg-sky-100 text-sky-800"
+                                  : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {categoryNameMap[id] ?? id}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-slate-500">No categories assigned.</p>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCategoryModalFor(row.creatorPublicId)}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                      >
+                        Categories
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleAccessDropdown(row.creatorPublicId)}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                      >
+                        Access
+                      </button>
+                      {showPayoutActions ? (
+                        <button
+                          type="button"
+                          onClick={() => togglePaymentsDropdown(row.creatorPublicId)}
+                          className="rounded-2xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                        >
+                          Payments
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+
+                {expandedRows[row.creatorPublicId] && accessDropdownOpen[row.creatorPublicId] ? (
                   <div className="mt-3 space-y-2 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-3">
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -777,75 +827,97 @@ export function CreatorAccessTable({
               rows.map((row) => (
                 <Fragment key={row.creatorPublicId}>
                   <tr className="border-t border-slate-100/80 align-top">
-                    <td className="px-4 py-4">
-                      <p data-no-auto-translate="true" className="font-semibold text-slate-900">{row.name}</p>
-                      <p data-no-auto-translate="true" className="font-mono text-xs text-slate-600" title={row.creatorPublicId}>
-                        ID: {row.creatorPublicId}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-500">
-                        Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
-                        {row.pendingCount ?? 0}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-slate-700">
-                      <p data-no-auto-translate="true" className="break-all">{row.email}</p>
-                      <p>{row.phone}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
-                        {row.status}
-                      </span>
-                      {isAdminViewer ? (
-                        <p className="mt-2 text-xs text-slate-500">
-                          Manager: {row.managerName || row.managerEmail || row.managerUid || "-"}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-4 text-slate-600">
-                      {(selectedMap[row.creatorPublicId] ?? []).length} selected
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => toggleExpanded(row.creatorPublicId)}
-                          className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                        >
+                    <td colSpan={5} className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(row.creatorPublicId)}
+                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-[var(--portal-surface-soft)]"
+                      >
+                        <span>
+                          <span data-no-auto-translate="true" className="block font-semibold text-slate-900">
+                            {row.name}
+                          </span>
+                          <span data-no-auto-translate="true" className="mt-1 block font-mono text-xs text-slate-600" title={row.creatorPublicId}>
+                            ID: {row.creatorPublicId}
+                          </span>
+                        </span>
+                        <span className="rounded-full border border-[var(--portal-border)] bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                           {expandedRows[row.creatorPublicId] ? "Close" : "Open"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCategoryModalFor(row.creatorPublicId)}
-                          className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                        >
-                          Assign Categories
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleAccessDropdown(row.creatorPublicId)}
-                          className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                        >
-                          Access
-                        </button>
-                        {showPayoutActions ? (
-                          <button
-                            type="button"
-                            onClick={() => togglePaymentsDropdown(row.creatorPublicId)}
-                            className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                          >
-                            Payments
-                          </button>
-                        ) : null}
-                      </div>
+                        </span>
+                      </button>
                     </td>
                   </tr>
                   {expandedRows[row.creatorPublicId] ? (
                     <tr className="border-t border-slate-100/80 bg-white">
                       <td colSpan={5} className="px-4 py-3">
+                        <div className="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700 md:grid-cols-4">
+                          <p data-no-auto-translate="true" className="break-all">{row.email}</p>
+                          <p>{row.phone || "-"}</p>
+                          <p>Status: {row.status}</p>
+                          <p>
+                            Uploads {row.totalUploads ?? 0} | Approved {row.approvedCount ?? 0} | Pending{" "}
+                            {row.pendingCount ?? 0}
+                          </p>
+                          {isAdminViewer ? (
+                            <p className="md:col-span-4">
+                              Manager: {row.managerName || row.managerEmail || row.managerUid || "-"}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCategoryModalFor(row.creatorPublicId)}
+                            className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                          >
+                            Assign Categories
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAccessDropdown(row.creatorPublicId)}
+                            className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                          >
+                            Access
+                          </button>
+                          {showPayoutActions ? (
+                            <button
+                              type="button"
+                              onClick={() => togglePaymentsDropdown(row.creatorPublicId)}
+                              className="whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
+                            >
+                              Payments
+                            </button>
+                          ) : null}
+                        </div>
                         <div className="grid gap-3 xl:grid-cols-[0.95fr_1.05fr]">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                               Assigned Categories
                             </p>
+                            <div className="mt-3 rounded-lg border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Assigned States / UTs
+                              </p>
+                              <div className="mt-2">
+                                <RegionMultiSelectDropdown
+                                  regions={regions}
+                                  selectedRegionIds={regionMap[row.creatorPublicId] ?? []}
+                                  onChange={(nextRegionIds) =>
+                                    setRegionMap((prev) => ({
+                                      ...prev,
+                                      [row.creatorPublicId]: nextRegionIds,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void assignRegions(row.creatorPublicId)}
+                                className="mt-3 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                Save States
+                              </button>
+                            </div>
                             <p className="mt-3 text-xs text-slate-600">
                               Last upload: {formatDate(row.lastUploadAt)}
                             </p>
@@ -918,7 +990,7 @@ export function CreatorAccessTable({
                                 Login details copied to clipboard
                               </p>
                             ) : null}
-                            {accessDropdownOpen[row.creatorPublicId] ? (
+                            {expandedRows[row.creatorPublicId] && accessDropdownOpen[row.creatorPublicId] ? (
                               <div className="space-y-2 rounded-lg border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-3">
                                 <div className="flex flex-wrap gap-2">
                                   <button
@@ -984,7 +1056,7 @@ export function CreatorAccessTable({
                                 ) : null}
                               </div>
                             ) : null}
-                            {showPayoutActions && paymentsDropdownOpen[row.creatorPublicId] ? (
+                            {expandedRows[row.creatorPublicId] && showPayoutActions && paymentsDropdownOpen[row.creatorPublicId] ? (
                               <div className="space-y-3 rounded-lg border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-3">
                                 <div className="grid gap-2 sm:grid-cols-2">
                                   <input
@@ -1035,7 +1107,7 @@ export function CreatorAccessTable({
                             ) : null}
                           </div>
                         </div>
-                        {showPayoutActions && isAdminViewer && paymentsDropdownOpen[row.creatorPublicId] ? (
+                        {expandedRows[row.creatorPublicId] && showPayoutActions && isAdminViewer && paymentsDropdownOpen[row.creatorPublicId] ? (
                           <div className="mt-4 rounded-lg border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
                             <div className="mb-3 grid gap-3 sm:grid-cols-4">
                               <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">

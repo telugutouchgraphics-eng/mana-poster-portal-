@@ -12,6 +12,7 @@ import {
 import { AppRole } from "@/lib/types/roles";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { assertCreatorInScope } from "@/lib/server/manager-scope";
+import { assertActorCanAssignRegions } from "@/lib/server/region-scope";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -19,6 +20,7 @@ interface Params {
 
 const requestSchema = z.object({
   status: z.enum(["active", "blocked"]),
+  regionIds: z.array(z.string().trim().min(1)).optional(),
 });
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -26,6 +28,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     const actor = await requireRole(req, ["admin", "manager"]);
     const { creatorPublicId } = await params;
     const payload = requestSchema.parse(await req.json());
+    const assignedRegionIds =
+      payload.regionIds && payload.regionIds.length > 0
+        ? await assertActorCanAssignRegions(actor, payload.regionIds)
+        : null;
     const now = Date.now();
 
     const creatorSnap = await assertCreatorInScope(actor, creatorPublicId);
@@ -55,6 +61,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         {
           role: primaryRole,
           roles: safeRoles,
+          ...(assignedRegionIds ? { assignedRegionIds } : {}),
           updatedAt: now,
           ...(payload.status === "blocked"
             ? {
@@ -69,11 +76,13 @@ export async function POST(req: NextRequest, { params }: Params) {
         role: primaryRole,
         roles: safeRoles,
       });
+      await adminAuth.revokeRefreshTokens(authUid);
     }
 
     await creatorRef.set(
       {
         status: payload.status,
+        ...(assignedRegionIds ? { assignedRegionIds } : {}),
         updatedAt: now,
       },
       { merge: true }
@@ -102,10 +111,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       message: `Creator access changed to ${payload.status}.`,
       metadata: {
         status: payload.status,
+        assignedRegionIds: assignedRegionIds ?? undefined,
       },
     });
 
-    return NextResponse.json({ ok: true, status: payload.status });
+    return NextResponse.json({ ok: true, status: payload.status, assignedRegionIds });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to update creator access.";
     const status = message === "Forbidden" ? 403 : 400;

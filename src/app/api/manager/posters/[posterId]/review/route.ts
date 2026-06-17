@@ -22,6 +22,10 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
 
 const APPROVAL_REWARD_AMOUNT = 10;
 
@@ -35,6 +39,7 @@ async function resolveCreatorPosterPublishSchedule(
   uploadedAt: number,
   approvedAt: number,
   requestedPublishAt: number,
+  regionId: string,
 ) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
@@ -58,7 +63,7 @@ async function resolveCreatorPosterPublishSchedule(
     2,
   );
   if (!dynamicSchedule) {
-    const item = await getManualEventCategoryById(categoryId);
+    const item = await getManualEventCategoryById(categoryId, regionId);
     if (!item) {
       return {
         publishAt: Math.max(getPosterPublishAt(uploadedAt, approvedAt), approvedAt),
@@ -158,9 +163,17 @@ export async function POST(
       const createdByRole = String(current.createdByRole ?? "").trim().toLowerCase();
       const createdBySurface = String(current.createdBySurface ?? "").trim().toLowerCase();
       const isCreatorUpload = createdByRole === "creator" || createdBySurface === "creator_upload";
+      const regionId = String(current.regionId ?? "").trim();
+      if (
+        payload.status === "approved" &&
+        POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) &&
+        !politicalPartyCategoriesForRegion(regionId).some((item) => item.id === categoryId)
+      ) {
+        throw new Error("This political party category is not available for the poster State / UT.");
+      }
       const creatorSchedule =
         payload.status === "approved" && isCreatorUpload
-          ? await resolveCreatorPosterPublishSchedule(categoryId, uploadedAt, now, requestedPublishAt)
+          ? await resolveCreatorPosterPublishSchedule(categoryId, uploadedAt, now, requestedPublishAt, regionId)
           : null;
       const publishAt =
         payload.status === "approved"

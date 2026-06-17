@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { sendPortalMail } from "@/lib/server/mail";
 import { RequestUser } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export type CommunityReportStatus = "open" | "closed";
 
@@ -92,13 +93,16 @@ function rowFromDoc(doc: { id: string; data(): FirebaseFirestore.DocumentData | 
 export async function listCommunityReports(input: {
   status?: string | null;
   q?: string | null;
+  regionId?: string | null;
 }) {
   const status = cleanStatus(input.status ?? "open");
   const q = (input.q ?? "").trim().toLowerCase();
+  const regionId = String(input.regionId ?? "").trim();
   const snap = await adminDb.collection("communityContentReports").get();
 
   return snap.docs
     .map(rowFromDoc)
+    .filter((item) => !regionId || item.regionId === regionId)
     .filter((item) => status === "all" || item.reviewStatus === status)
     .filter((item) => {
       if (!q) return true;
@@ -171,6 +175,7 @@ export async function updateCommunityReport(input: {
     throw new Error("Report not found.");
   }
   const report = rowFromDoc(snap);
+  await assertActorCanAccessRegion(input.actor, report.regionId);
   const now = Date.now();
   const note = input.actionNote.trim().slice(0, 1000);
   const patch: Record<string, unknown> = {

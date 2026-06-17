@@ -3,6 +3,8 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface ManagerRow {
@@ -12,6 +14,7 @@ interface ManagerRow {
   name: string;
   phone: string;
   managerStatus: string;
+  assignedRegionIds: string[];
 }
 
 interface ManagerCredentialReveal {
@@ -30,6 +33,7 @@ function displayManagerId(row: ManagerRow): string {
 export function ManagerTable() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { regions } = useDashboardRegion();
   const [rows, setRows] = useState<ManagerRow[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
@@ -37,6 +41,7 @@ export function ManagerTable() {
   const [error, setError] = useState<string | null>(null);
   const [credentialResult, setCredentialResult] = useState<Record<string, ManagerCredentialReveal>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [regionMap, setRegionMap] = useState<Record<string, string[]>>({});
   const isTelugu = language === "telugu";
   const copy = {
     loginRequired: isTelugu ? "లాగిన్ రిక్వైర్డ్." : "Login required.",
@@ -135,6 +140,9 @@ export function ManagerTable() {
         throw new Error(data.error ?? copy.unableLoad);
       }
       setRows(data.managers);
+      setRegionMap(
+        Object.fromEntries(data.managers.map((row) => [row.uid, row.assignedRegionIds ?? []])),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.unableLoad);
     } finally {
@@ -170,6 +178,35 @@ export function ManagerTable() {
       await loadManagers();
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.unableStatus);
+    }
+  }
+
+  async function saveManagerRegions(managerUid: string) {
+    try {
+      const headers = await authHeader();
+      const response = await fetch(`/api/admin/managers/${encodeURIComponent(managerUid)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify({ regionIds: regionMap[managerUid] ?? [] }),
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        assignedRegionIds?: string[];
+        error?: string;
+      };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to update manager states.");
+      }
+      const nextRegions = data.assignedRegionIds ?? [];
+      setRows((prev) =>
+        prev.map((row) => (row.uid === managerUid ? { ...row, assignedRegionIds: nextRegions } : row)),
+      );
+      setRegionMap((prev) => ({ ...prev, [managerUid]: nextRegions }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update manager states.");
     }
   }
 
@@ -331,7 +368,11 @@ export function ManagerTable() {
               key={`mobile-${row.uid}`}
               className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
             >
-              <div className="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => toggleExpanded(row.uid)}
+                className="flex w-full items-start justify-between gap-3 text-left"
+              >
                 <div className="min-w-0">
                   <p data-no-auto-translate="true" className="truncate text-base font-semibold text-slate-900">
                     {row.name}
@@ -341,22 +382,19 @@ export function ManagerTable() {
                   </p>
                 </div>
                 <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
-                  {row.managerStatus}
-                </span>
-              </div>
-              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                <p data-no-auto-translate="true" className="break-all">
-                  {row.email}
-                </p>
-                <p className="mt-1">{row.phone}</p>
-              </div>
-              <div className="mt-3 flex flex-col gap-2">
-                <button
-                  onClick={() => toggleExpanded(row.uid)}
-                  className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                >
                   {expandedRows[row.uid] ? copy.close : copy.open}
-                </button>
+                </span>
+              </button>
+              {expandedRows[row.uid] ? (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                  <p data-no-auto-translate="true" className="break-all">
+                    {row.email}
+                  </p>
+                  <p className="mt-1">{row.phone}</p>
+                  <p className="mt-1">Status: {row.managerStatus}</p>
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-col gap-2">
                 {expandedRows[row.uid] ? (
                   <>
                     <button
@@ -402,6 +440,27 @@ export function ManagerTable() {
                         {credentialResult[row.uid]?.recoveryResetLink ?? "-"}
                       </p>
                     </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                        Assigned States / UTs
+                      </p>
+                      <div className="mt-2">
+                        <RegionMultiSelectDropdown
+                          regions={regions}
+                          selectedRegionIds={regionMap[row.uid] ?? []}
+                          onChange={(nextRegionIds) =>
+                            setRegionMap((prev) => ({ ...prev, [row.uid]: nextRegionIds }))
+                          }
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void saveManagerRegions(row.uid)}
+                        className="mt-3 w-full rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                      >
+                        Save States
+                      </button>
+                    </div>
                     {credentialResult[row.uid] ? (
                       <p className="text-xs font-semibold text-emerald-700">
                         {copy.credentialsCopied}
@@ -442,41 +501,36 @@ export function ManagerTable() {
               rows.map((row) => (
                 <Fragment key={row.uid}>
                   <tr key={`${row.uid}-summary`} className="border-t border-slate-100/80 align-top">
-                    <td className="px-4 py-4">
-                      <p data-no-auto-translate="true" className="font-semibold text-slate-900">{row.name}</p>
-                      <p data-no-auto-translate="true" className="font-mono text-xs text-slate-600">
-                        ID: {displayManagerId(row)}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-slate-700">
-                      <p data-no-auto-translate="true" className="break-all">{row.email}</p>
-                      <p>{row.phone}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
-                        {row.managerStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => toggleExpanded(row.uid)}
-                          className="flex-1 whitespace-nowrap rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 transition hover:bg-[var(--portal-surface-soft)]"
-                        >
+                    <td colSpan={4} className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(row.uid)}
+                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-[var(--portal-surface-soft)]"
+                      >
+                        <span>
+                          <span data-no-auto-translate="true" className="block font-semibold text-slate-900">
+                            {row.name}
+                          </span>
+                          <span data-no-auto-translate="true" className="mt-1 block font-mono text-xs text-slate-600">
+                            ID: {displayManagerId(row)}
+                          </span>
+                        </span>
+                        <span className="rounded-full border border-[var(--portal-border)] bg-white px-3 py-1 text-xs font-semibold text-slate-700">
                           {expandedRows[row.uid] ? copy.close : copy.open}
-                        </button>
-                        <button
-                          onClick={() => void deleteManager(row.uid)}
-                          className="whitespace-nowrap rounded-xl bg-rose-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-rose-700"
-                        >
-                          {copy.delete}
-                        </button>
-                      </div>
+                        </span>
+                      </button>
                     </td>
                   </tr>
                   {expandedRows[row.uid] ? (
                     <tr key={`${row.uid}-details`} className="border-t border-slate-100/80 bg-white">
                       <td colSpan={4} className="px-4 py-3">
+                        <div className="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700 md:grid-cols-3">
+                          <p data-no-auto-translate="true" className="break-all">
+                            {copy.loginEmail}: {row.email}
+                          </p>
+                          <p>Phone: {row.phone || "-"}</p>
+                          <p>Status: {row.managerStatus}</p>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() =>
@@ -527,6 +581,27 @@ export function ManagerTable() {
                             {copy.credentialsCopied}
                           </p>
                         ) : null}
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                            Assigned States / UTs
+                          </p>
+                          <div className="mt-2 max-w-md">
+                            <RegionMultiSelectDropdown
+                              regions={regions}
+                              selectedRegionIds={regionMap[row.uid] ?? []}
+                              onChange={(nextRegionIds) =>
+                                setRegionMap((prev) => ({ ...prev, [row.uid]: nextRegionIds }))
+                              }
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void saveManagerRegions(row.uid)}
+                            className="mt-3 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                          >
+                            Save States
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ) : null}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import {
   photoShapeAspectRatio,
   photoShapeFrameStyle,
@@ -90,6 +91,7 @@ function statusClass(status: string): string {
 
 export function PosterReviewTable() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [rows, setRows] = useState<PosterRow[]>([]);
   const [status, setStatus] = useState("pending");
   const [query, setQuery] = useState("");
@@ -115,8 +117,8 @@ export function PosterReviewTable() {
       const response = await fetch(
         `/api/manager/posters/list?status=${encodeURIComponent(
           status
-        )}&q=${encodeURIComponent(query)}`,
-        { headers }
+        )}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
+        { headers, cache: "no-store" }
       );
       const data = (await response.json()) as {
         ok: boolean;
@@ -147,7 +149,7 @@ export function PosterReviewTable() {
     } finally {
       setLoading(false);
     }
-  }, [authHeader, status, query]);
+  }, [authHeader, status, query, region.id]);
 
   useEffect(() => {
     if (!user) {

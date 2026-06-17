@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 
 interface PosterMetric {
@@ -111,6 +112,7 @@ export function PerformanceDashboard({
   showHistoryToggle = true,
 }: PerformanceDashboardProps) {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const searchParams = useSearchParams();
   const now = useMemo(() => new Date(), []);
   const [year, setYear] = useState(now.getUTCFullYear());
@@ -139,6 +141,7 @@ export function PerformanceDashboard({
       const params = new URLSearchParams({
         year: String(year),
         month: String(month),
+        regionId: region.id,
       });
       if (mode === "manager" && selectedCreatorId) {
         params.set("creatorPublicId", selectedCreatorId);
@@ -148,6 +151,7 @@ export function PerformanceDashboard({
       }
       const response = await fetch(`${endpoint}?${params.toString()}`, {
         headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        cache: "no-store",
       });
       const next = (await response.json()) as PerformanceResponse;
       if (!response.ok || !next.ok) {
@@ -170,7 +174,7 @@ export function PerformanceDashboard({
     } finally {
       setLoading(false);
     }
-  }, [mode, month, requestedCreatorId, asCreatorPreview, selectedCreatorId, user, year]);
+  }, [mode, month, region.id, requestedCreatorId, asCreatorPreview, selectedCreatorId, user, year]);
 
   useEffect(() => {
     if (!user) {
@@ -730,6 +734,4 @@ function StatPill({ label, value }: { label: string; value: number | string }) {
     </div>
   );
 }
-
-
 

@@ -14,6 +14,7 @@ interface AuthContextValue {
   user: User | null;
   roles: AppRole[];
   name: string | null;
+  assignedRegionIds: string[];
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [name, setName] = useState<string | null>(null);
+  const [assignedRegionIds, setAssignedRegionIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(firebaseReady);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!nextUser) {
         setRoles([]);
         setName(null);
+        setAssignedRegionIds([]);
         setLoading(false);
         return;
       }
@@ -90,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           roles?: AppRole[];
           role?: AppRole;
           name?: string | null;
+          assignedRegionIds?: string[];
         };
         const nextRoles =
           Array.isArray(data.roles) && data.roles.length > 0
@@ -99,9 +103,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : [];
         setRoles(nextRoles);
         setName(normalizeAccountName(data.name));
+        setAssignedRegionIds(
+          Array.isArray(data.assignedRegionIds) ? data.assignedRegionIds.map(String) : [],
+        );
       } catch {
         setRoles([]);
         setName(null);
+        setAssignedRegionIds([]);
       } finally {
         setLoading(false);
       }
@@ -124,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (response.status === 401 && !stopped) {
           setRoles([]);
           setName(null);
+          setAssignedRegionIds([]);
           await firebaseSignOut(auth);
         }
       } catch {}
@@ -143,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       roles,
       name,
+      assignedRegionIds,
       loading,
       signOut: async () => {
         if (!firebaseReady) {
@@ -153,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await firebaseSignOut(auth);
       },
     }),
-    [user, roles, name, loading, firebaseReady]
+    [user, roles, name, assignedRegionIds, loading, firebaseReady]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -82,8 +82,8 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     },
     {
       href: "/admin/dashboard/location-insights",
-      label: isTelugu ? "లొకేషన్ ఇన్‌సైట్స్" : "Location Insights",
-      shortLabel: isTelugu ? "లొకేషన్" : "Location",
+      label: isTelugu ? "యూజర్ ఇన్‌సైట్స్" : "User Insights",
+      shortLabel: isTelugu ? "యూజర్స్" : "Users",
     },
     {
       href: "/admin/dashboard/dashboard-access",

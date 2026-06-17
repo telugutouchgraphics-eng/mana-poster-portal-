@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 
@@ -40,6 +41,7 @@ function rankTone(rank: number): string {
 
 export function CreatorLeaderboardBoard() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const searchParams = useSearchParams();
   const { language } = useDashboardLanguage();
   const [loading, setLoading] = useState(true);
@@ -77,9 +79,10 @@ export function CreatorLeaderboardBoard() {
         throw new Error(copy.loginRequired);
       }
       const response = await fetch(
-        withCreatorImpersonationQuery("/api/creator/leaderboard", searchParams),
+        withCreatorImpersonationQuery(`/api/creator/leaderboard?regionId=${encodeURIComponent(region.id)}`, searchParams),
         {
           headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+          cache: "no-store",
         },
       );
       const data = (await response.json()) as LeaderboardResponse;
@@ -92,7 +95,7 @@ export function CreatorLeaderboardBoard() {
     } finally {
       setLoading(false);
     }
-  }, [copy.loginRequired, copy.unable, user, searchParams]);
+  }, [copy.loginRequired, copy.unable, region.id, user, searchParams]);
 
   useEffect(() => {
     if (!user) return;

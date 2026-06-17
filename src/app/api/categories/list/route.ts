@@ -5,18 +5,18 @@ import {
   getVisibleAssignableCategories,
 } from "@/lib/server/categories";
 import { listVisibleManualEventCategories } from "@/lib/server/manual-event-categories";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryList } from "@/lib/dashboard-category-localization";
 import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin", "manager", "creator"]);
-    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
+    const actor = await requireRole(req, ["admin", "manager", "creator"]);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const baseCategories = getVisibleAssignableCategories(new Date(), 2, 7, 2);
     const politicalCategories = politicalPartyCategoriesForRegion(region.id);
     const weekdayCategories = getUpcomingWeekdayAssignableCategories();
-    const manualCategories = await listVisibleManualEventCategories();
+    const manualCategories = await listVisibleManualEventCategories(Date.now(), region.id);
     const seen = new Set<string>();
     const categories = [...baseCategories, ...politicalCategories, ...weekdayCategories, ...manualCategories].filter((item) => {
       if (seen.has(item.id)) {

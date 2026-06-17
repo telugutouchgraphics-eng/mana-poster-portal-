@@ -14,6 +14,11 @@ import {
 } from "@/lib/server/ist-schedule";
 import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import { recordAllowsRegion } from "@/lib/server/region-scope";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -185,6 +190,12 @@ export async function POST(req: NextRequest) {
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
     const region = getDashboardRegion(parsed.regionId);
+    if (!recordAllowsRegion(creatorProfileData ?? {}, region.id)) {
+      return NextResponse.json(
+        { ok: false, error: "This State / UT is not assigned to you." },
+        { status: 403 },
+      );
+    }
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
     if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
@@ -203,9 +214,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
     const category =
-      CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === parsed.categoryId) ??
+      (isPoliticalCategory
+        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
+        : CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === parsed.categoryId)) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,

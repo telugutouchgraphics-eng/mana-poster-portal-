@@ -14,6 +14,11 @@ import {
   USER_UPLOAD_RETENTION_MS,
 } from "@/lib/server/user-uploads";
 import { deleteAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
 
 const payloadSchema = z.object({
   status: z.enum(["approved", "rejected", "deleted"]),
@@ -88,6 +93,9 @@ export async function POST(
     const categoryId = payload.categoryId ?? String(current.categoryId ?? "").trim();
     const categoryLabel =
       payload.categoryLabel ?? String(current.categoryLabel ?? "").trim();
+    const regionId = String(current.regionId ?? "").trim();
+    const regionName = String(current.regionName ?? "").trim();
+    await assertActorCanAccessRegion(actor, regionId);
     const imageUrl = payload.imageUrl ?? String(current.imageUrl ?? "").trim();
     const imagePath = payload.imagePath ?? String(current.imagePath ?? "").trim();
     const currentStatus = String(current.status ?? "pending")
@@ -129,11 +137,21 @@ export async function POST(
           { status: 400 },
         );
       }
+      if (
+        POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) &&
+        !politicalPartyCategoriesForRegion(regionId).some((item) => item.id === categoryId)
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "This political party category is not available for the upload State / UT." },
+          { status: 400 },
+        );
+      }
       const schedule = await resolveUserUploadPublishSchedule(
         categoryId,
         uploadCreatedAt,
         now,
         appVisibleFromAt,
+        regionId,
       );
       const personalizationConfig = sanitizeUserUploadPersonalizationConfig(
         payload.personalizationConfig ??
@@ -174,6 +192,8 @@ export async function POST(
           userMobile: String(current.userMobile ?? "").trim(),
           categoryId,
           categoryLabel,
+          regionId,
+          regionName,
           imageUrl: publicAsset.imageUrl,
           imagePath: publicAsset.imagePath,
           approvedAt: now,
@@ -205,6 +225,8 @@ export async function POST(
               defaultUserUploadPersonalizationConfig),
         categoryId,
         categoryLabel,
+        regionId,
+        regionName,
         imageUrl,
         imagePath,
         hasImage: Boolean(imageUrl && imagePath),

@@ -20,8 +20,9 @@ import {
 } from "@/lib/server/dashboard-metrics";
 import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
 import { buildCreatorUploadWindow, getIstDayKey } from "@/lib/server/ist-schedule";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -45,6 +46,7 @@ function isCreatorDashboardPosterVisible(item: { createdAt: number; status: stri
 
 export async function GET(req: NextRequest) {
   try {
+    const actor = await requireRole(req, ["creator", "admin"]);
     const creator = await resolveCreatorReadContext(req);
     if (!creator) {
       return NextResponse.json(
@@ -88,11 +90,12 @@ export async function GET(req: NextRequest) {
       );
     }
     const now = Date.now();
-    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const today = dayKey(now);
     const uploadWindow = buildCreatorUploadWindow(now);
     const todayUploadDayKey = getIstDayKey(now);
     const analytics = await loadPortalAnalyticsSnapshot();
+    const regionPosters = analytics.posters.filter((item) => item.regionId === region.id);
     const competitions = await loadCompetitions();
     const banners = await loadAppBanners();
     const announcements = (await loadCreatorAnnouncements())
@@ -111,6 +114,7 @@ export async function GET(req: NextRequest) {
       .get();
 
     const posters = posterSnap.docs
+      .filter((doc) => String(doc.data().regionId ?? "").trim() === region.id)
       .map((doc) => ({
         id: doc.id,
         title: String(doc.data().title ?? "Untitled"),
@@ -158,7 +162,7 @@ export async function GET(req: NextRequest) {
     const rejectedCount = visiblePosters.filter((item) => item.status === "rejected").length;
     const pendingCount = visiblePosters.filter((item) => item.status === "pending").length;
 
-    const manualCategories = await listManualEventCategories();
+    const manualCategories = await listManualEventCategories(region.id);
     const weekdayCategories = getUpcomingWeekdayAssignableCategories(new Date(now));
     const visibleCategoryMeta = new Map(
       [...getVisibleAssignableCategories(new Date(now), 2, 7, 2), ...weekdayCategories].map(
@@ -193,29 +197,36 @@ export async function GET(req: NextRequest) {
     });
     const earnings = buildCreatorEarningsSummary(
       creator.creatorPublicId,
-      analytics.posters,
+      regionPosters,
       analytics.payouts,
       now,
     );
     const categoryPerformance = buildCategoryPerformance(
-      analytics.posters.filter((item) => item.creatorPublicId === creator.creatorPublicId),
+      regionPosters.filter((item) => item.creatorPublicId === creator.creatorPublicId),
     );
     const competition = buildCreatorCompetition(
       creator.creatorPublicId,
       creator.assignedCategories,
-      analytics.posters.filter((item) =>
+      regionPosters.filter((item) =>
         creator.assignedCategories.includes(item.categoryId),
       ),
       analytics.creatorProfiles,
     );
+    const regionPosterIds = new Set(regionPosters.map((item) => item.id));
     const transactions = analytics.ledger
-      .filter((item) => item.creatorPublicId === creator.creatorPublicId)
+      .filter(
+        (item) =>
+          item.creatorPublicId === creator.creatorPublicId &&
+          regionPosterIds.has(item.posterId),
+      )
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 12);
     const activeCompetitions = (await buildCompetitionSnapshots(
       competitions,
-      analytics.posters,
+      regionPosters,
       analytics.creatorProfiles,
+      now,
+      region.id,
     ))
       .map((snapshot) => {
         const mine = snapshot.leaderboard.find(

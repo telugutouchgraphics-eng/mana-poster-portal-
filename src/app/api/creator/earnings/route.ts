@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
+import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
@@ -7,7 +9,9 @@ const APPROVAL_REWARD = 10;
 
 export async function GET(req: NextRequest) {
   try {
+    const actor = await requireRole(req, ["creator", "admin"]);
     const creator = await resolveCreatorReadContext(req);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     if (!creator) {
       return NextResponse.json({
         ok: true,
@@ -43,10 +47,11 @@ export async function GET(req: NextRequest) {
     ]);
 
     const posters = posterSnap.docs
-      .map((doc) => {
+        .map((doc) => {
         const data = doc.data();
         return {
           id: doc.id,
+          regionId: String(data.regionId ?? "").trim(),
           title: String(data.title ?? "Poster"),
           categoryLabel: String(data.categoryLabel ?? data.categoryId ?? ""),
           status: String(data.status ?? "pending"),
@@ -55,6 +60,7 @@ export async function GET(req: NextRequest) {
           approvalRewardAmount: Number(data.approvalRewardAmount ?? 0),
         };
       })
+      .filter((poster) => poster.regionId === region.id)
       .sort((a, b) => Math.max(b.approvedAt, b.createdAt) - Math.max(a.approvedAt, a.createdAt));
 
     const approvedPosters = posters.filter((poster) => isApprovedEquivalentStatus(poster.status));

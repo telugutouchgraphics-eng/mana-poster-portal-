@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface ManagerCreateResponse {
@@ -21,13 +23,23 @@ interface ManagerCreateResponse {
 export function ManagerCreateForm() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { regions, region } = useDashboardRegion();
   const [managerName, setManagerName] = useState("");
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPhone, setManagerPhone] = useState("");
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([region.id]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ManagerCreateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lang = portalLanguage(language);
+
+  useEffect(() => {
+    setSelectedRegionIds((prev) => {
+      const allowed = new Set(regions.map((item) => item.id));
+      const scoped = prev.filter((item) => allowed.has(item));
+      return scoped.length > 0 ? scoped : [region.id];
+    });
+  }, [region.id, regions]);
 
   const copy = {
     loginRequired: t("manager.create.loginRequired", lang),
@@ -70,6 +82,7 @@ export function ManagerCreateForm() {
           name: managerName.trim(),
           email: managerEmail.trim(),
           phone: managerPhone.trim(),
+          regionIds: selectedRegionIds,
         }),
       });
       const data = (await response.json()) as ManagerCreateResponse;
@@ -80,6 +93,7 @@ export function ManagerCreateForm() {
       setManagerName("");
       setManagerEmail("");
       setManagerPhone("");
+      setSelectedRegionIds([region.id]);
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.creationFailed);
     } finally {
@@ -99,6 +113,18 @@ export function ManagerCreateForm() {
           required
           className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3.5 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
+        <div className="md:col-span-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+            Assign States / UTs
+          </p>
+          <div className="mt-3">
+            <RegionMultiSelectDropdown
+              regions={regions}
+              selectedRegionIds={selectedRegionIds}
+              onChange={setSelectedRegionIds}
+            />
+          </div>
+        </div>
         <input
           placeholder={copy.email}
           type="email"

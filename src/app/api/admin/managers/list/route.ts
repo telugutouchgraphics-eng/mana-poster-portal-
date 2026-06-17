@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
+import { loadActorAllowedRegionIds, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 interface RawManagerDoc {
   uid: string;
@@ -12,13 +14,16 @@ interface RawManagerDoc {
   name?: string;
   phone?: string;
   managerStatus?: string;
+  assignedRegionIds?: unknown;
   createdAt?: number;
   updatedAt?: number;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
+    const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const actorHasAllRegions = actorAllowedRegionIds.length === DASHBOARD_REGIONS.length;
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim();
@@ -55,6 +60,13 @@ export async function GET(req: NextRequest) {
         if (status !== "all" && normalizedStatus !== status) {
           return false;
         }
+        const assignedRegionIds = sanitizeDashboardRegionIds(item.assignedRegionIds);
+        const isInActorScope = assignedRegionIds.length === 0
+          ? actorHasAllRegions
+          : assignedRegionIds.some((regionId) => actorAllowedRegionIds.includes(regionId));
+        if (!isInActorScope) {
+          return false;
+        }
         if (!q) {
           return true;
         }
@@ -78,6 +90,9 @@ export async function GET(req: NextRequest) {
         name: String(item.name ?? ""),
         phone: String(item.phone ?? ""),
         managerStatus: String(item.managerStatus ?? "active"),
+        assignedRegionIds: Array.isArray(item.assignedRegionIds)
+          ? item.assignedRegionIds.map(String)
+          : [],
         createdAt: Number(item.createdAt ?? 0),
         updatedAt: Number(item.updatedAt ?? 0),
       }));

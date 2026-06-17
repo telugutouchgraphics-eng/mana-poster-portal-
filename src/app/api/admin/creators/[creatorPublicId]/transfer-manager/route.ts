@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { assertActorCanAssignRegions, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 const payloadSchema = z.object({
   managerUid: z.string().trim().min(1),
@@ -61,6 +62,23 @@ export async function POST(
     const managerEmail = String(manager.email ?? "").trim().toLowerCase();
     const managerName = String(manager.name ?? managerEmail ?? "Manager").trim();
     const creatorData = creatorSnap.data() ?? {};
+    const managerRegionIds = sanitizeDashboardRegionIds(manager.assignedRegionIds);
+    const creatorRegionIds = sanitizeDashboardRegionIds(creatorData.assignedRegionIds);
+    if (creatorRegionIds.length > 0) {
+      await assertActorCanAssignRegions(actor, creatorRegionIds);
+    }
+    if (managerRegionIds.length > 0) {
+      await assertActorCanAssignRegions(actor, managerRegionIds);
+    }
+    if (
+      managerRegionIds.length > 0 &&
+      creatorRegionIds.some((regionId) => !managerRegionIds.includes(regionId))
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Selected manager does not have access to all creator states." },
+        { status: 400 },
+      );
+    }
     const previousManagerUid = String(
       creatorData.managerUid ?? creatorData.assignedByUid ?? "",
     ).trim();

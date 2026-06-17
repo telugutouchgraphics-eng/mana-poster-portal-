@@ -12,7 +12,7 @@ import {
   buildCompetitionSnapshots,
   loadCompetitions,
 } from "@/lib/server/competitions";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import {
   localizeCategoryLabel,
   localizeCategoryList,
@@ -33,22 +33,26 @@ const payloadSchema = z.object({
   liveAt: z.number().int().positive(),
   rewardNote: z.string().trim().max(160).default(""),
   rewardTiers: z.array(rewardTierSchema).max(25).default([]),
+  regionId: z.string().trim().min(1),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const [competitions, analytics] = await Promise.all([
       loadCompetitions(),
       loadPortalAnalyticsSnapshot(),
     ]);
-    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
+    const posters = analytics.posters.filter((item) => item.regionId === region.id);
     const now = Date.now();
     const nextTenDays = now + 10 * 24 * 60 * 60 * 1000;
     const snapshots = await buildCompetitionSnapshots(
       competitions,
-      analytics.posters,
+      posters,
       analytics.creatorProfiles,
+      now,
+      region.id,
     );
 
     return NextResponse.json({
@@ -85,8 +89,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const payload = payloadSchema.parse(await req.json());
+    const region = await assertActorCanAccessRegion(actor, payload.regionId);
     if (payload.submissionEndAt <= payload.submissionStartAt) {
       return NextResponse.json(
         { ok: false, error: "Submission deadline must be after submission start." },
@@ -124,6 +129,8 @@ export async function POST(req: NextRequest) {
     const ref = adminDb.collection("competitions").doc();
     await ref.set({
       id: ref.id,
+      regionId: region.id,
+      regionName: region.name,
       title: payload.title,
       description: payload.description,
       categoryIds,

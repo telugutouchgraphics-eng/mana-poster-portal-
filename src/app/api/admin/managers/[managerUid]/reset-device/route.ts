@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 interface Params {
   params: Promise<{ managerUid: string }>;
@@ -19,7 +20,7 @@ function hasManagerRole(data: Record<string, unknown> | undefined): boolean {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const { managerUid } = await params;
     const userRef = adminDb.collection("users").doc(managerUid);
     const userSnap = await userRef.get();
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         { status: 404 }
       );
     }
+    await assertRecordOverlapsActorRegions(actor, userSnap.data() as Record<string, unknown>);
 
     await userRef.set(
       {

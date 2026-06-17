@@ -10,11 +10,20 @@ export interface CreatorProfileRecord {
   phone: string;
   status: string;
   assignedCategories: string[];
+  assignedRegionIds: string[];
+}
+
+export interface ManagerRecord {
+  uid: string;
+  status: string;
+  assignedRegionIds: string[];
 }
 
 export interface PosterRecord {
   id: string;
   creatorPublicId: string;
+  regionId: string;
+  regionName: string;
   categoryId: string;
   categoryLabel: string;
   status: string;
@@ -100,6 +109,7 @@ export interface CreatorVisibilityItem {
 
 export interface PortalAnalyticsSnapshot {
   overview: OverviewMetrics;
+  managers: ManagerRecord[];
   creatorProfiles: CreatorProfileRecord[];
   posters: PosterRecord[];
   ledger: LedgerRecord[];
@@ -197,6 +207,7 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     ]);
 
   const managerIds = new Set<string>();
+  const managers: ManagerRecord[] = [];
   let activeManagers = 0;
   let inactiveManagers = 0;
   for (const doc of [...primaryManagerSnap.docs, ...multiRoleManagerSnap.docs]) {
@@ -204,7 +215,15 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
       continue;
     }
     managerIds.add(doc.id);
-    const status = String(doc.data().managerStatus ?? "active");
+    const data = doc.data();
+    const status = String(data.managerStatus ?? "active");
+    managers.push({
+      uid: doc.id,
+      status,
+      assignedRegionIds: Array.isArray(data.assignedRegionIds)
+        ? data.assignedRegionIds.map(String)
+        : [],
+    });
     if (status === "inactive") {
       inactiveManagers += 1;
     } else {
@@ -223,6 +242,9 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
       assignedCategories: Array.isArray(data.assignedCategories)
         ? data.assignedCategories.map(String)
         : [],
+      assignedRegionIds: Array.isArray(data.assignedRegionIds)
+        ? data.assignedRegionIds.map(String)
+        : [],
     };
   });
 
@@ -232,6 +254,8 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     return {
       id: doc.id,
       creatorPublicId: String(data.creatorPublicId ?? ""),
+      regionId: String(data.regionId ?? "").trim(),
+      regionName: String(data.regionName ?? "").trim(),
       categoryId: String(data.categoryId ?? ""),
       categoryLabel: String(data.categoryLabel ?? ""),
       status: String(data.status ?? "pending"),
@@ -260,6 +284,7 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
 
   return {
     overview,
+    managers,
     creatorProfiles,
     posters,
     ledger: ledgerSnap.docs.map((doc) => {

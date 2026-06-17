@@ -123,10 +123,10 @@ export function LocationInsightsPanel() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600">
-              Privacy-safe area insights
+              Privacy-safe user insights
             </p>
             <h1 className="mt-2 text-2xl font-black text-slate-950">
-              Location-based status dashboard
+              User insights dashboard
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-600">
               Shows approximate city/district/state activity only. Exact GPS latitude and longitude are not stored or displayed.

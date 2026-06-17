@@ -4,6 +4,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
+import { loadActorAllowedRegionIds, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 interface RawManagerDoc {
   uid: string;
@@ -14,6 +16,7 @@ interface RawManagerDoc {
   name?: string;
   phone?: string;
   managerStatus?: string;
+  assignedRegionIds?: unknown;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -29,16 +32,30 @@ interface RawCreatorDoc {
   managerEmail?: string;
   assignedByUid?: string;
   assignedCategories?: string[];
+  assignedRegionIds?: unknown;
   createdAt?: number;
   updatedAt?: number;
 }
 
+function overlapsAllowedRegions(
+  assignedRegionIdsInput: unknown,
+  allowedRegionIds: string[],
+  actorHasAllRegions: boolean,
+) {
+  const assignedRegionIds = sanitizeDashboardRegionIds(assignedRegionIdsInput);
+  return assignedRegionIds.length === 0
+    ? actorHasAllRegions
+    : assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId));
+}
+
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim();
+    const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const actorHasAllRegions = actorAllowedRegionIds.length === DASHBOARD_REGIONS.length;
 
     const [primaryRoleSnapshot, multiRoleSnapshot, creatorSnapshot, manualCategories] = await Promise.all([
       adminDb.collection("users").where("role", "==", "manager").get(),
@@ -72,6 +89,9 @@ export async function GET(req: NextRequest) {
 
     for (const doc of creatorSnapshot.docs) {
       const item = doc.data() as RawCreatorDoc;
+      if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds, actorHasAllRegions)) {
+        continue;
+      }
       const managerUid = String(item.managerUid ?? item.assignedByUid ?? "").trim();
       if (!managerUid) {
         continue;
@@ -116,6 +136,9 @@ export async function GET(req: NextRequest) {
 
         const normalizedStatus = String(item.managerStatus ?? "active");
         if (status !== "all" && normalizedStatus !== status) {
+          return false;
+        }
+        if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds, actorHasAllRegions)) {
           return false;
         }
 

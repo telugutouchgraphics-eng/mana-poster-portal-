@@ -7,18 +7,21 @@ import {
   normalizeManualEventDateRange,
   parseIsoDateInput,
 } from "@/lib/server/manual-event-categories";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const payloadSchema = z.object({
   id: z.string().trim().min(3).max(80).regex(/^[a-z0-9_]+$/),
   label: z.string().trim().min(2).max(120),
   startDate: z.string().trim().min(10).max(10),
   endDate: z.string().trim().min(10).max(10).optional(),
+  regionId: z.string().trim().min(1),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin", "manager"]);
-    const categories = await listManualEventCategories();
+    const actor = await requireRole(req, ["admin", "manager"]);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
+    const categories = await listManualEventCategories(region.id);
     return NextResponse.json({ ok: true, categories });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load event categories.";
@@ -31,11 +34,13 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin", "manager"]);
     const payload = payloadSchema.parse(await req.json());
-    const ref = adminDb.collection("manualEventCategories").doc(payload.id);
+    const region = await assertActorCanAccessRegion(actor, payload.regionId);
+    const docId = payload.id.startsWith(`${region.id}_`) ? payload.id : `${region.id}_${payload.id}`;
+    const ref = adminDb.collection("manualEventCategories").doc(docId);
     const existing = await ref.get();
     if (existing.exists) {
       return NextResponse.json(
-        { ok: false, error: `Category already exists: ${payload.id}` },
+        { ok: false, error: `Category already exists: ${docId}` },
         { status: 409 },
       );
     }
@@ -46,8 +51,10 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
 
     await ref.set({
-      id: payload.id,
+      id: docId,
       label: payload.label,
+      regionId: region.id,
+      regionName: region.name,
       startAt,
       endAt,
       active: true,
@@ -59,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      categories: await listManualEventCategories(),
+      categories: await listManualEventCategories(region.id),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to create event category.";

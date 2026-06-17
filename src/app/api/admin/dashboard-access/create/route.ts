@@ -5,6 +5,7 @@ import { assertManagedRoleAssignmentAllowed, requireRole } from "@/lib/server/au
 import { buildPortalLoginUrl } from "@/lib/server/auth-links";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
+import { assertActorCanAssignRegions } from "@/lib/server/region-scope";
 import { isAppRole, mergeRoles, normalizeRoles, pickPrimaryRole } from "@/lib/server/role-utils";
 import { generateManagedPassword } from "@/lib/server/password";
 import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
@@ -13,6 +14,7 @@ const requestSchema = z.object({
   name: z.string().trim().min(2),
   email: z.string().trim().email(),
   phone: z.string().trim().min(8).max(20),
+  regionIds: z.array(z.string().trim()).min(1),
 });
 
 function makeDashboardAdminLoginId(serial: number) {
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
     });
     const actor = await requireRole(req, ["admin"]);
     const payload = requestSchema.parse(await req.json());
+    const assignedRegionIds = await assertActorCanAssignRegions(actor, payload.regionIds);
     const now = Date.now();
     const normalizedEmail = payload.email.toLowerCase();
     const authEmail = buildRoleAuthEmail(normalizedEmail, "admin");
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
         dashboardAdminLoginId,
         dashboardAdminManaged: true,
         dashboardAdminStatus: "active",
+        assignedRegionIds,
         dashboardAdminAssignedByUid: actor.uid,
         dashboardAdminAssignedAt: now,
         loginPassword: seedPassword,
@@ -137,6 +141,7 @@ export async function POST(req: NextRequest) {
         dashboardAdminLoginId,
         email: normalizedEmail,
         phone: payload.phone,
+        assignedRegionIds,
       },
     });
 
@@ -149,6 +154,7 @@ export async function POST(req: NextRequest) {
       loginLink: buildPortalLoginUrl("admin"),
       initialPassword: seedPassword,
       existingUser,
+      assignedRegionIds,
     });
   } catch (error) {
     const message =

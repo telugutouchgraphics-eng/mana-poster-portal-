@@ -26,12 +26,15 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
 import {
   localizeCategoryLabel,
   localizeCategoryList,
 } from "@/lib/dashboard-category-localization";
-import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -180,6 +183,8 @@ function mapPoster(id: string, data: Record<string, unknown>) {
     title: String(data.title ?? "Admin Poster"),
     categoryId: String(data.categoryId ?? ""),
     categoryLabel: String(data.categoryLabel ?? ""),
+    regionId: String(data.regionId ?? ""),
+    regionName: String(data.regionName ?? ""),
     mediaType: String(data.mediaType ?? "image"),
     imageUrl: String(data.imageUrl ?? ""),
     imagePath: String(data.imagePath ?? ""),
@@ -200,7 +205,7 @@ async function buildAdminAppPosterCategories(regionId?: string | null) {
     (item) => item.id !== "all",
   );
   const politicalCategories = politicalPartyCategoriesForRegion(regionId);
-  const manualCategories = await listVisibleManualEventCategories();
+  const manualCategories = await listVisibleManualEventCategories(Date.now(), regionId);
   const mergedVisible = [...visibleCategories, ...politicalCategories, ...manualCategories];
   const visibleIds = new Set(mergedVisible.map((item) => item.id));
   const weekdayCategories = CREATOR_ASSIGNABLE_CATEGORIES.filter(
@@ -222,6 +227,7 @@ async function resolveAdminPosterSchedule(
   now: number,
   uploadSource: "app_posters" | "upload_posters",
   requestedPublishAt: number,
+  regionId: string,
 ) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
@@ -248,7 +254,7 @@ async function resolveAdminPosterSchedule(
     2,
   );
   if (!dynamicSchedule) {
-    const item = await getManualEventCategoryById(categoryId);
+    const item = await getManualEventCategoryById(categoryId, regionId);
     if (!item) {
       const publishAt =
         uploadSource === "upload_posters"
@@ -289,14 +295,14 @@ function resolveAdminPosterStorageFolder(uploadSource: "app_posters" | "upload_p
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const dashboardFetchLimit = 500;
     const sourceParam = req.nextUrl.searchParams.get("source");
     const sourceFilter =
       sourceParam === "upload_posters" || sourceParam === "app_posters"
         ? sourceParam
         : "app_posters";
-    const region = getDashboardRegion(req.nextUrl.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const snap = await adminDb
       .collection("creatorPosters")
       .where("createdByRole", "==", "admin")
@@ -304,6 +310,7 @@ export async function GET(req: NextRequest) {
       .get();
     const posters = snap.docs
       .map((doc) => mapPoster(doc.id, doc.data()))
+      .filter((poster) => poster.regionId === region.id)
       .filter((poster) => {
         const surface = poster.storageFolderKey || poster.createdBySurface;
         if (sourceFilter === "upload_posters") {
@@ -343,13 +350,16 @@ export async function POST(req: NextRequest) {
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
       uploadSource: formData.get("uploadSource"),
     });
-    const region = getDashboardRegion(parsed.regionId);
+    const region = await assertActorCanAccessRegion(actor, parsed.regionId);
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
     const category =
-      CREATOR_ASSIGNABLE_CATEGORIES.find(
-        (item) => item.id === parsed.categoryId && item.id !== "all",
-      ) ??
+      (isPoliticalCategory
+        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
+        : CREATOR_ASSIGNABLE_CATEGORIES.find(
+            (item) => item.id === parsed.categoryId && item.id !== "all",
+          )) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
@@ -459,6 +469,7 @@ export async function POST(req: NextRequest) {
       now,
       parsed.uploadSource,
       requestedPublishAt,
+      region.id,
     );
     const posterRef = adminDb.collection("creatorPosters").doc();
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);

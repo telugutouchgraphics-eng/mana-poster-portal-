@@ -5,6 +5,7 @@ import { normalizeRoles } from "@/lib/server/role-utils";
 import { buildPortalLoginUrl, generatePortalPasswordResetLink } from "@/lib/server/auth-links";
 import { buildRoleAuthEmail } from "@/lib/server/managed-auth";
 import { generateManagedPassword } from "@/lib/server/password";
+import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 interface Params {
   params: Promise<{ managerUid: string }>;
@@ -22,7 +23,7 @@ function hasManagerRole(data: Record<string, unknown> | undefined): boolean {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const { managerUid } = await params;
 
     const userRef = adminDb.collection("users").doc(managerUid);
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         { status: 404 }
       );
     }
+    await assertRecordOverlapsActorRegions(actor, userSnap.data() as Record<string, unknown>);
 
     const authEmail = String(userSnap.data()?.authEmail ?? "").trim().toLowerCase();
     const email = String(userSnap.data()?.email ?? "").trim().toLowerCase();

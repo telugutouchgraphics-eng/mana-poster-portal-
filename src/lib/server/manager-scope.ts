@@ -1,5 +1,10 @@
 import { adminDb } from "@/lib/firebase/admin";
 import { RequestUser } from "@/lib/server/auth";
+import {
+  assertRecordOverlapsActorRegions,
+  loadActorAllowedRegionIds,
+  sanitizeDashboardRegionIds,
+} from "@/lib/server/region-scope";
 
 function isAdmin(actor: RequestUser): boolean {
   return actor.roles.includes("admin");
@@ -59,6 +64,18 @@ export async function assertCreatorInScope(
   if (!isAdmin(actor) && !matchesManagerScope(creatorSnap.data(), actor.uid)) {
     throw new Error("Forbidden");
   }
+  if (isAdmin(actor)) {
+    await assertRecordOverlapsActorRegions(actor, creatorSnap.data());
+  } else {
+    const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const creatorRegionIds = sanitizeDashboardRegionIds(creatorSnap.data()?.assignedRegionIds);
+    if (
+      creatorRegionIds.length > 0 &&
+      !creatorRegionIds.some((regionId) => allowedRegionIds.includes(regionId))
+    ) {
+      throw new Error("Forbidden");
+    }
+  }
   return creatorSnap;
 }
 
@@ -66,6 +83,13 @@ export async function assertPosterInScope(
   actor: RequestUser,
   posterData: Record<string, unknown>,
 ) {
+  const posterRegionId = String(posterData.regionId ?? "").trim();
+  if (posterRegionId) {
+    const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    if (!allowedRegionIds.includes(posterRegionId)) {
+      throw new Error("Forbidden");
+    }
+  }
   if (isAdmin(actor)) {
     return;
   }

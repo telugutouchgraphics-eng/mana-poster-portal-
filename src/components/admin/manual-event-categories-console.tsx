@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 type ManualEventCategory = {
@@ -11,6 +12,8 @@ type ManualEventCategory = {
   startAt: number;
   endAt: number;
   active: boolean;
+  regionId?: string;
+  regionName?: string;
 };
 
 type ResponseShape = {
@@ -53,6 +56,7 @@ function formatRange(item: ManualEventCategory): string {
 export function ManualEventCategoriesConsole() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const [items, setItems] = useState<ManualEventCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -107,7 +111,7 @@ export function ManualEventCategoriesConsole() {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await authorizedFetch("/api/event-categories");
+      const response = await authorizedFetch(`/api/event-categories?regionId=${encodeURIComponent(region.id)}`);
       const data = (await response.json()) as ResponseShape;
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? copy.unableLoad);
@@ -123,7 +127,7 @@ export function ManualEventCategoriesConsole() {
   useEffect(() => {
     void loadItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   function resetForm() {
     setEditingId(null);
@@ -143,6 +147,7 @@ export function ManualEventCategoriesConsole() {
         label,
         startDate,
         endDate: endDate || startDate,
+        regionId: region.id,
       };
       const response = editingId
         ? await authorizedFetch(`/api/event-categories/${encodeURIComponent(editingId)}`, {
@@ -152,6 +157,7 @@ export function ManualEventCategoriesConsole() {
               startDate,
               endDate: endDate || startDate,
               active: true,
+              regionId: region.id,
             }),
           })
         : await authorizedFetch("/api/event-categories", {
@@ -176,9 +182,12 @@ export function ManualEventCategoriesConsole() {
     setBusy(true);
     setMessage(null);
     try {
-      const response = await authorizedFetch(`/api/event-categories/${encodeURIComponent(targetId)}`, {
+      const response = await authorizedFetch(
+        `/api/event-categories/${encodeURIComponent(targetId)}?regionId=${encodeURIComponent(region.id)}`,
+        {
         method: "DELETE",
-      });
+        },
+      );
       const data = (await response.json()) as ResponseShape;
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? copy.unableDelete);

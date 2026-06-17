@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import type { DocumentReference } from "firebase-admin/firestore";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 
 const payloadSchema = z.object({
   action: z.enum(["queue", "hold", "mark_paid"]),
@@ -30,6 +31,7 @@ export async function POST(
     const { creatorPublicId } = await params;
     const payload = payloadSchema.parse(await req.json());
     const now = Date.now();
+    await assertCreatorInScope(actor, creatorPublicId);
 
     const profileRef = adminDb.collection("creatorProfiles").doc(creatorPublicId);
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { loadScopedCreatorIds } from "@/lib/server/manager-scope";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import {
   clampVideoPosterCustomization,
   defaultVideoPosterCustomization,
@@ -235,6 +236,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") ?? "pending").trim();
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const now = Date.now();
     const scopedCreatorIds = await loadScopedCreatorIds(actor);
     const scopedCreatorIdSet = scopedCreatorIds ? new Set(scopedCreatorIds) : null;
@@ -249,6 +251,7 @@ export async function GET(req: NextRequest) {
         id: doc.id,
         data: doc.data() as Record<string, unknown>,
       }))
+      .filter((item) => String(item.data.regionId ?? "").trim() === region.id)
       .sort(
         (a, b) =>
           Number(b.data.createdAt ?? 0) - Number(a.data.createdAt ?? 0)

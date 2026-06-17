@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
+import { assertActorCanAccessRegion, recordAllowsRegion } from "@/lib/server/region-scope";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import { decryptSensitiveField } from "@/lib/server/secure-fields";
 import {
@@ -18,6 +19,7 @@ interface RawCreatorDoc {
   phone?: string;
   status?: string;
   assignedCategories?: string[];
+  assignedRegionIds?: string[];
   managerUid?: string;
   managerEmail?: string;
   managerName?: string;
@@ -86,9 +88,10 @@ export async function GET(req: NextRequest) {
     const status = (url.searchParams.get("status") ?? "all").trim();
     const bankStatus = (url.searchParams.get("bankStatus") ?? "all").trim();
     const payoutStatus = (url.searchParams.get("payoutStatus") ?? "all").trim();
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const [snapshot, manualCategories] = await Promise.all([
       loadScopedCreatorProfiles(actor),
-      listManualEventCategories(),
+      listManualEventCategories(region.id),
     ]);
     const manualCategoryIds = manualCategories.map((item) => item.id);
     const creatorIds = snapshot
@@ -117,6 +120,9 @@ export async function GET(req: NextRequest) {
 
     for (const doc of posterSnap) {
       const data = doc.data();
+      if (String(data.regionId ?? "").trim() !== region.id) {
+        continue;
+      }
       const creatorPublicId = String(data.creatorPublicId ?? "").trim();
       if (!creatorPublicId) continue;
       const current = posterStats.get(creatorPublicId) ?? {
@@ -189,6 +195,9 @@ export async function GET(req: NextRequest) {
       .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<RawCreatorDoc, "id">) }))
       .filter((item) => {
         const itemCreatorId = String(item.creatorPublicId ?? item.id).trim();
+        if (!recordAllowsRegion(item as Record<string, unknown>, region.id)) {
+          return false;
+        }
         const itemStatus = String(item.status ?? "pending_invite");
         if (status !== "all" && itemStatus !== status) {
           return false;
@@ -249,6 +258,9 @@ export async function GET(req: NextRequest) {
           managerEmail: String(item.managerEmail ?? ""),
           managerName: String(item.managerName ?? ""),
           assignedCategories,
+          assignedRegionIds: Array.isArray(item.assignedRegionIds)
+            ? item.assignedRegionIds.map(String)
+            : [],
           createdAt: Number(item.createdAt ?? 0),
           updatedAt: Number(item.updatedAt ?? 0),
           totalUploads: stats?.totalUploads ?? 0,

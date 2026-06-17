@@ -14,6 +14,11 @@ import {
 import { normalizeStoredPosterFrameSize } from "@/lib/video-frame-size";
 import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import { recordAllowsRegion } from "@/lib/server/region-scope";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -197,6 +202,16 @@ export async function PATCH(
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
     const region = getDashboardRegion(parsed.regionId);
+    const creatorProfileSnap = await adminDb
+      .collection("creatorProfiles")
+      .doc(creator.creatorPublicId)
+      .get();
+    if (!recordAllowsRegion(creatorProfileSnap.data() ?? {}, region.id)) {
+      return NextResponse.json(
+        { ok: false, error: "This State / UT is not assigned to you." },
+        { status: 403 },
+      );
+    }
 
     if (!creator.assignedCategories.includes(parsed.categoryId)) {
       return NextResponse.json(
@@ -205,9 +220,12 @@ export async function PATCH(
       );
     }
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
     const category =
-      CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === parsed.categoryId) ??
+      (isPoliticalCategory
+        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
+        : CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === parsed.categoryId)) ??
       (manualCategory?.active ? { id: manualCategory.id, label: manualCategory.label } : undefined);
     if (!category) {
       return NextResponse.json({ ok: false, error: "Invalid category." }, { status: 400 });

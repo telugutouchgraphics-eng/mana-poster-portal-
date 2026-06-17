@@ -19,6 +19,7 @@ export interface CompetitionRewardTier {
 
 export interface CompetitionRecord {
   id: string;
+  regionId: string;
   title: string;
   description: string;
   categoryIds: string[];
@@ -243,6 +244,7 @@ export async function loadCompetitions(): Promise<CompetitionRecord[]> {
       const liveAt = readNumber(data.liveAt ?? data.endAt);
       return {
         id: doc.id,
+        regionId: String(data.regionId ?? "").trim(),
         title: String(data.title ?? "Untitled Competition"),
         description: String(data.description ?? ""),
         categoryIds: Array.isArray(data.categoryIds)
@@ -269,6 +271,7 @@ export async function buildCompetitionSnapshots(
   posters: PosterRecord[],
   creatorProfiles: CreatorProfileRecord[],
   now: number = Date.now(),
+  regionId?: string | null,
 ): Promise<CompetitionSnapshot[]> {
   const creatorIds = Array.from(
     new Set(
@@ -277,9 +280,10 @@ export async function buildCompetitionSnapshots(
         .filter((item) => item.trim().length > 0),
     ),
   );
-  const dayMetrics = await loadDailyPosterMetrics(creatorIds);
+  const dayMetrics = await loadDailyPosterMetrics(creatorIds, regionId);
 
   return competitions
+    .filter((competition) => !regionId || !competition.regionId || competition.regionId === regionId)
     .map((competition) => {
       const competitionPosters = posters.filter(
         (poster) =>

@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
 interface InviteResponse {
   ok: boolean;
@@ -19,12 +21,22 @@ interface InviteResponse {
 
 export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
   const { user } = useAuth();
+  const { region, regions } = useDashboardRegion();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<InviteResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([region.id]);
+
+  useEffect(() => {
+    setSelectedRegionIds((prev) => {
+      const allowed = new Set(regions.map((item) => item.id));
+      const scoped = prev.filter((item) => allowed.has(item));
+      return scoped.length > 0 ? scoped : [region.id];
+    });
+  }, [region.id, regions]);
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +58,7 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
+          regionIds: selectedRegionIds,
         }),
       });
       const data = (await response.json()) as InviteResponse;
@@ -69,7 +82,10 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
               "content-type": "application/json",
               authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ status: "active" }),
+            body: JSON.stringify({
+              status: "active",
+              regionIds: selectedRegionIds,
+            }),
           },
         );
         const reactivateData = (await reactivateResponse.json()) as {
@@ -87,6 +103,7 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
         setName("");
         setEmail("");
         setPhone("");
+        setSelectedRegionIds([region.id]);
         return;
       }
       if (!response.ok || !data.ok) {
@@ -96,6 +113,7 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
       setName("");
       setEmail("");
       setPhone("");
+      setSelectedRegionIds([region.id]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invite failed.");
     } finally {
@@ -119,6 +137,18 @@ export function CreatorInviteForm({ actorLabel }: { actorLabel: string }) {
           required
           className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3.5 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
         />
+        <div className="md:col-span-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+            Assign States / UTs
+          </p>
+          <div className="mt-3">
+            <RegionMultiSelectDropdown
+              regions={regions}
+              selectedRegionIds={selectedRegionIds}
+              onChange={setSelectedRegionIds}
+            />
+          </div>
+        </div>
         <input
           placeholder="Email"
           type="email"

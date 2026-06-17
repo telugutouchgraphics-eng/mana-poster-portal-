@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface UploadTrendItem {
@@ -57,6 +58,7 @@ function MetricCard({
 export default function ManagerOverviewPage() {
   const { user, name } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const lang = portalLanguage(language);
   const [data, setData] = useState<ManagerOverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,8 +70,9 @@ export default function ManagerOverviewPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/manager/overview", {
+      const response = await fetch(`/api/manager/overview?regionId=${encodeURIComponent(region.id)}`, {
         headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
       const payload = (await response.json()) as ManagerOverviewResponse;
       if (!response.ok || !payload.ok || !payload.headline) {
@@ -86,7 +89,7 @@ export default function ManagerOverviewPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang]);
+  }, [user, lang, region.id]);
 
   const trendMax = useMemo(
     () => Math.max(1, ...(data?.uploadsTrend?.map((item) => item.uploads) ?? [1])),

@@ -9,6 +9,8 @@ const APP_PUBLISH_LEAD_DAYS = 3;
 export interface ManualEventCategoryRecord {
   id: string;
   label: string;
+  regionId: string;
+  regionName: string;
   startAt: number;
   endAt: number;
   active: boolean;
@@ -81,6 +83,8 @@ function mapRecord(id: string, data: Record<string, unknown>): ManualEventCatego
   return {
     id,
     label: String(data.label ?? id),
+    regionId: String(data.regionId ?? "").trim(),
+    regionName: String(data.regionName ?? "").trim(),
     startAt: normalized.startAt,
     endAt: normalized.endAt,
     active: Boolean(data.active ?? true),
@@ -98,15 +102,20 @@ function formatEventDateLabel(epochMs: number): string {
   });
 }
 
-export async function listManualEventCategories(): Promise<ManualEventCategoryRecord[]> {
+export async function listManualEventCategories(
+  regionId?: string | null,
+): Promise<ManualEventCategoryRecord[]> {
+  const selectedRegionId = String(regionId ?? "").trim();
   const snapshot = await adminDb.collection(COLLECTION_NAME).get();
   return snapshot.docs
     .map((doc) => mapRecord(doc.id, doc.data()))
+    .filter((item) => !selectedRegionId || !item.regionId || item.regionId === selectedRegionId)
     .sort((left, right) => left.startAt - right.startAt || left.label.localeCompare(right.label));
 }
 
 export async function getManualEventCategoryById(
   categoryId: string,
+  regionId?: string | null,
 ): Promise<ManualEventCategoryRecord | null> {
   const normalized = categoryId.trim();
   if (!normalized) {
@@ -116,7 +125,12 @@ export async function getManualEventCategoryById(
   if (!snap.exists) {
     return null;
   }
-  return mapRecord(snap.id, snap.data() as Record<string, unknown>);
+  const item = mapRecord(snap.id, snap.data() as Record<string, unknown>);
+  const selectedRegionId = String(regionId ?? "").trim();
+  if (selectedRegionId && item.regionId && item.regionId !== selectedRegionId) {
+    return null;
+  }
+  return item;
 }
 
 export function toVisibleManualEventCategory(
@@ -143,15 +157,19 @@ export function toVisibleManualEventCategory(
 
 export async function listVisibleManualEventCategories(
   now: number = Date.now(),
+  regionId?: string | null,
 ): Promise<VisibleCategoryDef[]> {
-  const items = await listManualEventCategories();
+  const items = await listManualEventCategories(regionId);
   return items
     .map((item) => toVisibleManualEventCategory(item, now))
     .filter((item): item is VisibleCategoryDef => item != null);
 }
 
-export async function isValidManualEventCategoryId(categoryId: string): Promise<boolean> {
-  const item = await getManualEventCategoryById(categoryId);
+export async function isValidManualEventCategoryId(
+  categoryId: string,
+  regionId?: string | null,
+): Promise<boolean> {
+  const item = await getManualEventCategoryById(categoryId, regionId);
   return Boolean(item?.active);
 }
 

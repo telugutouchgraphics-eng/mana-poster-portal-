@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { requireRole } from "@/lib/server/auth";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import {
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
     const scope = currentMonthScope();
     const year = Number(url.searchParams.get("year") ?? scope.year);
     const month = Number(url.searchParams.get("month") ?? scope.month);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const requestedCreatorId = String(
       url.searchParams.get("creatorPublicId") ?? url.searchParams.get("asCreator") ?? "",
     ).trim();
@@ -85,8 +87,8 @@ export async function GET(req: NextRequest) {
     }
 
     const [metrics, recentPosters] = await Promise.all([
-      loadDailyPosterMetrics([creatorPublicId]),
-      loadRecentPosterPerformanceMetrics(creatorPublicId),
+      loadDailyPosterMetrics([creatorPublicId], region.id),
+      loadRecentPosterPerformanceMetrics(creatorPublicId, Date.now(), region.id),
     ]);
     const calendar = buildMonthlyCalendarMetrics(metrics, year, month);
 

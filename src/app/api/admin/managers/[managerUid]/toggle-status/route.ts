@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/server/auth";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
+import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 interface Params {
   params: Promise<{ managerUid: string }>;
@@ -24,7 +25,7 @@ function hasManagerRole(data: Record<string, unknown> | undefined): boolean {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const { managerUid } = await params;
     const payload = requestSchema.parse(await req.json());
 
@@ -36,10 +37,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         { status: 404 }
       );
     }
+    await assertRecordOverlapsActorRegions(actor, userSnap.data() as Record<string, unknown>);
 
     await adminAuth.updateUser(managerUid, {
       disabled: payload.managerStatus === "inactive",
     });
+    await adminAuth.revokeRefreshTokens(managerUid);
     await userRef.set(
       {
         managerStatus: payload.managerStatus,

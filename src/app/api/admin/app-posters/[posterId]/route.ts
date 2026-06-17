@@ -25,8 +25,12 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
-import { getDashboardRegion } from "@/lib/dashboard-regions";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import {
+  POLITICAL_PARTY_CATEGORY_IDS,
+  politicalPartyCategoriesForRegion,
+} from "@/lib/political-party-categories";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -175,6 +179,7 @@ async function resolveAdminPosterSchedule(
   now: number,
   uploadSource: "app_posters" | "upload_posters",
   requestedPublishAt: number,
+  regionId: string,
 ) {
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
@@ -201,7 +206,7 @@ async function resolveAdminPosterSchedule(
     2,
   );
   if (!dynamicSchedule) {
-    const item = await getManualEventCategoryById(categoryId);
+    const item = await getManualEventCategoryById(categoryId, regionId);
     if (!item) {
       const publishAt =
         uploadSource === "upload_posters"
@@ -261,6 +266,7 @@ export async function PATCH(
       storageFolderKey?: string;
       createdBySurface?: string;
       title?: string;
+      regionId?: string;
     };
     if (existing.createdByRole !== "admin") {
       return NextResponse.json({ ok: false, error: "Only admin app posters can be edited." }, { status: 403 });
@@ -273,7 +279,10 @@ export async function PATCH(
       requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
-    const region = getDashboardRegion(parsed.regionId);
+    if (existing.regionId) {
+      await assertActorCanAccessRegion(actor, existing.regionId);
+    }
+    const region = await assertActorCanAccessRegion(actor, parsed.regionId);
     let personalizationConfig: unknown = undefined;
     const personalizationRaw = formData.get("personalizationConfig");
     if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
@@ -292,11 +301,14 @@ export async function PATCH(
       }
     }
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
     const category =
-      CREATOR_ASSIGNABLE_CATEGORIES.find(
-        (item) => item.id === parsed.categoryId && item.id !== "all",
-      ) ??
+      (isPoliticalCategory
+        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
+        : CREATOR_ASSIGNABLE_CATEGORIES.find(
+            (item) => item.id === parsed.categoryId && item.id !== "all",
+          )) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
@@ -408,6 +420,7 @@ export async function PATCH(
       updatedAt,
       uploadSource,
       requestedPublishAt,
+      region.id,
     );
     await posterRef.set(
       {
@@ -478,9 +491,13 @@ export async function DELETE(
       imagePath?: string;
       videoPath?: string;
       createdByRole?: string;
+      regionId?: string;
     };
     if (existing.createdByRole !== "admin") {
       return NextResponse.json({ ok: false, error: "Only admin app posters can be deleted." }, { status: 403 });
+    }
+    if (existing.regionId) {
+      await assertActorCanAccessRegion(actor, existing.regionId);
     }
 
     await posterRef.delete();

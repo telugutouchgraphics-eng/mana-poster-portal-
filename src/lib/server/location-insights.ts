@@ -66,7 +66,7 @@ function ensureRow(
   return row;
 }
 
-export async function getLocationInsights() {
+export async function getLocationInsights(allowedStateNames?: Set<string>) {
   const rows = new Map<string, LocationInsightRow>();
   const now = Date.now();
   const lastSevenDays = now - 7 * 24 * 60 * 60 * 1000;
@@ -82,6 +82,7 @@ export async function getLocationInsights() {
     if (data.locationEnabled !== true) return;
     const area = readArea(data);
     if (!area.state && !area.district && !area.city) return;
+    if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
     row.userCount += 1;
     row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.locationUpdatedAt));
@@ -91,6 +92,7 @@ export async function getLocationInsights() {
     const data = doc.data() as Record<string, unknown>;
     const area = readArea(data);
     if (!area.state && !area.district && !area.city) return;
+    if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
     row.statusCount += 1;
     row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.createdAt));
@@ -100,6 +102,7 @@ export async function getLocationInsights() {
     const data = doc.data() as Record<string, unknown>;
     const area = readArea(data);
     if (!area.state && !area.district && !area.city) return;
+    if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
     row.reportCount += 1;
     row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.reportedAt));

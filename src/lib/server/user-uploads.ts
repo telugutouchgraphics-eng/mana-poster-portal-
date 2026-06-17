@@ -53,6 +53,7 @@ export async function resolveUserUploadPublishSchedule(
   uploadedAt: number,
   approvedAt: number,
   applicableFromAt: number,
+  regionId?: string | null,
 ) {
   const applicableStart = Math.max(applicableFromAt, 0);
   const visibilityBaseline = Math.max(approvedAt, applicableStart);
@@ -89,7 +90,7 @@ export async function resolveUserUploadPublishSchedule(
     };
   }
 
-  const manualCategory = await getManualEventCategoryById(categoryId);
+  const manualCategory = await getManualEventCategoryById(categoryId, regionId);
   if (manualCategory) {
     return {
       publishAt: resolveManualFeedPublishAtMs(
@@ -214,6 +215,8 @@ export function buildUserUploadApprovalWrite(params: {
   userMobile: string;
   categoryId: string;
   categoryLabel: string;
+  regionId: string;
+  regionName: string;
   imageUrl: string;
   imagePath: string;
   approvedAt: number;
@@ -231,6 +234,8 @@ export function buildUserUploadApprovalWrite(params: {
     creatorPhone: params.userMobile,
     categoryId: params.categoryId,
     categoryLabel: params.categoryLabel,
+    regionId: params.regionId,
+    regionName: params.regionName,
     imageUrl: params.imageUrl,
     imagePath: params.imagePath,
     mediaType: "image",

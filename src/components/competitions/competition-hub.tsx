@@ -331,6 +331,7 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
         submissionEndAt: parseDatetimeInput(form.submissionEndAt),
         liveAt: parseDatetimeInput(form.liveAt),
         rewardNote: form.rewardNote.trim(),
+        regionId: region.id,
         rewardTiers: rewardTiers
           .map((item) => ({
             ...item,

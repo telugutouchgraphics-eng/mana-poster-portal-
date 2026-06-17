@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 interface UserUploadListItem {
   id: string;
@@ -14,6 +15,8 @@ interface UserUploadListItem {
   submissionType: string;
   categoryId: string;
   categoryLabel: string;
+  regionId: string;
+  regionName: string;
   status: string;
   rejectionReason: string;
   approvedPosterTemplateId: string;
@@ -26,12 +29,13 @@ interface UserUploadListItem {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin", "manager"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") ?? "pending")
       .trim()
       .toLowerCase();
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const query = adminDb.collection("userPosterUploads");
     const snap =
       status !== "all"
@@ -53,6 +57,8 @@ export async function GET(req: NextRequest) {
           submissionType: String(data.submissionType ?? "").trim(),
           categoryId: String(data.categoryId ?? "").trim(),
           categoryLabel: String(data.categoryLabel ?? "").trim(),
+          regionId: String(data.regionId ?? "").trim(),
+          regionName: String(data.regionName ?? "").trim(),
           status: String(data.status ?? "pending")
             .trim()
             .toLowerCase(),
@@ -67,6 +73,7 @@ export async function GET(req: NextRequest) {
           expiresAt: Number(data.expiresAt ?? 0),
         } satisfies UserUploadListItem;
       })
+      .filter((item) => item.regionId === region.id)
       .filter((item) => item.expiresAt <= 0 || item.expiresAt > now)
       .filter((item) => {
         if (!q) return true;

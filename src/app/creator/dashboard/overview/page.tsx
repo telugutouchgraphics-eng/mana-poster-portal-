@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { CompetitionHub } from "@/components/competitions/competition-hub";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 
@@ -32,6 +33,7 @@ type LiveCompetitionItem = {
 export default function CreatorOverviewPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const isTelugu = language === "telugu";
   const copy = {
     liveMarquee: isTelugu ? "లైవ్ · లైవ్ · లైవ్" : "LIVE · LIVE · LIVE",
@@ -53,10 +55,10 @@ export default function CreatorOverviewPage() {
       const token = await user?.getIdToken();
       if (!token) return;
       const [response, competitionResponse] = await Promise.all([
-        fetch(withCreatorImpersonationQuery("/api/creator/dashboard", searchParams), {
+        fetch(withCreatorImpersonationQuery(`/api/creator/dashboard?regionId=${encodeURIComponent(region.id)}`, searchParams), {
           headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
         }),
-        fetch(withCreatorImpersonationQuery("/api/creator/competitions", searchParams), {
+        fetch(withCreatorImpersonationQuery(`/api/creator/competitions?regionId=${encodeURIComponent(region.id)}`, searchParams), {
           headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
         }),
       ]);
@@ -83,7 +85,7 @@ export default function CreatorOverviewPage() {
     }
 
     void loadOverviewBanner();
-  }, [user, searchParams]);
+  }, [user, searchParams, region.id]);
 
   return (
     <section className="space-y-6">

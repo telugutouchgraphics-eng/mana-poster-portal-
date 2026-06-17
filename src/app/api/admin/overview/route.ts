@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion, loadActorAllowedRegionIds } from "@/lib/server/region-scope";
 import {
   buildCategoryLeaderboards,
   buildCategoryPerformance,
   buildCreatorVisibility,
   loadPortalAnalyticsSnapshot,
 } from "@/lib/server/dashboard-metrics";
+import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
+
+function assignedToRegion(assignedRegionIds: string[], regionId: string) {
+  return (
+    assignedRegionIds.length === 0 ||
+    assignedRegionIds.map((item) => item.trim()).includes(regionId)
+  );
+}
+
+function assignedToAnyAllowedRegion(assignedRegionIds: string[], allowedRegionIds: string[]) {
+  return (
+    assignedRegionIds.length === 0 ||
+    assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId))
+  );
+}
 
 function dayKeyInIst(epochMs: number) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -40,8 +56,31 @@ function buildUploadsTrend(values: number[]) {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
+    const requestedRegionId = String(req.nextUrl.searchParams.get("regionId") ?? "").trim();
+    const showAllRegions = requestedRegionId === "all";
+    const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const region = showAllRegions
+      ? null
+      : await assertActorCanAccessRegion(actor, requestedRegionId);
     const snapshot = await loadPortalAnalyticsSnapshot();
+    const posters = showAllRegions
+      ? snapshot.posters.filter((item) => allowedRegionIds.includes(item.regionId))
+      : snapshot.posters.filter((item) => item.regionId === region?.id);
+    const creators = showAllRegions
+      ? snapshot.creatorProfiles.filter((item) =>
+          assignedToAnyAllowedRegion(item.assignedRegionIds, allowedRegionIds),
+        )
+      : snapshot.creatorProfiles.filter((item) =>
+          assignedToRegion(item.assignedRegionIds, region?.id ?? ""),
+        );
+    const managers = showAllRegions
+      ? snapshot.managers.filter((item) =>
+          assignedToAnyAllowedRegion(item.assignedRegionIds, allowedRegionIds),
+        )
+      : snapshot.managers.filter((item) =>
+          assignedToRegion(item.assignedRegionIds, region?.id ?? ""),
+        );
     const now = Date.now();
     const todayKey = dayKeyInIst(now);
     const banners = await loadAppBanners();
@@ -49,40 +88,56 @@ export async function GET(req: NextRequest) {
     const activeAnnouncements = announcements.filter(
       (item) => item.active && item.startAt <= now && item.endAt >= now,
     );
-    const totalEarnings = snapshot.ledger
-      .filter((item) => item.type === "sale")
-      .reduce((sum, item) => sum + item.creatorAmount, 0);
-    const todayUploads = snapshot.posters.filter(
+    const totalEarnings = posters.reduce((sum, item) => sum + item.creatorEarnings, 0);
+    const todayUploads = posters.filter(
       (item) => dayKeyInIst(item.createdAt) === todayKey,
     ).length;
 
     return NextResponse.json({
       ok: true,
-      overview: snapshot.overview,
+      overview: {
+        ...snapshot.overview,
+        totalManagers: managers.length,
+        activeManagers: managers.filter((item) => item.status !== "inactive").length,
+        inactiveManagers: managers.filter((item) => item.status === "inactive").length,
+        totalCreators: creators.length,
+        activeCreators: creators.filter((item) => item.status === "active").length,
+        blockedCreators: creators.filter((item) => item.status === "blocked").length,
+        pendingInvites: creators.filter((item) => item.status === "pending_invite").length,
+        totalPosters: posters.length,
+        pendingPosters: posters.filter((item) => item.status === "pending").length,
+        approvedPosters: posters.filter((item) => isApprovedEquivalentStatus(item.status)).length,
+        rejectedPosters: posters.filter((item) => item.status === "rejected").length,
+      },
       headline: {
-        totalCreators: snapshot.overview.totalCreators,
-        totalManagers: snapshot.overview.totalManagers,
-        totalPosters: snapshot.overview.totalPosters,
+        totalCreators: creators.length,
+        totalManagers: managers.length,
+        totalPosters: posters.length,
         todayUploads,
         totalEarnings,
       },
-      uploadsTrend: buildUploadsTrend(snapshot.posters.map((item) => item.createdAt)),
+      uploadsTrend: buildUploadsTrend(posters.map((item) => item.createdAt)),
       revenue: {
-        gross: snapshot.posters.reduce((sum, item) => sum + item.grossAmount, 0),
-        creator: snapshot.posters.reduce((sum, item) => sum + item.creatorEarnings, 0),
-        platform: snapshot.posters.reduce((sum, item) => sum + item.platformEarnings, 0),
+        gross: posters.reduce((sum, item) => sum + item.grossAmount, 0),
+        creator: posters.reduce((sum, item) => sum + item.creatorEarnings, 0),
+        platform: posters.reduce((sum, item) => sum + item.platformEarnings, 0),
         paidOut: snapshot.payouts
-          .filter((item) => item.status === "paid")
+          .filter(
+            (item) =>
+              item.status === "paid" &&
+              (showAllRegions ||
+                creators.some((creator) => creator.creatorPublicId === item.creatorPublicId)),
+          )
           .reduce((sum, item) => sum + item.amount, 0),
       },
-      categoryPerformance: buildCategoryPerformance(snapshot.posters).slice(0, 8),
+      categoryPerformance: buildCategoryPerformance(posters).slice(0, 8),
       categoryLeaderboards: buildCategoryLeaderboards(
-        snapshot.posters,
-        snapshot.creatorProfiles,
+        posters,
+        creators,
       ).slice(0, 6),
       creatorVisibility: buildCreatorVisibility(
-        snapshot.creatorProfiles,
-        snapshot.posters,
+        creators,
+        posters,
       ).slice(0, 6),
       content: {
         totalBanners: banners.length,

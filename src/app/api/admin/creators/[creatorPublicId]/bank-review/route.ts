@@ -3,6 +3,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { assertCreatorInScope } from "@/lib/server/manager-scope";
 
 const payloadSchema = z.object({
   status: z.enum(["approved", "changes_requested", "rejected"]),
@@ -18,6 +19,7 @@ export async function POST(
     const { creatorPublicId } = await params;
     const payload = payloadSchema.parse(await req.json());
     const now = Date.now();
+    await assertCreatorInScope(actor, creatorPublicId);
 
     const ref = adminDb.collection("creatorPayoutProfiles").doc(creatorPublicId);
     const snap = await ref.get();
