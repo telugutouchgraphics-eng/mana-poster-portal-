@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface SettingsResponse {
   ok: boolean;
@@ -39,6 +40,7 @@ interface SettingsResponse {
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export default function AdminSettingsPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/admin/settings", {
+      const response = await fetch(`/api/admin/settings?regionId=${encodeURIComponent(region.id)}`, {
         headers: { authorization: `Bearer ${token}` },
       });
       const data = (await response.json()) as SettingsResponse;
@@ -109,7 +111,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -125,6 +127,7 @@ export default function AdminSettingsPage() {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          regionId: region.id,
           defaultNotificationImageUrl,
           defaultLanguage,
           notifications: {
@@ -171,6 +174,7 @@ export default function AdminSettingsPage() {
       const body = new FormData();
       body.set("video", file);
       body.set("type", type);
+      body.set("regionId", region.id);
       const response = await fetch("/api/admin/settings/subscription-video", {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
@@ -211,10 +215,13 @@ export default function AdminSettingsPage() {
     setVideoDeleting(type);
     setMessage(null);
     try {
-      const response = await fetch(`/api/admin/settings/subscription-video?type=${type}`, {
+      const response = await fetch(
+        `/api/admin/settings/subscription-video?type=${type}&regionId=${encodeURIComponent(region.id)}`,
+        {
         method: "DELETE",
         headers: { authorization: `Bearer ${token}` },
-      });
+        },
+      );
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to delete subscription video.");
@@ -244,7 +251,7 @@ export default function AdminSettingsPage() {
         </p>
         <h2 className="mt-2 text-2xl font-bold text-slate-950">Portal configuration</h2>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Manage default notification values, landing page text, notification toggles, and banner visibility.
+          Manage default notification values, landing page text, notification toggles, and banner visibility for {region.name}.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">

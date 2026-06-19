@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const SETTINGS_DOC_ID = "portalSettings";
 const LANDING_DOC_ID = "landingPage";
+
+function scopedDocId(baseId: string, regionId: string) {
+  return `${baseId}_${regionId}`;
+}
 
 interface PortalSettingsRecord {
   defaultNotificationImageUrl: string;
@@ -63,10 +68,11 @@ function mergeSubscriptionVideo(
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
     const [settingsSnap, landingSnap] = await Promise.all([
-      adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID).get(),
-      adminDb.collection("websiteConfig").doc(LANDING_DOC_ID).get(),
+      adminDb.collection("websiteConfig").doc(scopedDocId(SETTINGS_DOC_ID, region.id)).get(),
+      adminDb.collection("websiteConfig").doc(scopedDocId(LANDING_DOC_ID, region.id)).get(),
     ]);
 
     const settingsData = settingsSnap.data() || {};
@@ -124,6 +130,7 @@ export async function PUT(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const body = (await req.json()) as {
+      regionId?: string;
       defaultNotificationImageUrl?: string;
       defaultLanguage?: string;
       notifications?: {
@@ -146,9 +153,12 @@ export async function PUT(req: NextRequest) {
       landingPageTitle?: string;
       landingPageSubtitle?: string;
     };
+    const region = await assertActorCanAccessRegion(actor, body.regionId);
 
     const now = Date.now();
-    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const settingsDocId = scopedDocId(SETTINGS_DOC_ID, region.id);
+    const landingDocId = scopedDocId(LANDING_DOC_ID, region.id);
+    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
     const existingSettingsSnap = await settingsRef.get();
     const existingSettings = existingSettingsSnap.data() || {};
     const subscriptionExitVideo = mergeSubscriptionVideo(
@@ -163,6 +173,8 @@ export async function PUT(req: NextRequest) {
       settingsRef.set(
         {
           defaultNotificationImageUrl: stringValue(body.defaultNotificationImageUrl),
+          regionId: region.id,
+          regionName: region.name,
           defaultLanguage: body.defaultLanguage === "te" ? "te" : "en",
           subscriptionExitVideo,
           subscriptionThanksVideo,
@@ -184,8 +196,10 @@ export async function PUT(req: NextRequest) {
         },
         { merge: true },
       ),
-      adminDb.collection("websiteConfig").doc(LANDING_DOC_ID).set(
+      adminDb.collection("websiteConfig").doc(landingDocId).set(
         {
+          regionId: region.id,
+          regionName: region.name,
           hero: {
             title: stringValue(body.landingPageTitle),
             subtitle: stringValue(body.landingPageSubtitle),
@@ -203,9 +217,10 @@ export async function PUT(req: NextRequest) {
       actorRole: actor.role,
       actorEmail: actor.email,
       action: "admin.settings.update",
-      targetId: SETTINGS_DOC_ID,
+      targetId: settingsDocId,
       targetType: "websiteConfig",
       message: "Updated portal settings configuration",
+      metadata: { regionId: region.id, regionName: region.name },
     });
 
     return NextResponse.json({ ok: true });

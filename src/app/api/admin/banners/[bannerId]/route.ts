@@ -3,8 +3,16 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanManageBannerTarget } from "@/lib/server/banner-region-scope";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
+
+function regionMetadataForStateName(stateName: string) {
+  const normalized = stateName.trim().toLowerCase();
+  const region = DASHBOARD_REGIONS.find((item) => item.name.trim().toLowerCase() === normalized);
+  return region ? { regionId: region.id, regionName: region.name } : {};
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -18,6 +26,12 @@ export async function PATCH(
     if (!existingSnap.exists) {
       return NextResponse.json({ ok: false, error: "Banner not found." }, { status: 404 });
     }
+    const existingData = existingSnap.data() as {
+      imagePath?: string;
+      placement?: string;
+      targetState?: string;
+    };
+    await assertActorCanManageBannerTarget(actor, String(existingData.targetState ?? ""));
     const contentType = req.headers.get("content-type") ?? "";
 
     if (contentType.includes("application/json")) {
@@ -38,20 +52,17 @@ export async function PATCH(
         targetId: bannerId,
         targetType: "appBanner",
         message: "Updated app banner status/order",
+        metadata: regionMetadataForStateName(String(existingData.targetState ?? "")),
       });
       return NextResponse.json({ ok: true });
     }
 
-    const existing = existingSnap.data() as {
-      imagePath?: string;
-      placement?: string;
-    };
     const formData = await req.formData();
     const title = String(formData.get("title") ?? "").trim();
     const subtitle = String(formData.get("subtitle") ?? "").trim();
     const ctaLabel = String(formData.get("ctaLabel") ?? "").trim();
     const ctaTarget = String(formData.get("ctaTarget") ?? "").trim();
-    const placement = String(formData.get("placement") ?? existing.placement ?? "home_category_banner").trim();
+    const placement = String(formData.get("placement") ?? existingData.placement ?? "home_category_banner").trim();
     const targetState = String(formData.get("targetState") ?? "").trim();
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
@@ -60,6 +71,11 @@ export async function PATCH(
     const image = formData.get("image");
     let imageUrl: string | undefined;
     let imagePath: string | undefined;
+    const regionMetadata = regionMetadataForStateName(targetState);
+    if (!regionMetadata.regionId) {
+      return NextResponse.json({ ok: false, error: "Valid State / UT target is required." }, { status: 400 });
+    }
+    await assertActorCanManageBannerTarget(actor, targetState);
 
     if (image instanceof File && image.size > 0) {
       if (image.size > MAX_IMAGE_UPLOAD_BYTES) {
@@ -74,7 +90,7 @@ export async function PATCH(
       );
       imageUrl = uploaded.imageUrl;
       imagePath = uploaded.filePath;
-      await deleteAdminAsset(existing.imagePath);
+      await deleteAdminAsset(existingData.imagePath);
     }
 
     await existingRef.set(
@@ -103,6 +119,7 @@ export async function PATCH(
       targetId: bannerId,
       targetType: "appBanner",
       message: "Updated app banner content",
+      metadata: regionMetadata,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -120,7 +137,8 @@ export async function DELETE(
     const { bannerId } = await params;
     const ref = adminDb.collection("appBanners").doc(bannerId);
     const snap = await ref.get();
-    const data = snap.exists ? (snap.data() as { imagePath?: string }) : null;
+    const data = snap.exists ? (snap.data() as { imagePath?: string; targetState?: string }) : null;
+    await assertActorCanManageBannerTarget(actor, String(snap.data()?.targetState ?? ""));
     await ref.delete();
     await deleteAdminAsset(data?.imagePath);
     await writeAuditLog({
@@ -131,6 +149,7 @@ export async function DELETE(
       targetId: bannerId,
       targetType: "appBanner",
       message: "Deleted app banner",
+      metadata: regionMetadataForStateName(String(data?.targetState ?? "")),
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       const assignedRegionIds = Array.isArray(doc.data().assignedRegionIds)
         ? doc.data().assignedRegionIds.map(String)
         : [];
-      return assignedRegionIds.length === 0 || assignedRegionIds.includes(region.id);
+      return assignedRegionIds.includes(region.id);
     }).map((doc) => {
       const data = doc.data();
       const rawAssignedCategories = Array.isArray(data.assignedCategories)

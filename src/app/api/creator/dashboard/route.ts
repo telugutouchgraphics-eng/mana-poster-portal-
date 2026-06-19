@@ -165,7 +165,7 @@ export async function GET(req: NextRequest) {
     const manualCategories = await listManualEventCategories(region.id);
     const weekdayCategories = getUpcomingWeekdayAssignableCategories(new Date(now));
     const visibleCategoryMeta = new Map(
-      [...getVisibleAssignableCategories(new Date(now), 2, 7, 2), ...weekdayCategories].map(
+      [...getVisibleAssignableCategories(new Date(now), 2, 7, 2, region.id), ...weekdayCategories].map(
         (item) => [
           item.id,
           {

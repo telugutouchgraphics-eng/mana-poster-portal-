@@ -3,14 +3,35 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { loadAppBanners, uploadAdminAsset } from "@/lib/server/content-management";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
+import {
+  assertActorCanManageBannerTarget,
+  filterBannersForActor,
+} from "@/lib/server/banner-region-scope";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 
+function regionMetadataForStateName(stateName: string) {
+  const normalized = stateName.trim().toLowerCase();
+  const region = DASHBOARD_REGIONS.find((item) => item.name.trim().toLowerCase() === normalized);
+  return region ? { regionId: region.id, regionName: region.name } : {};
+}
+
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
+    const regionId = req.nextUrl.searchParams.get("regionId");
     const banners = await loadAppBanners();
-    return NextResponse.json({ ok: true, banners });
+    const scopedBanners = await filterBannersForActor(actor, banners);
+    if (!regionId) {
+      return NextResponse.json({ ok: true, banners: scopedBanners });
+    }
+    const targetRegion = await assertActorCanAccessRegion(actor, regionId);
+    return NextResponse.json({
+      ok: true,
+      banners: scopedBanners.filter((banner) => String(banner.targetState ?? "").trim() === targetRegion.name),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load banners.";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
@@ -42,6 +63,11 @@ export async function POST(req: NextRequest) {
     if (image.size > MAX_IMAGE_UPLOAD_BYTES) {
       return NextResponse.json({ ok: false, error: "Image must be 500 KB or smaller." }, { status: 400 });
     }
+    const regionMetadata = regionMetadataForStateName(targetState);
+    if (!regionMetadata.regionId) {
+      return NextResponse.json({ ok: false, error: "Valid State / UT target is required." }, { status: 400 });
+    }
+    await assertActorCanManageBannerTarget(actor, targetState);
 
     const now = Date.now();
     const ext = image.type.includes("jpeg") ? "jpg" : image.type.includes("webp") ? "webp" : "png";
@@ -78,6 +104,7 @@ export async function POST(req: NextRequest) {
       targetId: ref.id,
       targetType: "appBanner",
       message: `Created app banner: ${title}`,
+      metadata: regionMetadata,
     });
 
     return NextResponse.json({ ok: true });

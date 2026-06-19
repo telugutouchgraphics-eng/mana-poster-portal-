@@ -79,6 +79,7 @@ export async function resolveUserUploadPublishSchedule(
     3,
     7,
     3,
+    regionId,
   );
   if (dynamicSchedule) {
     const eventStartAt = dynamicSchedule.eventStartAt ?? 0;

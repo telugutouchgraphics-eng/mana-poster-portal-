@@ -4,7 +4,10 @@ import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
-import { assertActorCanAssignRegions } from "@/lib/server/region-scope";
+import {
+  assertActorCanAssignRegions,
+  assertRecordOverlapsActorRegions,
+} from "@/lib/server/region-scope";
 import { isPermanentDashboardAdminEmail } from "@/lib/server/permanent-admins";
 import type { AppRole } from "@/lib/types/roles";
 import {
@@ -51,6 +54,9 @@ export async function POST(
     }
 
     const userData = userSnap.data();
+    if (!isPermanentDashboardAdminEmail(userData?.email ?? userData?.authEmail)) {
+      await assertRecordOverlapsActorRegions(actor, userData);
+    }
     const legacyRole = userData?.role;
     const existingRoles = mergeRoles(
       normalizeRoles(userData?.roles),
@@ -136,6 +142,7 @@ export async function PATCH(
         { status: 409 },
       );
     }
+    await assertRecordOverlapsActorRegions(actor, userData);
 
     const now = Date.now();
     await userRef.set(
@@ -194,6 +201,13 @@ export async function DELETE(
     }
 
     const userData = userSnap.data();
+    if (isPermanentDashboardAdminEmail(userData?.email ?? userData?.authEmail)) {
+      return NextResponse.json(
+        { ok: false, error: "Permanent admin access cannot be deleted here." },
+        { status: 409 },
+      );
+    }
+    await assertRecordOverlapsActorRegions(actor, userData);
     const legacyRole = userData?.role;
     const existingRoles = mergeRoles(
       normalizeRoles(userData?.roles),

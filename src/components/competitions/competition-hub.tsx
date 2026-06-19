@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
@@ -512,7 +513,11 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
                             : "border-[var(--portal-border)] bg-white text-slate-700 hover:border-[var(--portal-purple)]"
                         }`}
                       >
-                        <span className="block">{category.label}</span>
+                        <CategoryLabelWithLogo
+                          id={category.id}
+                          label={category.label}
+                          className="w-full"
+                        />
                         {category.eventDateLabel ? (
                           <span className="mt-1 block text-xs font-medium text-slate-500">
                             {category.eventDateLabel}

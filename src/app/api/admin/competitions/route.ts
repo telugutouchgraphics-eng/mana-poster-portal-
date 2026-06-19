@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      categories: localizeCategoryList(getVisibleAssignableCategories(new Date(), 2, 10, 2)
+      categories: localizeCategoryList(getVisibleAssignableCategories(new Date(), 2, 10, 2, region.id)
         .filter((item) => item.isDynamic)
         .filter((item) => !item.id.startsWith("weekday_"))
         .filter(

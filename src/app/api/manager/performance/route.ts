@@ -3,8 +3,10 @@ import { requireRole } from "@/lib/server/auth";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import {
+  buildMonthlyPerformanceRows,
   buildMonthlyCalendarMetrics,
   buildPerformanceSummary,
+  buildRecentPerformanceRows,
   loadDailyPosterMetrics,
 } from "@/lib/server/performance-metrics";
 
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
         const assignedRegionIds = Array.isArray(doc.data().assignedRegionIds)
           ? doc.data().assignedRegionIds.map(String)
           : [];
-        return assignedRegionIds.length === 0 || assignedRegionIds.includes(region.id);
+        return assignedRegionIds.includes(region.id);
       })
       .map((doc) => {
         const data = doc.data();
@@ -59,6 +61,14 @@ export async function GET(req: NextRequest) {
     const calendar = selectedCreatorId
       ? buildMonthlyCalendarMetrics(metrics, year, month)
       : [];
+    const selectedCreator =
+      creators.find((item) => item.creatorPublicId === selectedCreatorId) ?? null;
+    const monthRows = selectedCreator
+      ? buildMonthlyPerformanceRows(metrics, selectedCreator.name, year, month)
+      : [];
+    const last7DaysRows = selectedCreator
+      ? buildRecentPerformanceRows(metrics, selectedCreator.name, Date.now(), 7)
+      : [];
 
     return NextResponse.json({
       ok: true,
@@ -68,6 +78,8 @@ export async function GET(req: NextRequest) {
       month,
       summary: buildPerformanceSummary(calendar),
       calendar,
+      monthRows,
+      last7DaysRows,
     });
   } catch (error) {
     const message =

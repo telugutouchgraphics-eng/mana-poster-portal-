@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface AppBannerItem {
   id: string;
@@ -43,6 +44,7 @@ function bannerPositionLabel(sortOrder: number) {
 
 export default function AdminAppBannersPage() {
   const { user } = useAuth();
+  const { region, regions } = useDashboardRegion();
   const [items, setItems] = useState<AppBannerItem[]>([]);
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -71,7 +73,7 @@ export default function AdminAppBannersPage() {
   async function load() {
     const token = await user?.getIdToken();
     if (!token) return;
-    const response = await fetch("/api/admin/banners", {
+    const response = await fetch(`/api/admin/banners?regionId=${encodeURIComponent(region.id)}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     const data = (await response.json()) as { ok: boolean; banners?: AppBannerItem[]; error?: string };
@@ -95,14 +97,14 @@ export default function AdminAppBannersPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   function resetForm() {
     setTitle("");
     setSubtitle("");
     setCtaLabel("");
     setCtaTarget("");
-    setTargetState("");
+    setTargetState(defaultTargetState);
     setTargetDistrict("");
     setTargetCity("");
     setSortOrder("10");
@@ -212,7 +214,8 @@ export default function AdminAppBannersPage() {
   }
 
   const previewImage = previewUrl ?? currentPreview;
-  const stateOptions = Array.from(new Set(locationRows.map((row) => row.state).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const stateOptions = regions.map((region) => region.name);
+  const defaultTargetState = region.name;
   const districtOptions = Array.from(
     new Set(
       locationRows
@@ -230,6 +233,15 @@ export default function AdminAppBannersPage() {
         .filter(Boolean),
     ),
   ).sort((a, b) => a.localeCompare(b));
+
+  useEffect(() => {
+    if (targetState === region.name) {
+      return;
+    }
+    setTargetState(region.name);
+    setTargetDistrict("");
+    setTargetCity("");
+  }, [region.name, targetState]);
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
@@ -250,7 +262,7 @@ export default function AdminAppBannersPage() {
           <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
             <p className="text-sm font-bold text-emerald-900">Area targeting</p>
             <p className="mt-1 text-xs leading-6 text-emerald-700">
-              Optional. Leave all empty to show this banner to everyone.
+              This banner is scoped to the selected dashboard State/UT.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">
@@ -264,7 +276,6 @@ export default function AdminAppBannersPage() {
                   }}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
-                  <option value="">All states</option>
                   {stateOptions.map((state) => (
                     <option key={state} value={state}>{state}</option>
                   ))}

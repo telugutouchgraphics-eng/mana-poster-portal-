@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
@@ -235,7 +236,9 @@ export default function ManagerOverviewPage() {
             <tbody>
               {(data?.categoryPerformance ?? []).map((item) => (
                 <tr key={item.categoryId} className="border-t border-slate-100/80">
-                  <td className="px-3 py-3 font-semibold text-slate-900">{item.categoryLabel}</td>
+                  <td className="px-3 py-3 font-semibold text-slate-900">
+                    <CategoryLabelWithLogo id={item.categoryId} label={item.categoryLabel} />
+                  </td>
                   <td className="px-3 py-3 text-slate-700">{item.totalUploads}</td>
                   <td className="px-3 py-3 text-emerald-700">{item.approvedCount}</td>
                   <td className="px-3 py-3 text-amber-700">{item.pendingCount}</td>

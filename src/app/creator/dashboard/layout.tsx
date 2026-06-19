@@ -48,11 +48,7 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
         description=""
         welcomeName={name}
         navItems={[...creatorNavItems]}
-        actions={
-          <DashboardSessionActions
-            links={[{ href: "/manager/dashboard/creators", label: isTelugu ? "ఓపెన్ మేనేజర్ డాష్‌బోర్డ్" : "Open Manager Dashboard" }]}
-          />
-        }
+        actions={<DashboardSessionActions />}
       >
         <CreatorLoginAgreementGuard />
         <AdminCreatorPreviewBar />

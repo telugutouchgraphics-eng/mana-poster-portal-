@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/firebase/admin";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
 import type {
   CreatorProfileRecord,
@@ -74,7 +75,10 @@ function readNumber(value: unknown): number {
 
 function buildCategoryLabelMap(): Record<string, string> {
   return Object.fromEntries(
-    CREATOR_ASSIGNABLE_CATEGORIES.map((item) => [item.id, item.label]),
+    CREATOR_ASSIGNABLE_CATEGORIES.map((item) => [
+      item.id,
+      categoryLabelWithIcon(item.id, item.label),
+    ]),
   );
 }
 

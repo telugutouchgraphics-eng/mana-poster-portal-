@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import type {
   LandingFaqItem,
   LandingFeatureItem,
@@ -192,6 +193,7 @@ function PosterImage({
 
 export function LandingPageInlineEditor() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [data, setData] = useState<LandingPageRecord | null>(null);
   const [savedData, setSavedData] = useState<LandingPageRecord | null>(null);
   const [websitePosters, setWebsitePosters] = useState<WebsitePosterItem[]>([]);
@@ -222,7 +224,7 @@ export function LandingPageInlineEditor() {
         fetch("/api/admin/landing-page", {
           headers: { authorization: `Bearer ${token}` },
         }),
-        fetch("/api/admin/website-posters", {
+        fetch(`/api/admin/website-posters?regionId=${encodeURIComponent(region.id)}`, {
           headers: { authorization: `Bearer ${token}` },
         }),
       ]);
@@ -258,7 +260,7 @@ export function LandingPageInlineEditor() {
     }
 
     void load();
-  }, [user]);
+  }, [user, region.id]);
 
   async function uploadLandingAsset(
     section: string,
@@ -355,7 +357,7 @@ export function LandingPageInlineEditor() {
   async function refreshWebsitePosters(token?: string) {
     const authToken = token ?? await user?.getIdToken();
     if (!authToken) return;
-    const response = await fetch("/api/admin/website-posters", {
+    const response = await fetch(`/api/admin/website-posters?regionId=${encodeURIComponent(region.id)}`, {
       headers: { authorization: `Bearer ${authToken}` },
     });
     const payload = (await response.json()) as {
@@ -381,6 +383,7 @@ export function LandingPageInlineEditor() {
     form.set("category", canonicalWebsiteCategoryLabel(category));
     form.set("sortOrder", String(sortOrder));
     form.set("active", "true");
+    form.set("regionId", region.id);
     form.set("image", file);
     const response = await fetch("/api/admin/website-posters", {
       method: "POST",

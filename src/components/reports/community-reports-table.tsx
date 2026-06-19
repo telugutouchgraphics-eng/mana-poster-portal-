@@ -219,10 +219,132 @@ export function CommunityReportsTable({ role }: { role: PortalRole }) {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div className="space-y-3 lg:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-500">
+            Loading reports...
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-500">
+            No reports found.
+          </div>
+        ) : (
+          rows.map((row) => (
+            <article key={`mobile-${row.id}`} className="portal-mobile-card rounded-3xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span
+                    className={`portal-status-pill ${
+                      row.reviewStatus === "closed"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {row.reviewStatus}
+                  </span>
+                  <h3 className="mt-3 break-words text-base font-black text-slate-950">
+                    {row.reason || "Report"}
+                  </h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {row.contentType || "status"} · {formatDate(row.reportedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Reporter
+                  </p>
+                  <p className="mt-1 font-black text-slate-950">{row.reporterName || "User"}</p>
+                  <p className="break-all text-xs font-semibold text-slate-500">
+                    {row.reporterEmail || "No email on report"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Reported User
+                  </p>
+                  <p className="mt-1 font-black text-slate-950">{row.reportedUserName || "User"}</p>
+                  <p className="break-all text-xs text-slate-400">{row.reportedUserId}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Content
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-700">
+                    {contentPreview(row)}
+                  </p>
+                  <p className="mt-2 text-xs font-bold text-slate-500">
+                    {row.regionName || "-"} · {row.religionPreference || "-"}
+                  </p>
+                  {row.locationState || row.locationDistrict || row.locationCity ? (
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {[row.locationCity, row.locationDistrict, row.locationState]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {row.details ? (
+                <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-medium text-slate-700">
+                  {row.details}
+                </p>
+              ) : null}
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                <textarea
+                  value={noteMap[row.id] ?? ""}
+                  onChange={(event) =>
+                    setNoteMap((prev) => ({ ...prev, [row.id]: event.target.value }))
+                  }
+                  rows={3}
+                  maxLength={1000}
+                  placeholder="Action note for user and audit"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none"
+                />
+                <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={mailMap[row.id] ?? true}
+                    disabled={!row.reporterEmail}
+                    onChange={(event) =>
+                      setMailMap((prev) => ({ ...prev, [row.id]: event.target.checked }))
+                    }
+                  />
+                  Email update to reporter
+                </label>
+                {row.reviewStatus === "closed" ? (
+                  <button
+                    type="button"
+                    disabled={busyId === row.id}
+                    onClick={() => void updateReport(row, "open")}
+                    className="mt-3 w-full rounded-2xl bg-amber-500 px-4 py-3 text-xs font-black text-white disabled:opacity-60"
+                  >
+                    Re-open
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busyId === row.id}
+                    onClick={() => void updateReport(row, "closed")}
+                    className="mt-3 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-60"
+                  >
+                    Close report
+                  </button>
+                )}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
+      <div className="portal-data-table hidden overflow-x-auto lg:block">
         <div className="overflow-x-auto">
           <table className="min-w-[1180px] divide-y divide-slate-100 text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+            <thead className="bg-slate-50 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
               <tr>
                 <th className="px-4 py-3">Report</th>
                 <th className="px-4 py-3">Reporter</th>

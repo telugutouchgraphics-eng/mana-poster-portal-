@@ -6,6 +6,7 @@ import {
 } from "./dynamic-event-catalog";
 import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
 import { getIstEndOfDay, getNextIstWeekdayStart } from "./ist-schedule";
+import { REGIONAL_DYNAMIC_EVENT_CATEGORIES } from "./regional-dynamic-events";
 import { POLITICAL_PARTY_CATEGORIES } from "@/lib/political-party-categories";
 
 export interface CategoryDef {
@@ -95,7 +96,10 @@ export function getUpcomingWeekdayAssignableCategories(
   });
 }
 
-const DYNAMIC_EVENT_CATEGORIES = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES;
+const DYNAMIC_EVENT_CATEGORIES = [
+  ...CSV_FIXED_DYNAMIC_EVENT_CATEGORIES,
+  ...REGIONAL_DYNAMIC_EVENT_CATEGORIES,
+];
 const FLOATING_DYNAMIC_EVENT_CATEGORIES = CSV_FLOATING_DYNAMIC_EVENT_CATEGORIES;
 const LUNAR_DYNAMIC_CATEGORIES: CategoryDef[] = CSV_LUNAR_PLACEHOLDER_CATEGORIES;
 const EVENT_DYNAMIC_CATEGORY_IDS = new Set<string>([
@@ -165,9 +169,18 @@ export function getVisibleAssignableCategories(
   daysBeforeEvent = 2,
   daysBeforeDashboard = 7,
   blinkingDays = daysBeforeEvent,
+  regionId?: string | null,
 ): VisibleCategoryDef[] {
+  const normalizedRegionId = String(regionId ?? "").trim();
   const today = startOfDay(now);
   const visibleDynamicEvents = DYNAMIC_EVENT_CATEGORIES.flatMap((event) => {
+    if (
+      event.regionIds &&
+      event.regionIds.length > 0 &&
+      !event.regionIds.includes(normalizedRegionId)
+    ) {
+      return [];
+    }
     const eventStart = new Date(today.getFullYear(), event.month - 1, event.day);
     const visibleStart = plusDays(eventStart, -daysBeforeDashboard);
     const blinkingStart = plusDays(eventStart, -blinkingDays);
@@ -316,13 +329,20 @@ export function getVisibleDynamicCategoryById(
   daysBeforeEvent = 2,
   daysBeforeDashboard = 7,
   blinkingDays = daysBeforeEvent,
+  regionId?: string | null,
 ): VisibleCategoryDef | null {
   const normalized = categoryId.trim();
   if (!normalized) {
     return null;
   }
   return (
-    getVisibleAssignableCategories(now, daysBeforeEvent, daysBeforeDashboard, blinkingDays)
+    getVisibleAssignableCategories(
+      now,
+      daysBeforeEvent,
+      daysBeforeDashboard,
+      blinkingDays,
+      regionId,
+    )
       .find((item) => item.id === normalized && item.isDynamic) ?? null
   );
 }
@@ -338,9 +358,10 @@ export function pruneInactiveAssignedCategories(
   daysBeforeEvent = 2,
   daysBeforeDashboard = 7,
   blinkingDays = daysBeforeEvent,
+  regionId?: string | null,
 ): { assignedCategories: string[]; removedCategoryIds: string[] } {
   const visibleDynamicCategoryIds = new Set(
-    getVisibleAssignableCategories(now, daysBeforeEvent, daysBeforeDashboard, blinkingDays)
+    getVisibleAssignableCategories(now, daysBeforeEvent, daysBeforeDashboard, blinkingDays, regionId)
       .filter((item) => item.isDynamic)
       .map((item) => item.id),
   );

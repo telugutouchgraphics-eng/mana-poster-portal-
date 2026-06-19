@@ -238,7 +238,14 @@ export async function GET(req: NextRequest) {
           rawAssignedCategories,
           manualCategoryIds,
         );
-        const { assignedCategories } = pruneInactiveAssignedCategories(knownAssignedCategories);
+        const { assignedCategories } = pruneInactiveAssignedCategories(
+          knownAssignedCategories,
+          new Date(),
+          2,
+          7,
+          2,
+          region.id,
+        );
         const stats = posterStats.get(creatorPublicId);
         const payoutProfile = payoutProfileMap.get(creatorPublicId) ?? null;
         const payoutSummary = payoutSummaryMap.get(creatorPublicId) ?? {

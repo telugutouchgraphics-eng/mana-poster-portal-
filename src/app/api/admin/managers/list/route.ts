@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
-import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 import { loadActorAllowedRegionIds, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 interface RawManagerDoc {
@@ -23,7 +22,6 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
-    const actorHasAllRegions = actorAllowedRegionIds.length === DASHBOARD_REGIONS.length;
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim();
@@ -61,9 +59,8 @@ export async function GET(req: NextRequest) {
           return false;
         }
         const assignedRegionIds = sanitizeDashboardRegionIds(item.assignedRegionIds);
-        const isInActorScope = assignedRegionIds.length === 0
-          ? actorHasAllRegions
-          : assignedRegionIds.some((regionId) => actorAllowedRegionIds.includes(regionId));
+        const isInActorScope =
+          assignedRegionIds.some((regionId) => actorAllowedRegionIds.includes(regionId));
         if (!isInActorScope) {
           return false;
         }

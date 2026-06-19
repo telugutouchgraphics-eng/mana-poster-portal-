@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 import { portalLanguage, t } from "@/lib/i18n";
 
 type ManualEventCategory = {
@@ -304,7 +305,9 @@ export function ManualEventCategoriesConsole() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-lg font-bold text-slate-950">{item.label}</p>
+                    <p className="text-lg font-bold text-slate-950">
+                      {categoryLabelWithIcon(item.id, item.label)}
+                    </p>
                     <p className="mt-1 text-sm text-slate-600">{item.id}</p>
                     <p className="mt-2 text-sm text-slate-500">{formatRange(item)}</p>
                   </div>

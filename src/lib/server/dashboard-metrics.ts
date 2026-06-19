@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/firebase/admin";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
 import { roundCurrency } from "@/lib/server/earnings";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
@@ -174,7 +175,10 @@ function readNumber(value: unknown): number {
 
 function buildCategoryLabelMap(): Record<string, string> {
   return Object.fromEntries(
-    CREATOR_ASSIGNABLE_CATEGORIES.map((item) => [item.id, item.label]),
+    CREATOR_ASSIGNABLE_CATEGORIES.map((item) => [
+      item.id,
+      categoryLabelWithIcon(item.id, item.label),
+    ]),
   );
 }
 
@@ -327,8 +331,10 @@ export function buildCategoryPerformance(
     const key = poster.categoryId || "uncategorized";
     const current = grouped.get(key) ?? {
       categoryId: key,
-      categoryLabel:
+      categoryLabel: categoryLabelWithIcon(
+        key,
         poster.categoryLabel || labelMap[key] || key || "Uncategorized",
+      ),
       totalUploads: 0,
       approvedCount: 0,
       rejectedCount: 0,
@@ -421,7 +427,10 @@ function buildInternalLeaderboards(
 
       return {
         categoryId,
-        categoryLabel: labelMap[categoryId] || categoryId,
+        categoryLabel: categoryLabelWithIcon(
+          categoryId,
+          labelMap[categoryId] || categoryId,
+        ),
         creatorCount: perCreator.size,
         rows: leaders,
       };

@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+
+async function loadScopedAnnouncement(announcementId: string, actor: Awaited<ReturnType<typeof requireRole>>) {
+  const ref = adminDb.collection("creatorAnnouncements").doc(announcementId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error("Announcement not found.");
+  }
+  const data = snap.data() ?? {};
+  const regionId = String(data.regionId ?? "").trim();
+  if (!regionId) {
+    throw new Error("Legacy announcement is not state-scoped. Create a new state announcement.");
+  }
+  const region = await assertActorCanAccessRegion(actor, regionId);
+  return { ref, region };
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -11,7 +27,8 @@ export async function PATCH(
     const actor = await requireRole(req, ["admin"]);
     const { announcementId } = await params;
     const body = (await req.json()) as { active?: boolean };
-    await adminDb.collection("creatorAnnouncements").doc(announcementId).set(
+    const { ref, region } = await loadScopedAnnouncement(announcementId, actor);
+    await ref.set(
       {
         active: typeof body.active === "boolean" ? body.active : true,
         updatedAt: Date.now(),
@@ -26,6 +43,7 @@ export async function PATCH(
       targetId: announcementId,
       targetType: "creatorAnnouncement",
       message: "Updated creator announcement status",
+      metadata: { regionId: region.id, regionName: region.name },
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -41,7 +59,8 @@ export async function DELETE(
   try {
     const actor = await requireRole(req, ["admin"]);
     const { announcementId } = await params;
-    await adminDb.collection("creatorAnnouncements").doc(announcementId).delete();
+    const { ref, region } = await loadScopedAnnouncement(announcementId, actor);
+    await ref.delete();
     await writeAuditLog({
       actorUid: actor.uid,
       actorRole: actor.role,
@@ -50,6 +69,7 @@ export async function DELETE(
       targetId: announcementId,
       targetType: "creatorAnnouncement",
       message: "Deleted creator announcement",
+      metadata: { regionId: region.id, regionName: region.name },
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

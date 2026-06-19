@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
@@ -1117,7 +1118,7 @@ export default function CreatorUploadStudioPage() {
                         : "border-[var(--portal-border)] bg-white text-slate-700 hover:border-[var(--portal-purple)] hover:text-[var(--portal-purple)]"
                     }`}
                   >
-                    <span>{category.label}</span>
+                    <CategoryLabelWithLogo id={category.id} label={category.label} />
                   </button>
                 );
               })
@@ -1131,7 +1132,11 @@ export default function CreatorUploadStudioPage() {
                   {customizationCopy.selectedCategory}
                 </p>
                 <h4 className="mt-2 text-lg font-bold text-slate-950">
-                  {activeCategory?.label ?? customizationCopy.selectCategory}
+                  {activeCategory ? (
+                    <CategoryLabelWithLogo id={activeCategory.id} label={activeCategory.label} />
+                  ) : (
+                    customizationCopy.selectCategory
+                  )}
                 </h4>
                 {editingPoster ? (
                   <div className="mt-3 space-y-2 text-sm text-slate-600">
@@ -1341,7 +1346,10 @@ export default function CreatorUploadStudioPage() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h4 className="text-lg font-bold text-slate-950">
-                              {poster.categoryLabel || poster.categoryId}
+                              <CategoryLabelWithLogo
+                                id={poster.categoryId}
+                                label={poster.categoryLabel || poster.categoryId}
+                              />
                             </h4>
                             <p className="mt-1 text-sm text-slate-500">{formatDate(poster.createdAt)}</p>
                           </div>

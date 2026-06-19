@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
@@ -91,8 +92,7 @@ export function CreatorMyUploadsBoard() {
     reason: isTelugu ? "రీజన్" : "Reason",
     performance: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
     rank: isTelugu ? "ర్యాంక్" : "Rank",
-    shares: isTelugu ? "షేర్స్" : "Shares",
-    downloads: isTelugu ? "డౌన్‌లోడ్స్" : "Downloads",
+    engagement: isTelugu ? "షేర్/డౌన్‌లోడ్" : "Share/Download",
   };
 
   const loadData = useCallback(async () => {
@@ -228,7 +228,10 @@ export function CreatorMyUploadsBoard() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-lg font-bold text-slate-950">
-                          {poster.categoryLabel || poster.categoryId}
+                          <CategoryLabelWithLogo
+                            id={poster.categoryId}
+                            label={poster.categoryLabel || poster.categoryId}
+                          />
                         </h4>
                         <p className="mt-1 text-sm text-slate-500">
                           {copy.uploadedAt}: {formatDate(poster.createdAt)}
@@ -253,8 +256,7 @@ export function CreatorMyUploadsBoard() {
                       <div className="mt-4 grid gap-3 sm:grid-cols-4">
                         <StatCard label={copy.performance} value={`${performance.performancePercent.toFixed(1)}%`} />
                         <StatCard label={copy.rank} value={`#${performance.rank}`} />
-                        <StatCard label={copy.shares} value={String(performance.shares)} />
-                        <StatCard label={copy.downloads} value={String(performance.downloads)} />
+                        <StatCard label={copy.engagement} value={String(performance.shares + performance.downloads)} />
                       </div>
                     ) : null}
                   </div>

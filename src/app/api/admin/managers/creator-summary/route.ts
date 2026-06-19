@@ -4,7 +4,6 @@ import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
-import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 import { loadActorAllowedRegionIds, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 interface RawManagerDoc {
@@ -40,12 +39,9 @@ interface RawCreatorDoc {
 function overlapsAllowedRegions(
   assignedRegionIdsInput: unknown,
   allowedRegionIds: string[],
-  actorHasAllRegions: boolean,
 ) {
   const assignedRegionIds = sanitizeDashboardRegionIds(assignedRegionIdsInput);
-  return assignedRegionIds.length === 0
-    ? actorHasAllRegions
-    : assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId));
+  return assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId));
 }
 
 export async function GET(req: NextRequest) {
@@ -55,7 +51,6 @@ export async function GET(req: NextRequest) {
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const status = (url.searchParams.get("status") ?? "all").trim();
     const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
-    const actorHasAllRegions = actorAllowedRegionIds.length === DASHBOARD_REGIONS.length;
 
     const [primaryRoleSnapshot, multiRoleSnapshot, creatorSnapshot, manualCategories] = await Promise.all([
       adminDb.collection("users").where("role", "==", "manager").get(),
@@ -89,7 +84,7 @@ export async function GET(req: NextRequest) {
 
     for (const doc of creatorSnapshot.docs) {
       const item = doc.data() as RawCreatorDoc;
-      if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds, actorHasAllRegions)) {
+      if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds)) {
         continue;
       }
       const managerUid = String(item.managerUid ?? item.assignedByUid ?? "").trim();
@@ -138,7 +133,7 @@ export async function GET(req: NextRequest) {
         if (status !== "all" && normalizedStatus !== status) {
           return false;
         }
-        if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds, actorHasAllRegions)) {
+        if (!overlapsAllowedRegions(item.assignedRegionIds, actorAllowedRegionIds)) {
           return false;
         }
 

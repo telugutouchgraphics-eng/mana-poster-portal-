@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
@@ -587,69 +588,81 @@ export function CreatorAccessTable({
   }
 
   return (
-    <section className="px-1 py-2">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-      <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+    <section className="space-y-5 px-1 py-2">
+      <div className="portal-control-panel rounded-[28px] p-4 sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+              Creator Operations
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">{title}</h2>
+            <p className="mt-1 text-sm font-medium text-slate-600">{subtitle}</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">
+            {rows.length} creators
+          </span>
+        </div>
 
-      <div className={`mt-5 grid gap-3 ${isAdminViewer ? "md:grid-cols-[minmax(0,1fr)_180px_180px_180px_160px]" : "md:grid-cols-[minmax(0,1fr)_220px_160px]"}`}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, ID, email"
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        >
-          <option value="all">All statuses</option>
-          <option value="pending_invite">Pending invite</option>
-          <option value="active">Active</option>
-          <option value="blocked">Blocked</option>
-        </select>
-        {isAdminViewer ? (
+        <div className={`mt-5 grid gap-3 ${isAdminViewer ? "md:grid-cols-[minmax(0,1fr)_180px_180px_180px_160px]" : "md:grid-cols-[minmax(0,1fr)_220px_160px]"}`}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, ID, email"
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+          />
           <select
-            value={bankStatus}
-            onChange={(e) => setBankStatus(e.target.value)}
-            className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
           >
-            <option value="all">All bank</option>
-            <option value="not_submitted">Bank not submitted</option>
-            <option value="pending_review">Bank pending</option>
-            <option value="approved">Bank approved</option>
-            <option value="changes_requested">Changes requested</option>
-            <option value="rejected">Bank rejected</option>
+            <option value="all">All statuses</option>
+            <option value="pending_invite">Pending invite</option>
+            <option value="active">Active</option>
+            <option value="blocked">Blocked</option>
           </select>
-        ) : null}
-        {isAdminViewer ? (
-          <select
-            value={payoutStatus}
-            onChange={(e) => setPayoutStatus(e.target.value)}
-            className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+          {isAdminViewer ? (
+            <select
+              value={bankStatus}
+              onChange={(e) => setBankStatus(e.target.value)}
+              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+            >
+              <option value="all">All bank</option>
+              <option value="not_submitted">Bank not submitted</option>
+              <option value="pending_review">Bank pending</option>
+              <option value="approved">Bank approved</option>
+              <option value="changes_requested">Changes requested</option>
+              <option value="rejected">Bank rejected</option>
+            </select>
+          ) : null}
+          {isAdminViewer ? (
+            <select
+              value={payoutStatus}
+              onChange={(e) => setPayoutStatus(e.target.value)}
+              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+            >
+              <option value="all">All payouts</option>
+              <option value="none">No payout</option>
+              <option value="approved_for_payout">Queued</option>
+              <option value="on_hold">On hold</option>
+              <option value="paid">Paid</option>
+            </select>
+          ) : null}
+          <button
+            onClick={() => void loadCreators()}
+            className="rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5"
           >
-            <option value="all">All payouts</option>
-            <option value="none">No payout</option>
-            <option value="approved_for_payout">Queued</option>
-            <option value="on_hold">On hold</option>
-            <option value="paid">Paid</option>
-          </select>
-        ) : null}
-        <button
-          onClick={() => void loadCreators()}
-          className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
-        >
-          Refresh
-        </button>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
           {error}
         </p>
       ) : null}
 
-        <div className="mt-4 space-y-3 lg:hidden">
+        <div className="space-y-3 lg:hidden">
           {loading ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
               Loading creators...
@@ -662,7 +675,7 @@ export function CreatorAccessTable({
             rows.map((row) => (
               <div
                 key={`mobile-${row.creatorPublicId}`}
-                className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="portal-mobile-card rounded-3xl p-4"
               >
                 <button
                   type="button"
@@ -679,6 +692,17 @@ export function CreatorAccessTable({
                     {expandedRows[row.creatorPublicId] ? "Close" : "Open"}
                   </span>
                 </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className={`portal-status-pill ${row.status === "active" ? "bg-emerald-100 text-emerald-700" : row.status === "blocked" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
+                    {row.status}
+                  </span>
+                  <span className="portal-status-pill bg-sky-100 text-sky-700">
+                    {row.totalUploads ?? 0} uploads
+                  </span>
+                  <span className="portal-status-pill bg-violet-100 text-violet-700">
+                    {(selectedMap[row.creatorPublicId] ?? []).length} categories
+                  </span>
+                </div>
 
                 {expandedRows[row.creatorPublicId] ? (
                   <>
@@ -799,9 +823,9 @@ export function CreatorAccessTable({
           )}
         </div>
 
-        <div className="mt-4 hidden overflow-x-auto lg:block">
+        <div className="portal-data-table hidden overflow-x-auto lg:block">
           <table className="min-w-[1280px] w-full text-sm">
-          <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
             <tr>
               <th className="px-4 py-3">Creator</th>
               <th className="px-4 py-3">Contact</th>
@@ -1263,7 +1287,7 @@ export function CreatorAccessTable({
                           }`}
                           title={category.label}
                         >
-                          {category.label}
+                          <CategoryLabelWithLogo id={category.id} label={category.label} />
                         </span>
                         {category.eventDateLabel ? (
                           <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs text-slate-500">

@@ -5,6 +5,7 @@ import {
   CSV_FIXED_DYNAMIC_EVENT_CATEGORIES,
   CSV_LUNAR_PLACEHOLDER_CATEGORIES,
 } from "@/lib/server/dynamic-event-catalog";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 import { RESOLVED_LUNAR_EVENT_DATES } from "@/lib/server/dynamic-lunar-event-dates";
 
 type ScheduleItem = {
@@ -186,7 +187,7 @@ export function EventDatesConsole() {
                     key={item.id}
                     className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700"
                   >
-                    {item.label}
+                    {categoryLabelWithIcon(item.id, item.label)}
                   </span>
                 ))
               )}
@@ -232,7 +233,9 @@ export function EventDatesConsole() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-lg font-bold text-slate-950">{item.label}</p>
+                    <p className="text-lg font-bold text-slate-950">
+                      {categoryLabelWithIcon(item.id, item.label)}
+                    </p>
                     <p className="mt-1 text-sm text-slate-600">{formatRange(item)}</p>
                     <p className="mt-2 text-xs text-slate-500">
                       {item.source === "lunar" ? "Variable-date / yearly update" : "Fixed-date event"}

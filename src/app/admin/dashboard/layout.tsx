@@ -47,13 +47,13 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     },
     {
       href: "/admin/dashboard/app-posters",
-      label: t("admin.nav.appPosters", lang),
-      shortLabel: t("admin.nav.posters", lang),
+      label: isTelugu ? "షెడ్యూల్డ్ యాప్ అప్లోడ్" : "Scheduled App Upload",
+      shortLabel: isTelugu ? "షెడ్యూల్డ్" : "Scheduled",
     },
     {
       href: "/admin/dashboard/upload-posters",
-      label: isTelugu ? "పోస్టర్స్ అప్లోడ్" : "Upload Posters",
-      shortLabel: isTelugu ? "అప్లోడ్" : "Upload",
+      label: isTelugu ? "ఇన్‌స్టంట్ యాప్ అప్లోడ్" : "Instant App Upload",
+      shortLabel: isTelugu ? "ఇన్‌స్టంట్" : "Instant",
     },
     {
       href: "/admin/dashboard/competitions",

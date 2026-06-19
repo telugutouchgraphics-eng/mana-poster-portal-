@@ -22,8 +22,8 @@ export function DashboardTabSidebar({
 }: DashboardTabSidebarProps) {
   return (
     <aside className="min-w-0 lg:sticky lg:top-6 lg:h-fit">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-600">
+      <div className="rounded-[24px] border border-white/80 bg-white/95 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] backdrop-blur">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-950">
           {title}
         </p>
         <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
@@ -35,10 +35,10 @@ export function DashboardTabSidebar({
               <button
                 key={tab.id}
                 onClick={() => onChangeTab(tab.id)}
-                className={`min-h-11 min-w-max rounded-xl border px-3 py-2 text-left text-sm font-semibold transition lg:w-full ${
+                className={`min-h-11 min-w-max rounded-2xl border px-3 py-2 text-left text-sm font-bold transition lg:w-full ${
                   active
-                    ? "border-orange-300 bg-orange-50 text-orange-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    ? "border-slate-950 bg-slate-950 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:text-slate-950"
                 }`}
               >
                 {tab.label}

@@ -2,6 +2,7 @@ import type {
   DashboardRegion,
   DashboardRegionLanguage,
 } from "@/lib/dashboard-regions";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 
 type CategoryLike = { id: string; label: string };
 
@@ -248,7 +249,7 @@ export function localizeCategoryLabel(
 ): string {
   void CATEGORY_LABELS[category.id];
   void regionOrId;
-  return category.label;
+  return categoryLabelWithIcon(category.id, category.label);
 }
 
 export function localizeCategoryList<T extends CategoryLike>(

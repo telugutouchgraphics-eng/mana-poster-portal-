@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/firebase/admin";
+import { categoryLabelWithIcon } from "@/lib/category-display";
 import { getIstDayKey } from "@/lib/server/ist-schedule";
 
 export interface DailyPosterMetric {
@@ -11,6 +12,22 @@ export interface DailyPosterMetric {
   dateKey: string;
   shares: number;
   downloads: number;
+  performancePercent: number;
+}
+
+export interface PerformanceTableRow {
+  creatorPublicId: string;
+  creatorName: string;
+  posterId: string;
+  posterTitle: string;
+  categoryId: string;
+  categoryLabel: string;
+  dateKey: string;
+  shares: number;
+  downloads: number;
+  totalEngagement: number;
+  sharePercent: number;
+  downloadPercent: number;
   performancePercent: number;
 }
 
@@ -140,9 +157,10 @@ export async function loadDailyPosterMetrics(
         categoryId: String(
           data.categoryId ?? posterMeta?.categoryId ?? "",
         ).trim(),
-        categoryLabel: String(
-          data.categoryLabel ?? posterMeta?.categoryLabel ?? "",
-        ).trim(),
+        categoryLabel: categoryLabelWithIcon(
+          String(data.categoryId ?? posterMeta?.categoryId ?? "").trim(),
+          String(data.categoryLabel ?? posterMeta?.categoryLabel ?? "").trim(),
+        ),
         dateKey,
         shares,
         downloads,
@@ -169,7 +187,10 @@ export async function loadActivePosterPerformanceMetrics(
       regionId: String(doc.data().regionId ?? "").trim(),
       posterTitle: String(doc.data().title ?? "Poster").trim(),
       categoryId: String(doc.data().categoryId ?? "").trim(),
-      categoryLabel: String(doc.data().categoryLabel ?? "").trim(),
+      categoryLabel: categoryLabelWithIcon(
+        String(doc.data().categoryId ?? "").trim(),
+        String(doc.data().categoryLabel ?? "").trim(),
+      ),
       createdAt: readNumber(doc.data().createdAt),
       publishAt: readNumber(doc.data().publishAt),
       performanceWindowEndAt: readNumber(doc.data().performanceWindowEndAt),
@@ -361,4 +382,83 @@ export function buildPerformanceSummary(days: CalendarDayMetric[]) {
     posterCount,
     performancePercent: Number(performancePercent.toFixed(1)),
   };
+}
+
+function toPercent(value: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  return Number(((value / total) * 100).toFixed(1));
+}
+
+function metricToTableRow(
+  metric: DailyPosterMetric,
+  creatorName: string,
+): PerformanceTableRow {
+  const totalEngagement = metric.shares + metric.downloads;
+  return {
+    creatorPublicId: metric.creatorPublicId,
+    creatorName,
+    posterId: metric.posterId,
+    posterTitle: metric.posterTitle,
+    categoryId: metric.categoryId,
+    categoryLabel: metric.categoryLabel,
+    dateKey: metric.dateKey,
+    shares: metric.shares,
+    downloads: metric.downloads,
+    totalEngagement,
+    sharePercent: toPercent(metric.shares, totalEngagement),
+    downloadPercent: toPercent(metric.downloads, totalEngagement),
+    performancePercent: Number(metric.performancePercent.toFixed(1)),
+  };
+}
+
+export function buildMonthlyPerformanceRows(
+  metrics: DailyPosterMetric[],
+  creatorName: string,
+  year: number,
+  month: number,
+): PerformanceTableRow[] {
+  const monthPrefix = `${year}-${String(month).padStart(2, "0")}-`;
+  return metrics
+    .filter((metric) => metric.dateKey.startsWith(monthPrefix))
+    .map((metric) => metricToTableRow(metric, creatorName))
+    .sort((a, b) => {
+      if (b.dateKey !== a.dateKey) {
+        return b.dateKey.localeCompare(a.dateKey);
+      }
+      if (b.totalEngagement !== a.totalEngagement) {
+        return b.totalEngagement - a.totalEngagement;
+      }
+      if (b.performancePercent !== a.performancePercent) {
+        return b.performancePercent - a.performancePercent;
+      }
+      return a.posterTitle.localeCompare(b.posterTitle);
+    });
+}
+
+export function buildRecentPerformanceRows(
+  metrics: DailyPosterMetric[],
+  creatorName: string,
+  now = Date.now(),
+  dayCount = 7,
+): PerformanceTableRow[] {
+  const earliestDayStart = getIstDayKey(
+    now - (Math.max(1, dayCount) - 1) * 24 * 60 * 60 * 1000,
+  );
+  return metrics
+    .filter((metric) => metric.dateKey >= earliestDayStart)
+    .map((metric) => metricToTableRow(metric, creatorName))
+    .sort((a, b) => {
+      if (b.dateKey !== a.dateKey) {
+        return b.dateKey.localeCompare(a.dateKey);
+      }
+      if (b.totalEngagement !== a.totalEngagement) {
+        return b.totalEngagement - a.totalEngagement;
+      }
+      if (b.performancePercent !== a.performancePercent) {
+        return b.performancePercent - a.performancePercent;
+      }
+      return a.posterTitle.localeCompare(b.posterTitle);
+    });
 }

@@ -133,34 +133,44 @@ export function ManagerCreatorsTab() {
   }
 
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">{copy.title}</h2>
-        <p className="mt-1 text-sm text-slate-600">{copy.subtitle}</p>
-      </div>
+    <section className="space-y-5">
+      <div className="portal-control-panel rounded-[28px] p-4 sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+              Team Mapping
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">{copy.title}</h2>
+            <p className="mt-1 text-sm font-medium text-slate-600">{copy.subtitle}</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">
+            {rows.length} managers
+          </span>
+        </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={copy.search}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        />
-        <select
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        >
-          <option value="all">{copy.allStatuses}</option>
-          <option value="active">{copy.active}</option>
-          <option value="inactive">{copy.inactive}</option>
-        </select>
-        <button
-          onClick={() => void loadSummary()}
-          className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
-        >
-          {copy.refresh}
-        </button>
+        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={copy.search}
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+          />
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+          >
+            <option value="all">{copy.allStatuses}</option>
+            <option value="active">{copy.active}</option>
+            <option value="inactive">{copy.inactive}</option>
+          </select>
+          <button
+            onClick={() => void loadSummary()}
+            className="rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5"
+          >
+            {copy.refresh}
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -180,7 +190,7 @@ export function ManagerCreatorsTab() {
           </div>
         ) : (
           rows.map((row) => (
-            <div key={row.uid} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={row.uid} className="portal-mobile-card rounded-3xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p data-no-auto-translate="true" className="truncate text-base font-semibold text-slate-900">
@@ -250,9 +260,9 @@ export function ManagerCreatorsTab() {
         )}
       </div>
 
-      <div className="hidden overflow-x-auto lg:block">
+      <div className="portal-data-table hidden overflow-x-auto lg:block">
         <table className="min-w-[1180px] w-full text-sm">
-          <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
             <tr>
               <th className="px-4 py-3">{copy.manager}</th>
               <th className="px-4 py-3">{copy.contact}</th>

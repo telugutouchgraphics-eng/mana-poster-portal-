@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import {
   photoShapeAspectRatio,
@@ -52,6 +53,9 @@ interface PosterRow {
     createdAt: number;
   }>;
   saleCount: number;
+  engagementCount: number;
+  shareCount: number;
+  downloadCount: number;
   grossAmount: number;
   creatorEarnings: number;
   platformEarnings: number;
@@ -384,7 +388,11 @@ export function PosterReviewTable() {
                         Creator: {row.creatorName} ({row.creatorPublicId})
                       </p>
                       <p className="text-xs text-slate-600">
-                        Category: {row.categoryLabel || row.categoryId}
+                        Category:{" "}
+                        <CategoryLabelWithLogo
+                          id={row.categoryId}
+                          label={row.categoryLabel || row.categoryId}
+                        />
                       </p>
                       <p className="text-xs text-slate-600">
                         Uploaded: {formatDate(row.createdAt)}
@@ -400,6 +408,9 @@ export function PosterReviewTable() {
                       <p className="text-xs text-slate-600">
                         Sales {row.saleCount} | Gross Rs.{row.grossAmount} | Creator Rs.
                         {row.creatorEarnings} | Platform Rs.{row.platformEarnings}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-700">
+                        Share/Download Count: {row.engagementCount}
                       </p>
                       <p className="text-xs text-slate-600">
                         Duplicate check:{" "}

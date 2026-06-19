@@ -3,19 +3,21 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { loadWebsitePosters, uploadAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const url = new URL(req.url);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
     const pageSize = Math.min(
       50,
       Math.max(1, Number(url.searchParams.get("pageSize") ?? 10) || 10),
     );
-    const posters = await loadWebsitePosters();
+    const posters = await loadWebsitePosters(region.id);
     const total = posters.length;
     const start = (page - 1) * pageSize;
     const rows = posters.slice(start, start + pageSize);
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
     const actor = await requireRole(req, ["admin"]);
     const formData = await req.formData();
     const category = String(formData.get("category") ?? "").trim();
+    const region = await assertActorCanAccessRegion(actor, String(formData.get("regionId") ?? "").trim());
     const active = String(formData.get("active") ?? "true").trim() !== "false";
     const sortOrder = Number(formData.get("sortOrder") ?? 100);
     const image = formData.get("image");
@@ -65,6 +68,8 @@ export async function POST(req: NextRequest) {
     const ref = adminDb.collection("websitePosters").doc();
     await ref.set({
       id: ref.id,
+      regionId: region.id,
+      regionName: region.name,
       category,
       imageUrl: uploaded.imageUrl,
       imagePath: uploaded.filePath,
@@ -82,6 +87,7 @@ export async function POST(req: NextRequest) {
       targetId: ref.id,
       targetType: "websitePoster",
       message: `Created website poster category: ${category}`,
+      metadata: { regionId: region.id, regionName: region.name },
     });
 
     return NextResponse.json({ ok: true });

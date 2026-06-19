@@ -320,40 +320,52 @@ export function ManagerTable() {
   }
 
   return (
-    <section className="px-1 py-2">
-      <h2 className="text-lg font-semibold text-slate-900">{copy.title}</h2>
+    <section className="space-y-5 px-1 py-2">
+      <div className="portal-control-panel rounded-[28px] p-4 sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+              Access Control
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">{copy.title}</h2>
+          </div>
+          <span className="inline-flex w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">
+            {rows.length} total
+          </span>
+        </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={copy.search}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-        >
-          <option value="all">{copy.allStatuses}</option>
-          <option value="active">{copy.active}</option>
-          <option value="inactive">{copy.inactive}</option>
-        </select>
-        <button
-          onClick={() => void loadManagers()}
-          className="rounded-2xl bg-[var(--portal-purple)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)]"
-        >
-          {copy.refresh}
-        </button>
+        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px]">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={copy.search}
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+          />
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+          >
+            <option value="all">{copy.allStatuses}</option>
+            <option value="active">{copy.active}</option>
+            <option value="inactive">{copy.inactive}</option>
+          </select>
+          <button
+            onClick={() => void loadManagers()}
+            className="rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5"
+          >
+            {copy.refresh}
+          </button>
+        </div>
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
           {error}
         </p>
       ) : null}
 
-      <div className="mt-4 space-y-3 lg:hidden">
+      <div className="space-y-3 lg:hidden">
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
             {copy.loading}
@@ -366,7 +378,7 @@ export function ManagerTable() {
           rows.map((row) => (
             <div
               key={`mobile-${row.uid}`}
-              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="portal-mobile-card rounded-3xl p-4"
             >
               <button
                 type="button"
@@ -381,10 +393,18 @@ export function ManagerTable() {
                     ID: {displayManagerId(row)}
                   </p>
                 </div>
-                <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-xs font-semibold">
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-slate-700">
                   {expandedRows[row.uid] ? copy.close : copy.open}
                 </span>
               </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className={`portal-status-pill ${row.managerStatus === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                  {row.managerStatus}
+                </span>
+                <span className="portal-status-pill bg-sky-100 text-sky-700">
+                  {(row.assignedRegionIds ?? []).length} states
+                </span>
+              </div>
               {expandedRows[row.uid] ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
                   <p data-no-auto-translate="true" className="break-all">
@@ -474,9 +494,9 @@ export function ManagerTable() {
         )}
       </div>
 
-      <div className="mt-4 hidden overflow-x-auto lg:block">
+      <div className="portal-data-table hidden overflow-x-auto lg:block">
         <table className="min-w-[920px] w-full text-sm">
-          <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
             <tr>
               <th className="px-4 py-3">{copy.manager}</th>
               <th className="px-4 py-3">{copy.contact}</th>

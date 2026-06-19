@@ -192,6 +192,12 @@ function mapPoster(id: string, data: Record<string, unknown>) {
     videoPath: String(data.videoPath ?? ""),
     personalizationConfig: data.personalizationConfig ?? null,
     status: String(data.status ?? ""),
+    engagementCount: Number(
+      data.engagementCount ??
+        Number(data.shareCount ?? 0) + Number(data.downloadCount ?? 0),
+    ),
+    shareCount: Number(data.shareCount ?? 0),
+    downloadCount: Number(data.downloadCount ?? 0),
     createdBySurface: String(data.createdBySurface ?? ""),
     storageFolderKey: String(data.storageFolderKey ?? ""),
     createdAt: Number(data.createdAt ?? 0),
@@ -201,7 +207,7 @@ function mapPoster(id: string, data: Record<string, unknown>) {
 }
 
 async function buildAdminAppPosterCategories(regionId?: string | null) {
-  const visibleCategories = getVisibleAssignableCategories(new Date(), 2, 7, 2).filter(
+  const visibleCategories = getVisibleAssignableCategories(new Date(), 2, 7, 2, regionId).filter(
     (item) => item.id !== "all",
   );
   const politicalCategories = politicalPartyCategoriesForRegion(regionId);
@@ -252,6 +258,7 @@ async function resolveAdminPosterSchedule(
     2,
     7,
     2,
+    regionId,
   );
   if (!dynamicSchedule) {
     const item = await getManualEventCategoryById(categoryId, regionId);
@@ -524,6 +531,9 @@ export async function POST(req: NextRequest) {
       personalizationConfig,
       creatorIdLabel: "ADMIN",
       grossAmount: 0,
+      shareCount: 0,
+      downloadCount: 0,
+      engagementCount: 0,
       creatorEarnings: 0,
       platformEarnings: 0,
       payoutStatus: "not_applicable",

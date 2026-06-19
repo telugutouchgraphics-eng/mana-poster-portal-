@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 
@@ -27,6 +28,22 @@ interface CalendarMetric {
   performancePercent: number;
   posterCount: number;
   posters: PosterMetric[];
+}
+
+interface PerformanceTableRow {
+  creatorPublicId: string;
+  creatorName: string;
+  posterId: string;
+  posterTitle: string;
+  categoryId: string;
+  categoryLabel: string;
+  dateKey: string;
+  shares: number;
+  downloads: number;
+  totalEngagement: number;
+  sharePercent: number;
+  downloadPercent: number;
+  performancePercent: number;
 }
 
 interface SummaryMetric {
@@ -58,6 +75,8 @@ interface PerformanceResponse {
   };
   summary?: SummaryMetric;
   calendar?: CalendarMetric[];
+  monthRows?: PerformanceTableRow[];
+  last7DaysRows?: PerformanceTableRow[];
   recentPosters?: Array<{
     creatorPublicId: string;
     posterId: string;
@@ -92,20 +111,22 @@ function monthLabel(year: number, month: number): string {
   });
 }
 
-function toneClass(value: number): string {
-  if (value >= 70) {
-    return "border-emerald-200 bg-emerald-50";
+function formatPerformanceDate(dateKey: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) {
+    return dateKey || "-";
   }
-  if (value >= 35) {
-    return "border-amber-200 bg-amber-50";
-  }
-  if (value > 0) {
-    return "border-blue-200 bg-blue-50";
-  }
-  return "border-[var(--portal-border)] bg-white";
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).toLocaleDateString(
+    "en-IN",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    },
+  );
 }
-
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export function PerformanceDashboard({
   mode,
@@ -119,7 +140,6 @@ export function PerformanceDashboard({
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const [selectedCreatorId, setSelectedCreatorId] = useState("");
   const [data, setData] = useState<PerformanceResponse | null>(null);
-  const [selectedDayKey, setSelectedDayKey] = useState("");
   const [creatorQuery, setCreatorQuery] = useState("");
   const [performanceExpanded, setPerformanceExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -162,13 +182,6 @@ export function PerformanceDashboard({
         setSelectedCreatorId(next.selectedCreatorId ?? "");
         setPerformanceExpanded(Boolean(next.selectedCreatorId));
       }
-      const firstActiveDay = (next.calendar ?? []).find((item) => item.posterCount > 0);
-      setSelectedDayKey((prev) => {
-        if (prev && (next.calendar ?? []).some((item) => item.dateKey === prev)) {
-          return prev;
-        }
-        return firstActiveDay?.dateKey ?? "";
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load performance.");
     } finally {
@@ -185,7 +198,6 @@ export function PerformanceDashboard({
 
   const calendar = useMemo(() => data?.calendar ?? [], [data?.calendar]);
   const summary = data?.summary;
-  const activeDay = calendar.find((item) => item.dateKey === selectedDayKey) ?? null;
   const creators = useMemo(() => data?.creators ?? [], [data?.creators]);
   const filteredCreators = useMemo(() => {
     const query = creatorQuery.trim().toLowerCase();
@@ -201,28 +213,29 @@ export function PerformanceDashboard({
   }, [creatorQuery, creators]);
   const selectedCreator =
     creators.find((item) => item.creatorPublicId === selectedCreatorId) ?? null;
+  const monthRows = data?.monthRows ?? [];
+  const last7DaysRows = data?.last7DaysRows ?? [];
   const recentPosters = data?.recentPosters ?? [];
   const recentSummary = data?.recentSummary;
-  const calendarMap = useMemo(
-    () => new Map(calendar.map((day) => [day.day, day])),
-    [calendar],
-  );
-  const calendarWeeks = useMemo(() => {
-    const totalDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const firstDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
-    const cells: Array<number | null> = Array.from({ length: firstDay }, () => null);
-    for (let day = 1; day <= totalDays; day += 1) {
-      cells.push(day);
+
+  function openCreatorPerformance(creatorPublicId: string) {
+    setSelectedCreatorId(creatorPublicId);
+    setPerformanceExpanded(true);
+  }
+
+  function openFirstMatchingCreator() {
+    const query = creatorQuery.trim().toLowerCase();
+    const exactMatch = filteredCreators.find((creator) =>
+      [creator.name, creator.email, creator.creatorPublicId].some(
+        (value) => value.trim().toLowerCase() === query,
+      ),
+    );
+    const target = exactMatch ?? filteredCreators[0];
+    if (!target) {
+      return;
     }
-    while (cells.length % 7 !== 0) {
-      cells.push(null);
-    }
-    const weeks: Array<Array<number | null>> = [];
-    for (let index = 0; index < cells.length; index += 7) {
-      weeks.push(cells.slice(index, index + 7));
-    }
-    return weeks;
-  }, [month, year]);
+    openCreatorPerformance(target.creatorPublicId);
+  }
 
   return (
     <section className="space-y-6">
@@ -297,7 +310,7 @@ export function PerformanceDashboard({
           </p>
         ) : null}
 
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
           <MetricCard
             label={mode === "manager" ? "Month" : "24 Hours"}
             value={
@@ -308,8 +321,14 @@ export function PerformanceDashboard({
                 : `${recentSummary?.posterCount ?? 0} posters`
             }
           />
-          <MetricCard label="Shares" value={String(mode === "manager" ? summary?.shares ?? 0 : recentSummary?.shares ?? 0)} />
-          <MetricCard label="Downloads" value={String(mode === "manager" ? summary?.downloads ?? 0 : recentSummary?.downloads ?? 0)} />
+          <MetricCard
+            label="Share/Download"
+            value={String(
+              mode === "manager"
+                ? (summary?.shares ?? 0) + (summary?.downloads ?? 0)
+                : (recentSummary?.shares ?? 0) + (recentSummary?.downloads ?? 0),
+            )}
+          />
           <MetricCard
             label="Performance"
             value={`${mode === "manager" ? summary?.performancePercent ?? 0 : recentSummary?.performancePercent ?? 0}%`}
@@ -327,12 +346,27 @@ export function PerformanceDashboard({
                   Search by creator name, email, or creator ID, then open the creator.
                 </p>
               </div>
-              <input
-                value={creatorQuery}
-                onChange={(event) => setCreatorQuery(event.target.value)}
-                placeholder="Search creator"
-                className="w-full max-w-sm rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-              />
+              <form
+                className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  openFirstMatchingCreator();
+                }}
+              >
+                <input
+                  value={creatorQuery}
+                  onChange={(event) => setCreatorQuery(event.target.value)}
+                  placeholder="Enter creator name / email / ID"
+                  className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={filteredCreators.length === 0}
+                  className="rounded-2xl bg-[var(--portal-purple)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-purple-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Show Table
+                </button>
+              </form>
             </div>
 
             <div className="mt-5 space-y-3 lg:hidden">
@@ -347,10 +381,7 @@ export function PerformanceDashboard({
                     <button
                       key={`mobile-${creator.creatorPublicId}`}
                       type="button"
-                      onClick={() => {
-                        setSelectedCreatorId(creator.creatorPublicId);
-                        setPerformanceExpanded(true);
-                      }}
+                      onClick={() => openCreatorPerformance(creator.creatorPublicId)}
                       className={`w-full rounded-3xl border p-4 text-left shadow-sm transition ${
                         active
                           ? "border-violet-300 bg-violet-50"
@@ -417,10 +448,7 @@ export function PerformanceDashboard({
                           <td className="px-4 py-3">
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedCreatorId(creator.creatorPublicId);
-                                setPerformanceExpanded(true);
-                              }}
+                              onClick={() => openCreatorPerformance(creator.creatorPublicId)}
                               className={`flex h-5 w-5 items-center justify-center rounded-md border ${
                                 active
                                   ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
@@ -434,10 +462,7 @@ export function PerformanceDashboard({
                           <td className="px-4 py-3">
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedCreatorId(creator.creatorPublicId);
-                                setPerformanceExpanded(true);
-                              }}
+                              onClick={() => openCreatorPerformance(creator.creatorPublicId)}
                               data-no-auto-translate="true"
                               className="text-left font-semibold text-slate-900 hover:text-[var(--portal-purple)]"
                             >
@@ -526,93 +551,16 @@ export function PerformanceDashboard({
 
                 {performanceExpanded ? (
                   <div className="mt-5 space-y-5">
-                    <div className="overflow-x-auto rounded-[24px] border border-[var(--portal-border)]">
-                      <table className="min-w-full border-collapse bg-white text-sm">
-                        <thead>
-                          <tr className="bg-[var(--portal-surface-soft)]">
-                            {WEEKDAY_LABELS.map((label) => (
-                              <th
-                                key={label}
-                                className="border-b border-r border-[var(--portal-border)] px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 last:border-r-0"
-                              >
-                                {label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {calendarWeeks.map((week, weekIndex) => (
-                            <tr key={`week-${weekIndex}`} className="align-top">
-                              {week.map((dayNumber, dayIndex) => {
-                                const day = dayNumber ? calendarMap.get(dayNumber) ?? null : null;
-                                const active = day ? selectedDayKey === day.dateKey : false;
-                                const hasUpload = Boolean(day && day.posterCount > 0);
-                                return (
-                                  <td
-                                    key={`cell-${weekIndex}-${dayIndex}`}
-                                    className={`h-16 w-[14.28%] border-r border-b border-[var(--portal-border)] p-0 last:border-r-0 ${
-                                      hasUpload ? toneClass(day!.performancePercent) : "bg-white"
-                                    }`}
-                                  >
-                                    {dayNumber ? (
-                                      <button
-                                        type="button"
-                                        disabled={!hasUpload}
-                                        onClick={() => day && setSelectedDayKey(day.dateKey)}
-                                        className={`flex h-full w-full flex-col items-start justify-start px-2 py-2 text-left transition ${
-                                          active ? "ring-2 ring-inset ring-[var(--portal-purple)]" : ""
-                                        } ${!hasUpload ? "cursor-default" : ""}`}
-                                      >
-                                        <span className="text-xs font-bold text-slate-900">{dayNumber}</span>
-                                        {hasUpload && day ? (
-                                          <span className="mt-1 text-[11px] text-slate-700">
-                                            {day.posterCount} posters
-                                          </span>
-                                        ) : null}
-                                      </button>
-                                    ) : (
-                                      <div className="h-full w-full bg-white" />
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        {activeDay ? `${activeDay.dateKey} Details` : "Day Details"}
-                      </h4>
-                      <div className="mt-4 space-y-3">
-                        {!activeDay || activeDay.posters.length === 0 ? (
-                          <div className="rounded-2xl bg-white px-4 py-5 text-sm text-slate-600">
-                            No performance data for the selected day.
-                          </div>
-                        ) : (
-                          activeDay.posters.map((poster) => (
-                            <div
-                              key={`${poster.dateKey}-${poster.posterId}-${poster.posterTitle}`}
-                              className="grid gap-3 rounded-2xl border border-[var(--portal-border)] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_110px_110px_130px]"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-slate-900">
-                                  {poster.posterTitle || "Poster"}
-                                </p>
-                                <p className="mt-1 text-xs text-slate-600">
-                                  {poster.categoryLabel || poster.categoryId || "Uncategorized"}
-                                </p>
-                              </div>
-                              <StatPill label="Shares" value={poster.shares} />
-                              <StatPill label="Downloads" value={poster.downloads} />
-                              <StatPill label="Performance" value={`${poster.performancePercent.toFixed(1)}%`} />
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    <PerformanceRowsTable
+                      title="Last 7 Days Performance"
+                      description="Simple latest performance table with clear performance date."
+                      rows={last7DaysRows}
+                    />
+                    <PerformanceRowsTable
+                      title={`${monthLabel(year, month)} Performance`}
+                      description="Selected month performance by date and category."
+                      rows={monthRows}
+                    />
                   </div>
                 ) : (
                   <div className="mt-5 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
@@ -643,14 +591,17 @@ export function PerformanceDashboard({
           {recentPosters.map((poster) => (
             <div
               key={`recent-${poster.posterId}`}
-              className="grid gap-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4 sm:grid-cols-[minmax(0,1fr)_120px_120px_140px]"
+              className="grid gap-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4 sm:grid-cols-[minmax(0,1fr)_140px_140px]"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">
                   {poster.posterTitle || "Poster"}
                 </p>
                 <p className="mt-1 text-xs text-slate-600">
-                  {poster.categoryLabel || poster.categoryId || "Uncategorized"}
+                  <CategoryLabelWithLogo
+                    id={poster.categoryId}
+                    label={poster.categoryLabel || poster.categoryId || "Uncategorized"}
+                  />
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   Live from: {new Date(poster.publishAt || poster.createdAt).toLocaleString("en-IN", {
@@ -659,8 +610,7 @@ export function PerformanceDashboard({
                   })}
                 </p>
               </div>
-              <StatPill label="Shares" value={poster.shares} />
-              <StatPill label="Downloads" value={poster.downloads} />
+              <StatPill label="Share/Download" value={poster.shares + poster.downloads} />
               <StatPill label="Performance" value={`${poster.performancePercent.toFixed(1)}%`} />
             </div>
           ))}
@@ -679,15 +629,14 @@ export function PerformanceDashboard({
               <thead className="bg-[var(--portal-surface-soft)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Shares</th>
-                  <th className="px-4 py-3">Downloads</th>
+                  <th className="px-4 py-3">Share/Download</th>
                   <th className="px-4 py-3">Performance</th>
                 </tr>
               </thead>
               <tbody>
                 {calendar.filter((day) => day.posterCount > 0).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
                       No previous data.
                     </td>
                   </tr>
@@ -698,8 +647,7 @@ export function PerformanceDashboard({
                     .map((day) => (
                       <tr key={`history-${day.dateKey}`} className="border-t border-slate-100">
                         <td className="px-4 py-3 font-semibold text-slate-900">{day.dateKey}</td>
-                        <td className="px-4 py-3 text-slate-700">{day.shares}</td>
-                        <td className="px-4 py-3 text-slate-700">{day.downloads}</td>
+                        <td className="px-4 py-3 text-slate-700">{day.shares + day.downloads}</td>
                         <td className="px-4 py-3 text-slate-700">{day.performancePercent.toFixed(1)}%</td>
                       </tr>
                     ))
@@ -724,6 +672,106 @@ function MetricCard({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function PerformanceRowsTable({
+  title,
+  description,
+  rows,
+}: {
+  title: string;
+  description: string;
+  rows: PerformanceTableRow[];
+}) {
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.shares += row.shares;
+      acc.downloads += row.downloads;
+      acc.total += row.totalEngagement;
+      return acc;
+    },
+    { shares: 0, downloads: 0, total: 0 },
+  );
+
+  return (
+    <div className="rounded-[24px] border border-[var(--portal-border)] bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--portal-border)] px-4 py-4">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+          <p className="mt-1 text-xs text-slate-600">{description}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-700">
+          <span className="rounded-full bg-slate-100 px-3 py-1">
+            Total: {totals.total}
+          </span>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+            Shares: {totals.shares}
+          </span>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+            Downloads: {totals.downloads}
+          </span>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[720px] bg-white text-sm">
+          <thead className="bg-[var(--portal-surface-soft)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Performance Date</th>
+              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3 text-right">Shares</th>
+              <th className="px-4 py-3 text-right">Downloads</th>
+              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3 text-right">Performance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  No performance data found.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr
+                  key={`${title}-${row.dateKey}-${row.posterId}-${row.categoryId}`}
+                  className="border-t border-slate-100"
+                >
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
+                    {formatPerformanceDate(row.dateKey)}
+                    <p className="mt-0.5 font-mono text-[11px] font-normal text-slate-500">
+                      {row.dateKey}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    <CategoryLabelWithLogo
+                      id={row.categoryId}
+                      label={row.categoryLabel || row.categoryId || "Uncategorized"}
+                    />
+                    <p className="mt-1 max-w-[280px] truncate text-xs text-slate-500">
+                      {row.posterTitle || "Poster"}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">
+                    {row.shares}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-blue-700">
+                    {row.downloads}
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold text-slate-950">
+                    {row.totalEngagement}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-violet-700">
+                    {row.performancePercent.toFixed(1)}%
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function StatPill({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-2xl bg-white px-4 py-3">
@@ -734,4 +782,3 @@ function StatPill({ label, value }: { label: string; value: number | string }) {
     </div>
   );
 }
-

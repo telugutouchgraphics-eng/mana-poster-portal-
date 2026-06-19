@@ -7,6 +7,7 @@ export interface DynamicEventCategoryDef extends CatalogCategoryDef {
   month: number;
   day: number;
   durationDays?: number;
+  regionIds?: string[];
 }
 
 export interface FloatingDynamicEventCategoryDef extends CatalogCategoryDef {

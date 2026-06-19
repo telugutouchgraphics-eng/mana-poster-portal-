@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface AppBannerItem {
   id: string;
@@ -33,6 +34,7 @@ function bannerPositionLabel(sortOrder: number) {
 
 export default function AdminCreatorBannersPage() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [items, setItems] = useState<AppBannerItem[]>([]);
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
@@ -57,7 +59,7 @@ export default function AdminCreatorBannersPage() {
   async function load() {
     const token = await user?.getIdToken();
     if (!token) return;
-    const response = await fetch("/api/admin/banners", {
+    const response = await fetch(`/api/admin/banners?regionId=${encodeURIComponent(region.id)}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     const data = (await response.json()) as { ok: boolean; banners?: AppBannerItem[]; error?: string };
@@ -71,7 +73,7 @@ export default function AdminCreatorBannersPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   function resetForm() {
     setTitle("");
@@ -126,6 +128,7 @@ export default function AdminCreatorBannersPage() {
       body.set("ctaLabel", ctaLabel);
       body.set("ctaTarget", ctaTarget);
       body.set("sortOrder", sortOrder);
+      body.set("targetState", region.name);
       body.set("active", "true");
       body.set("placement", "creator_overview_banner");
       if (file) {
@@ -186,7 +189,7 @@ export default function AdminCreatorBannersPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">Creator Banner Upload</p>
         <h3 className="mt-2 text-2xl font-bold text-slate-950">Manage creator overview banners</h3>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Upload full-width banners for the `creator.manaposter.in` overview page.
+          Upload full-width banners for the `creator.manaposter.in` overview page in {region.name}.
         </p>
         <p className="mt-2 text-xs font-semibold text-slate-500">Recommended size: 1920 x 540 px</p>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">

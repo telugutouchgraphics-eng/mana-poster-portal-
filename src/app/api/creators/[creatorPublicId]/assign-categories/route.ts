@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const region = await assertActorCanAccessRegion(actor, payload.regionId);
     const uniqueIds = Array.from(new Set(payload.categoryIds));
     const visibleRegionCategories = [
-      ...getVisibleAssignableCategories(new Date(), 2, 7, 2),
+      ...getVisibleAssignableCategories(new Date(), 2, 7, 2, region.id),
       ...politicalPartyCategoriesForRegion(region.id),
       ...getUpcomingWeekdayAssignableCategories(),
       ...(await listVisibleManualEventCategories(Date.now(), region.id)),

@@ -3,10 +3,15 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const SETTINGS_DOC_ID = "portalSettings";
 const MAX_VIDEO_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+
+function scopedSettingsDocId(regionId: string) {
+  return `${SETTINGS_DOC_ID}_${regionId}`;
+}
 
 function sanitizeFileName(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -45,6 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const form = await req.formData();
+    const region = await assertActorCanAccessRegion(actor, String(form.get("regionId") ?? "").trim());
     const video = form.get("video");
     const target = resolveVideoTarget(form.get("type"));
     if (!(video instanceof File)) {
@@ -59,9 +65,10 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now();
     const originalName = sanitizeFileName(video.name || `subscription-video.${resolveExtension(video)}`);
-    const path = `${target.folderName}/${now}-${originalName}`;
+    const path = `${target.folderName}/${region.id}/${now}-${originalName}`;
     const buffer = Buffer.from(await video.arrayBuffer());
-    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const settingsDocId = scopedSettingsDocId(region.id);
+    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
     const existingSnap = await settingsRef.get();
     const existingVideo = existingSnap.data()?.[target.fieldName] as
       | { path?: string }
@@ -81,6 +88,8 @@ export async function POST(req: NextRequest) {
 
     await settingsRef.set(
       {
+        regionId: region.id,
+        regionName: region.name,
         [target.fieldName]: subscriptionVideo,
         updatedAt: now,
         updatedByUid: actor.uid,
@@ -95,9 +104,10 @@ export async function POST(req: NextRequest) {
       actorRole: actor.role,
       actorEmail: actor.email,
       action: target.action,
-      targetId: SETTINGS_DOC_ID,
+      targetId: settingsDocId,
       targetType: "websiteConfig",
       message: target.message,
+      metadata: { regionId: region.id, regionName: region.name },
     });
 
     return NextResponse.json({ ok: true, subscriptionVideo, type: target.fieldName });
@@ -110,8 +120,11 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
-    const target = resolveVideoTarget(new URL(req.url).searchParams.get("type"));
-    const settingsRef = adminDb.collection("websiteConfig").doc(SETTINGS_DOC_ID);
+    const url = new URL(req.url);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
+    const target = resolveVideoTarget(url.searchParams.get("type"));
+    const settingsDocId = scopedSettingsDocId(region.id);
+    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
     const settingsSnap = await settingsRef.get();
     const existingVideo = settingsSnap.data()?.[target.fieldName] as
       | { path?: string; url?: string; fileName?: string }
@@ -133,6 +146,8 @@ export async function DELETE(req: NextRequest) {
 
     await settingsRef.set(
       {
+        regionId: region.id,
+        regionName: region.name,
         [target.fieldName]: clearedVideo,
         updatedAt: now,
         updatedByUid: actor.uid,
@@ -146,9 +161,10 @@ export async function DELETE(req: NextRequest) {
       actorRole: actor.role,
       actorEmail: actor.email,
       action: target.deleteAction,
-      targetId: SETTINGS_DOC_ID,
+      targetId: settingsDocId,
       targetType: "websiteConfig",
       message: target.deleteMessage,
+      metadata: { regionId: region.id, regionName: region.name },
     });
 
     return NextResponse.json({ ok: true, subscriptionVideo: clearedVideo, type: target.fieldName });

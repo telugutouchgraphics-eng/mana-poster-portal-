@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import {
   landingSectionHref,
   landingSectionLinks,
@@ -1123,6 +1124,7 @@ function getTabSnapshot(source: LandingPageRecord | null, posters: WebsitePoster
 
 export function LandingPageEditor({ initialSection = "overview" }: { initialSection?: LandingTabId }) {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const router = useRouter();
   const [data, setData] = useState<LandingPageRecord | null>(null);
   const [savedData, setSavedData] = useState<LandingPageRecord | null>(null);
@@ -1195,7 +1197,7 @@ export function LandingPageEditor({ initialSection = "overview" }: { initialSect
       fetch("/api/admin/landing-page", {
         headers: { authorization: `Bearer ${token}` },
       }),
-      fetch("/api/admin/website-posters", {
+      fetch(`/api/admin/website-posters?regionId=${encodeURIComponent(region.id)}`, {
         headers: { authorization: `Bearer ${token}` },
       }),
     ]);
@@ -1225,7 +1227,7 @@ export function LandingPageEditor({ initialSection = "overview" }: { initialSect
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   function patch(next: LandingPageRecord) {
     setData(next);
@@ -1529,6 +1531,7 @@ export function LandingPageEditor({ initialSection = "overview" }: { initialSect
     body.set("category", category);
     body.set("sortOrder", String(sortOrder));
     body.set("active", "true");
+    body.set("regionId", region.id);
     body.set("image", file);
     const response = await fetch("/api/admin/website-posters", {
       method: "POST",

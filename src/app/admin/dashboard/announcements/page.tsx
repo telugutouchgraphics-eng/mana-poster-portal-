@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface AnnouncementItem {
   id: string;
@@ -10,10 +11,12 @@ interface AnnouncementItem {
   audience: string;
   priority: string;
   active: boolean;
+  regionName?: string;
 }
 
 export default function AdminAnnouncementsPage() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -24,7 +27,7 @@ export default function AdminAnnouncementsPage() {
   async function load() {
     const token = await user?.getIdToken();
     if (!token) return;
-    const response = await fetch("/api/admin/announcements", {
+    const response = await fetch(`/api/admin/announcements?regionId=${encodeURIComponent(region.id)}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     const data = (await response.json()) as { ok: boolean; announcements?: AnnouncementItem[]; error?: string };
@@ -38,7 +41,7 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, region.id]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,6 +54,7 @@ export default function AdminAnnouncementsPage() {
         "content-type": "application/json",
       },
       body: JSON.stringify({
+        regionId: region.id,
         title,
         message,
         priority,
@@ -100,7 +104,7 @@ export default function AdminAnnouncementsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">Creator Updates</p>
         <h3 className="mt-2 text-2xl font-bold text-slate-950">Manage creator updates</h3>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Send reminders, deadline alerts, campaign notes, and urgent updates to creators.
+          Send reminders, deadline alerts, campaign notes, and urgent updates to {region.name} creators.
         </p>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Announcement title" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
@@ -126,7 +130,7 @@ export default function AdminAnnouncementsPage() {
 
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-2xl font-bold text-slate-950">Announcement List</h3>
-        <p className="mt-2 text-sm text-slate-600">Active notices visible to creators and teams.</p>
+        <p className="mt-2 text-sm text-slate-600">Active notices visible to {region.name} creators and teams.</p>
         <div className="mt-5 space-y-4">
           {items.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">No announcements yet.</div>
@@ -136,7 +140,7 @@ export default function AdminAnnouncementsPage() {
                 <div className="min-w-0">
                   <p className="text-lg font-semibold text-slate-950">{item.title}</p>
                   <p className="mt-2 text-sm leading-7 text-slate-600">{item.message}</p>
-                  <p className="mt-2 text-xs text-slate-500">Audience: {item.audience} | Priority: {item.priority}</p>
+                  <p className="mt-2 text-xs text-slate-500">State: {item.regionName || region.name} | Audience: {item.audience} | Priority: {item.priority}</p>
                 </div>
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
                   {item.active ? "Active" : "Inactive"}

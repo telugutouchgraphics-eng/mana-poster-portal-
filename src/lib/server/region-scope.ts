@@ -44,12 +44,7 @@ export async function loadActorAllowedRegionIds(actor: RequestUser): Promise<str
     }
   }
 
-  if (actor.roles.includes("admin")) {
-    return [];
-  }
-
-  // Legacy accounts created before state scoping remain usable until explicit state assignment.
-  return ALL_REGION_IDS;
+  return [];
 }
 
 export async function assertActorCanAccessRegion(
@@ -99,5 +94,5 @@ export async function assertRecordOverlapsActorRegions(
 
 export function recordAllowsRegion(data: Record<string, unknown>, regionId: string): boolean {
   const assignedRegionIds = sanitizeDashboardRegionIds(data.assignedRegionIds);
-  return assignedRegionIds.length === 0 || assignedRegionIds.includes(regionId);
+  return assignedRegionIds.includes(regionId);
 }

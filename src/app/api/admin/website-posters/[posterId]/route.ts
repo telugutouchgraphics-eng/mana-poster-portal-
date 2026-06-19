@@ -3,9 +3,25 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_FILE_SIZE = 500 * 1024;
+
+async function loadScopedWebsitePoster(posterId: string, actor: Awaited<ReturnType<typeof requireRole>>) {
+  const ref = adminDb.collection("websitePosters").doc(posterId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error("Website poster not found.");
+  }
+  const data = snap.data() ?? {};
+  const regionId = String(data.regionId ?? "").trim();
+  if (!regionId) {
+    throw new Error("Legacy website poster is not state-scoped. Create a new state poster.");
+  }
+  const region = await assertActorCanAccessRegion(actor, regionId);
+  return { ref, snap, region };
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -14,6 +30,7 @@ export async function PATCH(
   try {
     const actor = await requireRole(req, ["admin"]);
     const { posterId } = await params;
+    const { ref, region } = await loadScopedWebsitePoster(posterId, actor);
     const contentType = req.headers.get("content-type") ?? "";
     let active = true;
     let sortOrder = 100;
@@ -70,8 +87,10 @@ export async function PATCH(
       category = typeof body.category === "string" ? body.category.trim() : "";
     }
 
-    await adminDb.collection("websitePosters").doc(posterId).set(
+    await ref.set(
       {
+        regionId: region.id,
+        regionName: region.name,
         active,
         sortOrder,
         category,
@@ -94,6 +113,7 @@ export async function PATCH(
       targetId: posterId,
       targetType: "websitePoster",
       message: "Updated website poster details",
+      metadata: { regionId: region.id, regionName: region.name },
     });
 
     return NextResponse.json({ ok: true });
@@ -110,8 +130,7 @@ export async function DELETE(
   try {
     const actor = await requireRole(req, ["admin"]);
     const { posterId } = await params;
-    const ref = adminDb.collection("websitePosters").doc(posterId);
-    const snap = await ref.get();
+    const { ref, snap, region } = await loadScopedWebsitePoster(posterId, actor);
     const imagePath =
       snap.exists && typeof snap.data()?.imagePath === "string"
         ? String(snap.data()?.imagePath)
@@ -126,6 +145,7 @@ export async function DELETE(
       targetId: posterId,
       targetType: "websitePoster",
       message: "Deleted website poster",
+      metadata: { regionId: region.id, regionName: region.name },
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

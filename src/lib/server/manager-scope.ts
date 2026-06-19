@@ -23,9 +23,20 @@ function matchesManagerScope(
 }
 
 export async function loadScopedCreatorProfiles(actor: RequestUser) {
+  const filterByActorRegions = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    return docs.filter((doc) => {
+      const creatorRegionIds = sanitizeDashboardRegionIds(doc.data()?.assignedRegionIds);
+      return (
+        creatorRegionIds.length > 0 &&
+        creatorRegionIds.some((regionId) => allowedRegionIds.includes(regionId))
+      );
+    });
+  };
+
   if (isAdmin(actor)) {
     const snapshot = await adminDb.collection("creatorProfiles").get();
-    return snapshot.docs;
+    return filterByActorRegions(snapshot.docs);
   }
 
   const [directManagerSnap, assignedBySnap] = await Promise.all([
@@ -39,7 +50,9 @@ export async function loadScopedCreatorProfiles(actor: RequestUser) {
   for (const doc of assignedBySnap.docs) {
     docs.set(doc.id, doc);
   }
-  return Array.from(docs.values()).filter((doc) => matchesManagerScope(doc.data(), actor.uid));
+  return filterByActorRegions(
+    Array.from(docs.values()).filter((doc) => matchesManagerScope(doc.data(), actor.uid)),
+  );
 }
 
 export async function loadScopedCreatorIds(actor: RequestUser): Promise<string[] | null> {

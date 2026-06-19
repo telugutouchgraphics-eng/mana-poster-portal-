@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface WebsitePosterItem {
@@ -12,6 +13,7 @@ interface WebsitePosterItem {
   active: boolean;
   sortOrder: number;
   updatedAt: number;
+  regionName?: string;
 }
 
 interface PaginationMeta {
@@ -32,6 +34,7 @@ function formatDate(epochMs?: number) {
 export default function AdminWebsitePostersPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const lang = portalLanguage(language);
   const [items, setItems] = useState<WebsitePosterItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -50,7 +53,7 @@ export default function AdminWebsitePostersPage() {
     setMessage(null);
     try {
       const response = await fetch(
-        `/api/admin/website-posters?page=${page}&pageSize=${pagination.pageSize}`,
+        `/api/admin/website-posters?page=${page}&pageSize=${pagination.pageSize}&regionId=${encodeURIComponent(region.id)}`,
         {
           headers: { authorization: `Bearer ${token}` },
         },
@@ -76,7 +79,7 @@ export default function AdminWebsitePostersPage() {
   useEffect(() => {
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang]);
+  }, [user, lang, region.id]);
 
   async function removePoster(id: string) {
     const token = await user?.getIdToken();
@@ -114,7 +117,7 @@ export default function AdminWebsitePostersPage() {
               {t("websitePosters.title", lang)}
             </h2>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              {t("websitePosters.description", lang)}
+              {t("websitePosters.description", lang)} Current State/UT: {region.name}.
             </p>
           </div>
           <button
@@ -137,6 +140,7 @@ export default function AdminWebsitePostersPage() {
               <tr>
                 <th className="px-4 py-3">{t("websitePosters.preview", lang)}</th>
                 <th className="px-4 py-3">{t("websitePosters.category", lang)}</th>
+                <th className="px-4 py-3">State/UT</th>
                 <th className="px-4 py-3">{t("websitePosters.sortOrder", lang)}</th>
                 <th className="px-4 py-3">{t("websitePosters.status", lang)}</th>
                 <th className="px-4 py-3">{t("websitePosters.updated", lang)}</th>
@@ -146,13 +150,13 @@ export default function AdminWebsitePostersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                     {t("websitePosters.loading", lang)}
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                     {t("websitePosters.empty", lang)}
                   </td>
                 </tr>
@@ -170,6 +174,7 @@ export default function AdminWebsitePostersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 font-semibold text-slate-900">{item.category}</td>
+                    <td className="px-4 py-4 text-slate-700">{item.regionName || region.name}</td>
                     <td className="px-4 py-4 text-slate-700">{item.sortOrder}</td>
                     <td className="px-4 py-4">
                       <span

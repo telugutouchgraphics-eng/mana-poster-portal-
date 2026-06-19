@@ -61,6 +61,7 @@ async function resolveCreatorPosterPublishSchedule(
     2,
     7,
     2,
+    regionId,
   );
   if (!dynamicSchedule) {
     const item = await getManualEventCategoryById(categoryId, regionId);

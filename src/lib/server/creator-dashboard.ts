@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 export interface CreatorAccessContext {
   uid: string;
@@ -17,6 +18,7 @@ async function buildContextFromProfile(
   actorUid: string,
   creatorPublicId: string,
   userData: Record<string, unknown> | undefined,
+  actor?: RequestUser,
 ): Promise<CreatorAccessContext> {
   const profileSnap = await adminDb.collection("creatorProfiles").doc(creatorPublicId).get();
   if (!profileSnap.exists) {
@@ -24,6 +26,9 @@ async function buildContextFromProfile(
   }
 
   const profile = profileSnap.data()!;
+  if (actor) {
+    await assertRecordOverlapsActorRegions(actor, profile);
+  }
   const status = String(profile.status ?? "pending_invite");
   if (status !== "active") {
     throw new Error("Creator access is currently disabled.");
@@ -54,11 +59,11 @@ async function loadLinkedCreatorContext(actor: RequestUser): Promise<CreatorAcce
     throw new Error("Creator profile is not linked.");
   }
 
-  return buildContextFromProfile(actor.uid, creatorPublicId, userData);
+  return buildContextFromProfile(actor.uid, creatorPublicId, userData, actor);
 }
 
-async function loadCreatorContextByPublicId(actorUid: string, creatorPublicId: string) {
-  return buildContextFromProfile(actorUid, creatorPublicId, undefined);
+async function loadCreatorContextByPublicId(actor: RequestUser, creatorPublicId: string) {
+  return buildContextFromProfile(actor.uid, creatorPublicId, undefined, actor);
 }
 
 /**
@@ -74,7 +79,7 @@ export async function resolveCreatorReadContext(
   const asCreator = url.searchParams.get("asCreator")?.trim() ?? "";
 
   if (actor.role === "admin" && asCreator) {
-    return loadCreatorContextByPublicId(actor.uid, asCreator);
+    return loadCreatorContextByPublicId(actor, asCreator);
   }
 
   try {

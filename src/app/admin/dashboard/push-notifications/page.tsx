@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 
 interface PushNotificationItem {
   id: string;
@@ -12,7 +13,7 @@ interface PushNotificationItem {
   bodyKey: string;
   imageUrl: string;
   route: string;
-  audience: "all_users" | "creators_only" | "area_users";
+  audience: "area_users";
   targetState?: string;
   targetDistrict?: string;
   targetCity?: string;
@@ -37,11 +38,12 @@ interface LocationInsightRow {
 
 export default function AdminPushNotificationsPage() {
   const { user } = useAuth();
+  const { region, regions } = useDashboardRegion();
   const [items, setItems] = useState<PushNotificationItem[]>([]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [audience, setAudience] = useState<"all_users" | "creators_only" | "area_users">("all_users");
-  const [targetState, setTargetState] = useState("");
+  const [audience] = useState<"area_users">("area_users");
+  const [targetState, setTargetState] = useState(region.name);
   const [targetDistrict, setTargetDistrict] = useState("");
   const [targetCity, setTargetCity] = useState("");
   const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
@@ -96,6 +98,10 @@ export default function AdminPushNotificationsPage() {
       setStatusMessage("Enter notification title and message.");
       return;
     }
+    if (audience === "area_users" && !targetState.trim()) {
+      setStatusMessage("Select State / UT for area targeting.");
+      return;
+    }
 
     setBusy(true);
     setStatusMessage(null);
@@ -103,7 +109,7 @@ export default function AdminPushNotificationsPage() {
       const formData = new FormData();
       formData.set("title", title.trim());
       formData.set("message", message.trim());
-      formData.set("route", audience === "creators_only" ? "creator_dashboard" : "home");
+      formData.set("route", "home");
       formData.set("audience", audience);
       formData.set("category", "");
       formData.set("targetState", audience === "area_users" ? targetState.trim() : "");
@@ -126,8 +132,7 @@ export default function AdminPushNotificationsPage() {
 
       setTitle("");
       setMessage("");
-      setAudience("all_users");
-      setTargetState("");
+      setTargetState(region.name);
       setTargetDistrict("");
       setTargetCity("");
       setImageFile(null);
@@ -145,7 +150,7 @@ export default function AdminPushNotificationsPage() {
   }
 
   const stateOptions = Array.from(
-    new Set(locationRows.map((row) => row.state).filter(Boolean)),
+    new Set(regions.map((region) => region.name).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b));
   const districtOptions = Array.from(
     new Set(
@@ -164,6 +169,15 @@ export default function AdminPushNotificationsPage() {
         .filter(Boolean),
     ),
   ).sort((a, b) => a.localeCompare(b));
+
+  useEffect(() => {
+    if (stateOptions.includes(targetState)) {
+      return;
+    }
+    setTargetState(region.name);
+    setTargetDistrict("");
+    setTargetCity("");
+  }, [region.name, stateOptions, targetState]);
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">
@@ -190,82 +204,65 @@ export default function AdminPushNotificationsPage() {
             </label>
             <label className="space-y-2 text-sm text-slate-700">
               <span className="font-semibold">Audience</span>
-              <select
-                value={audience}
-                onChange={(event) => {
-                  const next = event.target.value as "all_users" | "creators_only" | "area_users";
-                  setAudience(next);
-                  if (next !== "area_users") {
-                    setTargetState("");
-                    setTargetDistrict("");
-                    setTargetCity("");
-                  }
-                }}
-                className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
-              >
-                <option value="all_users">All users</option>
-                <option value="creators_only">Creators only</option>
-                <option value="area_users">Area users</option>
-              </select>
+              <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800">
+                Selected State / UT users
+              </div>
             </label>
           </div>
 
-          {audience === "area_users" ? (
-            <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
-              <p className="text-sm font-bold text-emerald-900">Area targeting</p>
-              <p className="mt-1 text-xs leading-6 text-emerald-700">
-                Sends only to users who allowed location and match selected approximate area. Exact GPS is not used.
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <label className="space-y-2 text-sm text-emerald-950">
-                  <span className="font-semibold">State</span>
-                  <select
-                    value={targetState}
-                    onChange={(event) => {
-                      setTargetState(event.target.value);
-                      setTargetDistrict("");
-                      setTargetCity("");
-                    }}
-                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
-                  >
-                    <option value="">Any state</option>
-                    {stateOptions.map((state) => (
-                      <option key={state} value={state}>{state}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm text-emerald-950">
-                  <span className="font-semibold">District</span>
-                  <select
-                    value={targetDistrict}
-                    onChange={(event) => {
-                      setTargetDistrict(event.target.value);
-                      setTargetCity("");
-                    }}
-                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
-                  >
-                    <option value="">Any district</option>
-                    {districtOptions.map((district) => (
-                      <option key={district} value={district}>{district}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm text-emerald-950">
-                  <span className="font-semibold">City</span>
-                  <select
-                    value={targetCity}
-                    onChange={(event) => setTargetCity(event.target.value)}
-                    className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
-                  >
-                    <option value="">Any city</option>
-                    {cityOptions.map((city) => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
+            <p className="text-sm font-bold text-emerald-900">Area targeting</p>
+            <p className="mt-1 text-xs leading-6 text-emerald-700">
+              Sends only to users who allowed location and match selected State/UT area. Exact GPS is not used.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">State / UT</span>
+                <select
+                  value={targetState}
+                  onChange={(event) => {
+                    setTargetState(event.target.value);
+                    setTargetDistrict("");
+                    setTargetCity("");
+                  }}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  {stateOptions.map((state) => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">District</span>
+                <select
+                  value={targetDistrict}
+                  onChange={(event) => {
+                    setTargetDistrict(event.target.value);
+                    setTargetCity("");
+                  }}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="">Any district</option>
+                  {districtOptions.map((district) => (
+                    <option key={district} value={district}>{district}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">City</span>
+                <select
+                  value={targetCity}
+                  onChange={(event) => setTargetCity(event.target.value)}
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="">Any city</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </label>
             </div>
-          ) : null}
+          </div>
 
           <label className="space-y-2 text-sm text-slate-700">
             <span className="font-semibold">Notification message</span>
@@ -293,7 +290,7 @@ export default function AdminPushNotificationsPage() {
             <p className="mt-2 text-xs text-slate-500">
               Route:{" "}
               <span className="font-semibold text-slate-700">
-                {audience === "creators_only" ? "creator_dashboard" : "home"}
+                home
               </span>
             </p>
           </div>

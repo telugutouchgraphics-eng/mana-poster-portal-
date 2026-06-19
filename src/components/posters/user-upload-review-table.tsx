@@ -7,6 +7,7 @@ import type {
 } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
@@ -258,7 +259,14 @@ function PreviewModal({
               {row.userName || "User upload"}
             </h3>
             <p className="text-sm text-slate-600">
-              {row.categoryLabel || row.categoryId || "-"}
+              {row.categoryLabel || row.categoryId ? (
+                <CategoryLabelWithLogo
+                  id={row.categoryId}
+                  label={row.categoryLabel || row.categoryId}
+                />
+              ) : (
+                "-"
+              )}
             </p>
           </div>
           <button
@@ -1423,8 +1431,16 @@ export function UserUploadReviewTable() {
                       {row.userName || "Unknown user"}
                     </p>
                     <p>{row.userEmail || row.userMobile || "-"}</p>
-                    <p className="mt-1">
-                      User selected category: {row.categoryLabel || row.categoryId || "-"}
+                    <p className="mt-1 inline-flex items-center gap-2">
+                      <span>User selected category:</span>
+                      {row.categoryLabel || row.categoryId ? (
+                        <CategoryLabelWithLogo
+                          id={row.categoryId}
+                          label={row.categoryLabel || row.categoryId}
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </p>
                     {row.status !== "approved" ? (
                       <label className="mt-3 block">

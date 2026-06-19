@@ -106,6 +106,9 @@ interface PosterListItem {
     createdAt: number;
   }>;
   saleCount: number;
+  engagementCount: number;
+  shareCount: number;
+  downloadCount: number;
   grossAmount: number;
   creatorEarnings: number;
   platformEarnings: number;
@@ -323,6 +326,12 @@ export async function GET(req: NextRequest) {
               })
             : [],
           saleCount: Number(item.data.saleCount ?? 0),
+          engagementCount: Number(
+            item.data.engagementCount ??
+              Number(item.data.shareCount ?? 0) + Number(item.data.downloadCount ?? 0),
+          ),
+          shareCount: Number(item.data.shareCount ?? 0),
+          downloadCount: Number(item.data.downloadCount ?? 0),
           grossAmount: Number(item.data.grossAmount ?? 0),
           creatorEarnings: Number(item.data.creatorEarnings ?? 0),
           platformEarnings: Number(item.data.platformEarnings ?? 0),

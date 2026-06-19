@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { loadPortalAnalyticsSnapshot } from "@/lib/server/dashboard-metrics";
-import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 import { loadActorAllowedRegionIds } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
@@ -18,13 +17,10 @@ export async function GET(req: NextRequest) {
     );
     const snapshot = await loadPortalAnalyticsSnapshot();
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
-    const actorHasAllRegions = allowedRegionIds.length === DASHBOARD_REGIONS.length;
     const allowedCreatorIds = new Set(
       snapshot.creatorProfiles
         .filter((creator) =>
-          creator.assignedRegionIds.length === 0
-            ? actorHasAllRegions
-            : creator.assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId)),
+          creator.assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId)),
         )
         .map((creator) => creator.creatorPublicId),
     );

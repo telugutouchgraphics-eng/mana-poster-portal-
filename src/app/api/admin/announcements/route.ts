@@ -3,11 +3,13 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { loadCreatorAnnouncements } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
-    const announcements = await loadCreatorAnnouncements();
+    const actor = await requireRole(req, ["admin"]);
+    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
+    const announcements = await loadCreatorAnnouncements(region.id);
     return NextResponse.json({ ok: true, announcements });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load announcements.";
@@ -19,6 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const body = (await req.json()) as {
+      regionId?: string;
       title?: string;
       message?: string;
       audience?: "creator" | "manager_creator" | "all";
@@ -32,10 +35,13 @@ export async function POST(req: NextRequest) {
     if (!title || !message) {
       return NextResponse.json({ ok: false, error: "Title and message are required." }, { status: 400 });
     }
+    const region = await assertActorCanAccessRegion(actor, body.regionId);
     const now = Date.now();
     const ref = adminDb.collection("creatorAnnouncements").doc();
     await ref.set({
       id: ref.id,
+      regionId: region.id,
+      regionName: region.name,
       title,
       message,
       audience: body.audience ?? "creator",
@@ -54,6 +60,7 @@ export async function POST(req: NextRequest) {
       targetId: ref.id,
       targetType: "creatorAnnouncement",
       message: `Created creator announcement: ${title}`,
+      metadata: { regionId: region.id, regionName: region.name },
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

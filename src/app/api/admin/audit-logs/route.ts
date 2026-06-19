@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin"]);
     const url = new URL(req.url);
+    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const action = (url.searchParams.get("action") ?? "all").trim().toLowerCase();
     const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
@@ -27,9 +29,16 @@ export async function GET(req: NextRequest) {
           targetType: String(data.targetType ?? ""),
           targetId: String(data.targetId ?? ""),
           message: String(data.message ?? ""),
-          metadata: data.metadata ?? {},
+          metadata: (data.metadata ?? {}) as Record<string, unknown>,
           createdAt: Number(data.createdAt ?? 0),
         };
+      })
+      .filter((item) => {
+        const logRegionId = String(item.metadata.regionId ?? "").trim();
+        if (logRegionId) {
+          return logRegionId === region.id;
+        }
+        return false;
       })
       .filter((item) => (action === "all" ? true : item.action.toLowerCase() === action))
       .filter((item) => {

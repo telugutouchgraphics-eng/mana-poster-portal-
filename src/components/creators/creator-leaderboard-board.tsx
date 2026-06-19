@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
@@ -65,8 +66,7 @@ export function CreatorLeaderboardBoard() {
     rank: isTelugu ? "ర్యాంక్" : "Rank",
     creator: isTelugu ? "క్రియేటర్" : "Creator",
     poster: isTelugu ? "పోస్టర్" : "Poster",
-    shares: isTelugu ? "షేర్స్" : "Shares",
-    downloads: isTelugu ? "డౌన్‌లోడ్స్" : "Downloads",
+    engagement: isTelugu ? "షేర్/డౌన్‌లోడ్" : "Share/Download",
     performance: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
   };
 
@@ -144,10 +144,15 @@ export function CreatorLeaderboardBoard() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-lg font-bold text-slate-950">{category.categoryLabel}</h4>
+                    <h4 className="text-lg font-bold text-slate-950">
+                      <CategoryLabelWithLogo
+                        id={category.categoryId}
+                        label={category.categoryLabel}
+                      />
+                    </h4>
                     {category.myEntry ? (
                       <p className="mt-1 text-sm text-slate-600">
-                        {copy.yourRank}: #{category.myEntry.rank} • {category.myEntry.shares} {copy.shares.toLowerCase()} •{" "}
+                        {copy.yourRank}: #{category.myEntry.rank} • {category.myEntry.shares + category.myEntry.downloads} {copy.engagement.toLowerCase()} •{" "}
                         {category.myEntry.performancePercent.toFixed(1)}%
                       </p>
                     ) : (
@@ -163,8 +168,7 @@ export function CreatorLeaderboardBoard() {
                         <th className="px-4 py-3">{copy.rank}</th>
                         <th className="px-4 py-3">{copy.creator}</th>
                         <th className="px-4 py-3">{copy.poster}</th>
-                        <th className="px-4 py-3">{copy.shares}</th>
-                        <th className="px-4 py-3">{copy.downloads}</th>
+                        <th className="px-4 py-3">{copy.engagement}</th>
                         <th className="px-4 py-3">{copy.performance}</th>
                       </tr>
                     </thead>
@@ -178,8 +182,7 @@ export function CreatorLeaderboardBoard() {
                           </td>
                           <td className="px-4 py-3 font-semibold text-slate-900">{row.creatorName}</td>
                           <td className="px-4 py-3 text-slate-700">{row.posterTitle || copy.poster}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.shares}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.downloads}</td>
+                          <td className="px-4 py-3 text-slate-700">{row.shares + row.downloads}</td>
                           <td className="px-4 py-3 text-slate-700">{row.performancePercent.toFixed(1)}%</td>
                         </tr>
                       ))}

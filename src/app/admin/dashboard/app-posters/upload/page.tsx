@@ -2,7 +2,9 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
@@ -43,6 +45,9 @@ interface AdminPoster {
   videoUrl?: string;
   personalizationConfig?: Partial<PersonalizationConfig> | null;
   status: string;
+  engagementCount?: number;
+  shareCount?: number;
+  downloadCount?: number;
   createdAt: number;
   requestedPublishAt?: number;
 }
@@ -411,6 +416,7 @@ function statusClass(status: string): string {
 }
 
 export default function AdminUploadStudioPage() {
+  const pathname = usePathname();
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
   const { region } = useDashboardRegion();
@@ -468,7 +474,7 @@ export default function AdminUploadStudioPage() {
       const token = await user?.getIdToken();
       if (!token) return;
       const params = new URLSearchParams({
-        source: "upload_posters",
+        source: isAdminAppPostersPage ? "app_posters" : "upload_posters",
         regionId: region.id,
       });
       const response = await fetch(`/api/admin/app-posters?${params.toString()}`, {
@@ -711,7 +717,10 @@ export default function AdminUploadStudioPage() {
       } else {
         body.set("categoryId", categoryId);
         body.set("regionId", region.id);
-        body.set("uploadSource", "upload_posters");
+        body.set(
+          "uploadSource",
+          isAdminAppPostersPage ? "app_posters" : "upload_posters",
+        );
         if (manualPublishDateEnabled) {
           body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
         }
@@ -809,9 +818,31 @@ export default function AdminUploadStudioPage() {
   }
   const lang = portalLanguage(language);
   const isTelugu = language === "telugu";
+  const isSpotUploadPage = pathname.endsWith("/app-posters");
+  const isAdminAppPostersPage = pathname.endsWith("/upload-posters");
   const customizationCopy = {
-    uploadStudio: isTelugu ? "అప్లోడ్ స్టూడియో" : "Upload Studio",
-    uploadTitle: isTelugu ? "అప్లోడ్" : "Upload",
+    uploadStudio: isSpotUploadPage
+      ? isTelugu
+        ? "షెడ్యూల్డ్ యాప్ అప్లోడ్"
+        : "Scheduled App Upload"
+      : isAdminAppPostersPage
+        ? isTelugu
+          ? "ఇన్‌స్టంట్ యాప్ అప్లోడ్"
+          : "Instant App Upload"
+      : isTelugu
+        ? "అప్లోడ్ స్టూడియో"
+        : "Upload Studio",
+    uploadTitle: isSpotUploadPage
+      ? isTelugu
+        ? "షెడ్యూల్డ్ యాప్ అప్లోడ్"
+        : "Scheduled App Upload"
+      : isAdminAppPostersPage
+        ? isTelugu
+          ? "ఇన్‌స్టంట్ యాప్ అప్లోడ్"
+          : "Instant App Upload"
+      : isTelugu
+        ? "అప్లోడ్"
+        : "Upload",
     refresh: isTelugu ? "రిఫ్రెష్" : "Refresh",
     refreshing: isTelugu ? "రిఫ్రెష్ అవుతోంది..." : "Refreshing...",
     imageCustomizationOnly: isTelugu
@@ -860,8 +891,14 @@ export default function AdminUploadStudioPage() {
     } as Record<string, string>,
   };
   Object.assign(customizationCopy, {
-    uploadStudio: t("creator.upload.uploadStudio", lang),
-    uploadTitle: t("creator.upload.uploadTitle", lang),
+    uploadStudio:
+      isSpotUploadPage || isAdminAppPostersPage
+        ? customizationCopy.uploadStudio
+        : t("creator.upload.uploadStudio", lang),
+    uploadTitle:
+      isSpotUploadPage || isAdminAppPostersPage
+        ? customizationCopy.uploadTitle
+        : t("creator.upload.uploadTitle", lang),
     refresh: t("creator.upload.refresh", lang),
     refreshing: t("creator.upload.refreshing", lang),
     imageCustomizationOnly: t("creator.upload.imageCustomizationOnly", lang),
@@ -1017,7 +1054,7 @@ export default function AdminUploadStudioPage() {
                         : categoryTone(category)
                     }`}
                   >
-                    <span>{category.label}</span>
+                    <CategoryLabelWithLogo id={category.id} label={category.label} />
                     {formatCategoryDate(category.eventDateLabel) ? (
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -1047,7 +1084,11 @@ export default function AdminUploadStudioPage() {
                   {customizationCopy.selectedCategory}
                 </p>
                 <h4 className="mt-2 text-lg font-bold text-slate-950">
-                  {activeCategory?.label ?? customizationCopy.selectCategory}
+                  {activeCategory ? (
+                    <CategoryLabelWithLogo id={activeCategory.id} label={activeCategory.label} />
+                  ) : (
+                    customizationCopy.selectCategory
+                  )}
                 </h4>
                 {editingPosterId ? (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1128,26 +1169,42 @@ export default function AdminUploadStudioPage() {
               </button>
 
               <div>
-                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
-                  </p>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      type="date"
-                      value={requestedPublishDate}
-                      min={defaultPublishDate || undefined}
-                      disabled={!manualPublishDateEnabled}
-                      onChange={(event) => setRequestedPublishDate(event.target.value)}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                    />
-                    <span className="text-xs text-slate-600">
-                      {manualPublishDateEnabled
-                        ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
-                        : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
-                    </span>
+                {isAdminAppPostersPage ? (
+                  <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      {isTelugu ? "యాప్ పబ్లిష్" : "App Publish"}
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-emerald-950">
+                      {isTelugu ? "వెంటనే పబ్లిష్" : "Instant publish"}
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-800">
+                      {isTelugu
+                        ? "ఈ ట్యాబ్ నుంచి అప్లోడ్ చేసినవి వెంటనే యాప్‌లో కనిపిస్తాయి."
+                        : "Uploads from this tab appear in the app immediately after upload."}
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="date"
+                        value={requestedPublishDate}
+                        min={defaultPublishDate || undefined}
+                        disabled={!manualPublishDateEnabled}
+                        onChange={(event) => setRequestedPublishDate(event.target.value)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      />
+                      <span className="text-xs text-slate-600">
+                        {manualPublishDateEnabled
+                          ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
+                          : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}
@@ -1229,9 +1286,15 @@ export default function AdminUploadStudioPage() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-950">
-                          {poster.categoryLabel || poster.categoryId}
+                          <CategoryLabelWithLogo
+                            id={poster.categoryId}
+                            label={poster.categoryLabel || poster.categoryId}
+                          />
                         </p>
                         <p className="mt-1 text-xs text-slate-600">{formatDate(poster.createdAt)}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-700">
+                          Share/Download Count: {poster.engagementCount ?? 0}
+                        </p>
                       </div>
                     </div>
 

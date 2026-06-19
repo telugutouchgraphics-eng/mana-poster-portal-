@@ -35,6 +35,8 @@ export interface WebsitePosterRecord {
   category: string;
   categoryId?: string;
   categoryLabel?: string;
+  regionId?: string;
+  regionName?: string;
   imageUrl: string;
   imagePath: string;
   active: boolean;
@@ -45,6 +47,8 @@ export interface WebsitePosterRecord {
 
 export interface CreatorAnnouncementRecord {
   id: string;
+  regionId?: string;
+  regionName?: string;
   title: string;
   message: string;
   audience: "creator" | "manager_creator" | "all";
@@ -93,17 +97,21 @@ export async function loadAppBanners(): Promise<AppBannerRecord[]> {
     .sort((a, b) => (a.sortOrder - b.sortOrder) || (b.updatedAt - a.updatedAt));
 }
 
-export async function loadWebsitePosters(): Promise<WebsitePosterRecord[]> {
+export async function loadWebsitePosters(regionId?: string | null): Promise<WebsitePosterRecord[]> {
+  const selectedRegionId = String(regionId ?? "").trim();
   const snap = await adminDb.collection("websitePosters").get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<WebsitePosterRecord, "id">) }))
+    .filter((item) => !selectedRegionId || String(item.regionId ?? "").trim() === selectedRegionId)
     .sort((a, b) => (a.sortOrder - b.sortOrder) || (b.updatedAt - a.updatedAt));
 }
 
-export async function loadCreatorAnnouncements(): Promise<CreatorAnnouncementRecord[]> {
+export async function loadCreatorAnnouncements(regionId?: string | null): Promise<CreatorAnnouncementRecord[]> {
+  const selectedRegionId = String(regionId ?? "").trim();
   const snap = await adminDb.collection("creatorAnnouncements").get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<CreatorAnnouncementRecord, "id">) }))
+    .filter((item) => !selectedRegionId || String(item.regionId ?? "").trim() === selectedRegionId)
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 

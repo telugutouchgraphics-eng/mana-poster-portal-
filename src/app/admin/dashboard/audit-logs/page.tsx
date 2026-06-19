@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface AuditLogItem {
@@ -35,6 +36,7 @@ function formatDate(epochMs?: number) {
 export default function AdminAuditLogsPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { region } = useDashboardRegion();
   const lang = portalLanguage(language);
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [query, setQuery] = useState("");
@@ -57,7 +59,7 @@ export default function AdminAuditLogsPage() {
       const response = await fetch(
         `/api/admin/audit-logs?page=${page}&pageSize=${pagination.pageSize}&q=${encodeURIComponent(
           nextQuery,
-        )}&action=${encodeURIComponent(nextAction)}`,
+        )}&action=${encodeURIComponent(nextAction)}&regionId=${encodeURIComponent(region.id)}`,
         {
           headers: { authorization: `Bearer ${token}` },
         },
@@ -83,7 +85,7 @@ export default function AdminAuditLogsPage() {
   useEffect(() => {
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang]);
+  }, [user, lang, region.id]);
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,7 +102,7 @@ export default function AdminAuditLogsPage() {
             </p>
             <h2 className="mt-2 text-2xl font-bold text-slate-950">{t("audit.title", lang)}</h2>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              {t("audit.description", lang)}
+              {t("audit.description", lang)} Current State/UT: {region.name}.
             </p>
           </div>
           <button
