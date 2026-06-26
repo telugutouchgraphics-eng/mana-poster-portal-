@@ -72,10 +72,6 @@ export const PHOTO_EDGE_STYLE_OPTIONS: Array<{ value: PhotoEdgeStyle; label: str
 
 export const PHOTO_FRAME_STYLE_OPTIONS: Array<{ value: PhotoFrameStyle; label: string }> = [
   { value: "none", label: "Clean" },
-  { value: "inner_shadow", label: "Inner Shadow" },
-  { value: "white_outline", label: "White Outline" },
-  { value: "glow_edge", label: "Glow Edge" },
-  { value: "double_border", label: "Double Border" },
 ];
 
 function normalizedEdgeStyle(edgeStyle: PhotoEdgeStyle): Exclude<PhotoEdgeStyle, "soft_fade"> {
@@ -304,45 +300,6 @@ function photoClassName(shape: PhotoShape): string {
   return "rounded-none";
 }
 
-function frameDecorationStyle(shape: PhotoShape, frameStyle: PhotoFrameStyle): CSSProperties {
-  if (isTransparentPhotoShape(shape)) {
-    return {
-      position: "absolute",
-      inset: 0,
-      pointerEvents: "none",
-    };
-  }
-  const base = shapeOverlayStyle(shape);
-  if (frameStyle === "inner_shadow") {
-    return {
-      ...base,
-      boxShadow:
-        "inset 0 0 0 1px rgba(255,255,255,0.26), inset 0 -24px 36px rgba(15,23,42,0.24), inset 0 12px 18px rgba(255,255,255,0.08)",
-    };
-  }
-  if (frameStyle === "white_outline") {
-    return {
-      ...base,
-      boxShadow: "0 0 0 4px rgba(255,255,255,0.96), 0 10px 26px rgba(15,23,42,0.12)",
-    };
-  }
-  if (frameStyle === "glow_edge") {
-    return {
-      ...base,
-      boxShadow:
-        "0 0 0 2px rgba(255,255,255,0.78), 0 0 18px rgba(255,255,255,0.42), 0 0 34px rgba(59,130,246,0.22)",
-    };
-  }
-  if (frameStyle === "double_border") {
-    return {
-      ...base,
-      boxShadow:
-        "0 0 0 2px rgba(255,255,255,0.96), 0 0 0 8px rgba(255,255,255,0.48), 0 10px 26px rgba(15,23,42,0.1)",
-    };
-  }
-  return base;
-}
-
 function imageMask(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): string | undefined {
   const normalized = normalizedEdgeStyle(edgeStyle);
   if (shape === "transparent_soft_round") {
@@ -471,6 +428,7 @@ export function renderPosterPhotoPreview({
   src: string;
   alt: string;
 }): React.JSX.Element {
+  void frameStyle;
   const renderShape = resolvedRenderShape(shape);
   const effectiveEdgeStyle = resolvedEdgeStyle(shape, edgeStyle);
   const className = `h-full w-full object-contain object-top ${photoClassName(shape)}`;
@@ -536,9 +494,6 @@ export function renderPosterPhotoPreview({
         </>
       )}
       </div>
-      {frameStyle !== "none" && hasBackground ? (
-        <div aria-hidden="true" style={frameDecorationStyle(renderShape, frameStyle)} />
-      ) : null}
     </div>
   );
 }
@@ -552,6 +507,7 @@ export function renderPosterPhotoPlaceholderPreview({
   frameStyle: PhotoFrameStyle;
   label?: string;
 }): React.JSX.Element {
+  void frameStyle;
   const renderShape = resolvedRenderShape(shape);
   const preset = shapeFramePreset(shape);
   const outerShell = shapeShellStyle(renderShape);
@@ -602,9 +558,6 @@ export function renderPosterPhotoPlaceholderPreview({
           </div>
         </div>
       </div>
-      {frameStyle !== "none" && hasBackground ? (
-        <div aria-hidden="true" style={frameDecorationStyle(renderShape, frameStyle)} />
-      ) : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   defaultVideoPosterCustomization,
   type VideoPosterFit,
 } from "@/lib/video-poster-preview";
+import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 type PhotoShape =
   | "circle"
@@ -74,6 +75,7 @@ interface PosterPersonalization {
   stripHeight: number;
   showWhatsapp: boolean;
   sampleName: string;
+  sampleDesignation: string;
   videoFit: VideoPosterFit;
   videoScale: number;
   videoOffsetX: number;
@@ -154,7 +156,8 @@ const defaultPersonalization: PosterPersonalization = {
   showBottomStrip: true,
   stripHeight: 16,
   showWhatsapp: false,
-  sampleName: "User Name",
+  sampleName: PERSONALIZATION_SAMPLE.name,
+  sampleDesignation: PERSONALIZATION_SAMPLE.designation,
   ...defaultVideoPosterCustomization,
 };
 
@@ -217,6 +220,10 @@ function parsePersonalization(input: unknown): PosterPersonalization {
       typeof raw.sampleName === "string" && raw.sampleName.trim().length > 0
         ? raw.sampleName.trim()
         : defaultPersonalization.sampleName,
+    sampleDesignation:
+      typeof raw.sampleDesignation === "string" && raw.sampleDesignation.trim().length > 0
+        ? raw.sampleDesignation.trim()
+        : defaultPersonalization.sampleDesignation,
     ...clampVideoPosterCustomization({
       ...defaultVideoPosterCustomization,
       videoFit: raw.videoFit === "cover" ? "cover" : defaultVideoPosterCustomization.videoFit,

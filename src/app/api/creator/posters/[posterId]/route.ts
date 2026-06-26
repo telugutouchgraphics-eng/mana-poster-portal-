@@ -19,10 +19,12 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
-const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
+const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
+const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
@@ -91,6 +93,7 @@ const personalizationSchema = z.object({
   videoOffsetY: z.number().min(0).max(100).default(50),
   videoCornerRadius: z.number().min(0).max(48).default(24),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
+  sampleDesignation: z.string().trim().max(80).default(PERMANENT_SAMPLE_DESIGNATION),
 });
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -240,6 +243,7 @@ export async function PATCH(
     personalizationConfig = {
       ...clampPersonalizationSafeArea(personalizationConfig),
       sampleName: PERMANENT_SAMPLE_NAME,
+      sampleDesignation: PERMANENT_SAMPLE_DESIGNATION,
     };
     const widthPxRaw = Number(formData.get("widthPx") ?? 0);
     const heightPxRaw = Number(formData.get("heightPx") ?? 0);

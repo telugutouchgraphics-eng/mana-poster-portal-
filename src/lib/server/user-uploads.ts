@@ -18,6 +18,7 @@ import {
   resolveFeedPublishAtMs,
   resolveManualFeedPublishAtMs,
 } from "@/lib/server/poster-feed-schedule";
+import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 export const USER_UPLOAD_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -35,7 +36,8 @@ export const defaultUserUploadPersonalizationConfig = {
   showBottomStrip: true,
   stripHeight: 16,
   showWhatsapp: false,
-  sampleName: "User Name",
+  sampleName: PERSONALIZATION_SAMPLE.name,
+  sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
 
 export function sanitizeUserUploadPersonalizationConfig(raw: unknown) {

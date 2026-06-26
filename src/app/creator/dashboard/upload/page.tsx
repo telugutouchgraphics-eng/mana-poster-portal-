@@ -76,9 +76,12 @@ interface PersonalizationConfig {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  sampleName: string;
+  sampleDesignation: string;
 }
 
-const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
+const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
+const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 
 const POSTER_STRIP_GRADIENTS = [
   ["#071E48", "#0057B8"],
@@ -143,6 +146,8 @@ const defaultPersonalization: PersonalizationConfig = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  sampleName: PERSONALIZATION_SAMPLE.name,
+  sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
@@ -1705,6 +1710,7 @@ export default function CreatorUploadStudioPage() {
                             left: `${safePersonalization.photoX}%`,
                             top: `${safePersonalization.photoY}%`,
                             width: `${safePersonalization.photoScale}%`,
+                            zIndex: 1,
                             aspectRatio: photoShapeAspectRatio(safePersonalization.photoShape),
                             ...photoShapeFrameStyle(safePersonalization.photoShape),
                             ...resolveVideoPhotoAnimationStyle(
@@ -1784,6 +1790,7 @@ export default function CreatorUploadStudioPage() {
                               left: `${personalization.nameX}%`,
                               top: `${personalization.nameY}%`,
                               touchAction: "none",
+                              zIndex: 3,
                             }}
                           >
                             <p
@@ -1795,29 +1802,35 @@ export default function CreatorUploadStudioPage() {
                             >
                               {PERMANENT_SAMPLE_NAME}
                             </p>
+                            <p className="mt-1 truncate text-center text-sm font-semibold leading-tight tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                              {PERMANENT_SAMPLE_DESIGNATION}
+                            </p>
+                          </div>
+                        ) : null}
+                        {personalization.showBottomStrip ? (
+                          <div
+                            className="absolute inset-x-0 bottom-0 z-[3] px-4 py-2 text-center"
+                            style={{
+                              backgroundImage: `linear-gradient(90deg, ${stripGradient[0]}, ${stripGradient[1]})`,
+                              color: gradientTextColor,
+                            }}
+                          >
+                            <p
+                              className="truncate text-xl font-semibold leading-tight tracking-wide"
+                              style={{
+                                fontFamily:
+                                  "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
+                              }}
+                            >
+                              {PERMANENT_SAMPLE_NAME}
+                              <span className="mx-3 opacity-75">|</span>
+                              <span className="text-base font-semibold opacity-90">
+                                {PERMANENT_SAMPLE_DESIGNATION}
+                              </span>
+                            </p>
                           </div>
                         ) : null}
                       </div>
-
-                      {personalization.showBottomStrip ? (
-                        <div
-                          className="-mt-px w-full px-4 py-2 text-center"
-                          style={{
-                            backgroundImage: `linear-gradient(90deg, ${stripGradient[0]}, ${stripGradient[1]})`,
-                            color: gradientTextColor,
-                          }}
-                        >
-                          <p
-                            className="truncate text-xl font-semibold leading-tight tracking-wide"
-                            style={{
-                              fontFamily:
-                                "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
-                            }}
-                          >
-                            {PERMANENT_SAMPLE_NAME}
-                          </p>
-                        </div>
-                      ) : null}
 
                     </div>
                   </div>

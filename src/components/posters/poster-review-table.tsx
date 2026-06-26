@@ -12,6 +12,7 @@ import {
   type PhotoFrameStyle,
   type PhotoShape,
 } from "@/lib/poster-photo-preview";
+import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 interface PosterPersonalization {
   photoShape: PhotoShape;
@@ -28,6 +29,7 @@ interface PosterPersonalization {
   stripHeight: number;
   showWhatsapp: boolean;
   sampleName: string;
+  sampleDesignation?: string;
 }
 
 interface PosterRow {
@@ -320,6 +322,7 @@ export function PosterReviewTable() {
                           left: `${config.photoX}%`,
                           top: `${config.photoY}%`,
                           width: `${config.photoScale}%`,
+                          zIndex: 1,
                           aspectRatio: photoShapeAspectRatio(config.photoShape),
                           ...photoShapeFrameStyle(config.photoShape),
                         }}
@@ -339,6 +342,7 @@ export function PosterReviewTable() {
                           style={{
                             left: `${config.nameX}%`,
                             top: `${config.nameY}%`,
+                            zIndex: 3,
                           }}
                         >
                           <p
@@ -348,18 +352,25 @@ export function PosterReviewTable() {
                                 "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
                             }}
                           >
-                            {config.sampleName || row.creatorName || "User Name"}
+                            {config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
+                          </p>
+                          <p className="mt-1 truncate text-center text-xs font-semibold leading-tight tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                            {config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
+                          </p>
+                        </div>
+                      ) : null}
+                      {config.showBottomStrip ? (
+                        <div className="absolute inset-x-0 bottom-0 z-[3] bg-white px-3 py-1.5 text-center text-slate-900">
+                          <p className="truncate text-sm font-bold">
+                            {config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
+                            <span className="mx-2 text-slate-400">|</span>
+                            <span className="text-xs font-semibold text-slate-600">
+                              {config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
+                            </span>
                           </p>
                         </div>
                       ) : null}
                     </div>
-                    {config.showBottomStrip ? (
-                      <div className="-mt-px w-full bg-white px-3 py-1.5 text-center text-slate-900">
-                        <p className="truncate text-sm font-bold">
-                          {config.sampleName || row.creatorName || "User Name"}
-                        </p>
-                      </div>
-                    ) : null}
                     {config.showWhatsapp && row.creatorPhone.trim().length > 0 ? (
                       <div className="-mt-px w-full bg-[#25D366] px-3 py-1.5 text-center text-white">
                         <p className="truncate text-xs font-semibold">

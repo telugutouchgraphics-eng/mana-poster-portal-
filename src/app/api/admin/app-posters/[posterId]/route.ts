@@ -31,6 +31,7 @@ import {
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -41,7 +42,8 @@ const payloadSchema = z.object({
   regionId: z.string().trim().optional(),
 });
 
-const PERMANENT_SAMPLE_NAME = "Gopi Krishna";
+const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
+const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 const photoShapeSchema = z.enum([
   "circle",
   "scallop_circle",
@@ -106,6 +108,7 @@ const personalizationSchema = z.object({
   showBottomStrip: z.boolean().default(true),
   stripHeight: z.number().min(8).max(40).default(16),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
+  sampleDesignation: z.string().trim().max(80).default(PERMANENT_SAMPLE_DESIGNATION),
 });
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -293,6 +296,7 @@ export async function PATCH(
             personalizationSchema.parse(JSON.parse(personalizationRaw)),
           ),
           sampleName: PERMANENT_SAMPLE_NAME,
+          sampleDesignation: PERMANENT_SAMPLE_DESIGNATION,
         };
       } catch {
         return NextResponse.json(
