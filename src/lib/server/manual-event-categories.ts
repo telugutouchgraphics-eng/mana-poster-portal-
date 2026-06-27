@@ -46,12 +46,24 @@ export function parseIsoDateInput(value: string): number {
 
 function startOfDay(epochMs: number): number {
   const date = new Date(epochMs);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  ).getTime();
 }
 
 function endOfDay(epochMs: number): number {
   const date = new Date(epochMs);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999).getTime();
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23,
+    59,
+    59,
+    999,
+  ).getTime();
 }
 
 export function normalizeManualEventDateRange(
@@ -75,7 +87,10 @@ export function getManualAppPublishAt(startAt: number): number {
   return Math.max(0, startOfDay(startAt) - APP_PUBLISH_LEAD_DAYS * DAY_MS);
 }
 
-function mapRecord(id: string, data: Record<string, unknown>): ManualEventCategoryRecord {
+function mapRecord(
+  id: string,
+  data: Record<string, unknown>,
+): ManualEventCategoryRecord {
   const normalized = normalizeManualEventDateRange(
     Number(data.startAt ?? 0),
     Number(data.endAt ?? data.startAt ?? 0),
@@ -106,11 +121,37 @@ export async function listManualEventCategories(
   regionId?: string | null,
 ): Promise<ManualEventCategoryRecord[]> {
   const selectedRegionId = String(regionId ?? "").trim();
+  const teluguSharedRegionIds = new Set(["andhra_pradesh", "telangana"]);
+  const hindiSharedRegionIds = new Set([
+    "bihar",
+    "chhattisgarh",
+    "haryana",
+    "himachal_pradesh",
+    "jharkhand",
+    "madhya_pradesh",
+    "rajasthan",
+    "uttar_pradesh",
+    "uttarakhand",
+    "delhi",
+    "andaman_nicobar",
+  ]);
+  const sharedRegionIdsFor = (value: string) => {
+    if (teluguSharedRegionIds.has(value)) return teluguSharedRegionIds;
+    if (hindiSharedRegionIds.has(value)) return hindiSharedRegionIds;
+    return new Set(value ? [value] : []);
+  };
+  const matchesRegion = (itemRegionId: string) => {
+    if (!selectedRegionId || !itemRegionId) return true;
+    return sharedRegionIdsFor(selectedRegionId).has(itemRegionId);
+  };
   const snapshot = await adminDb.collection(COLLECTION_NAME).get();
   return snapshot.docs
     .map((doc) => mapRecord(doc.id, doc.data()))
-    .filter((item) => !selectedRegionId || !item.regionId || item.regionId === selectedRegionId)
-    .sort((left, right) => left.startAt - right.startAt || left.label.localeCompare(right.label));
+    .filter((item) => matchesRegion(item.regionId))
+    .sort(
+      (left, right) =>
+        left.startAt - right.startAt || left.label.localeCompare(right.label),
+    );
 }
 
 export async function getManualEventCategoryById(
@@ -127,7 +168,31 @@ export async function getManualEventCategoryById(
   }
   const item = mapRecord(snap.id, snap.data() as Record<string, unknown>);
   const selectedRegionId = String(regionId ?? "").trim();
-  if (selectedRegionId && item.regionId && item.regionId !== selectedRegionId) {
+  const teluguSharedRegionIds = new Set(["andhra_pradesh", "telangana"]);
+  const hindiSharedRegionIds = new Set([
+    "bihar",
+    "chhattisgarh",
+    "haryana",
+    "himachal_pradesh",
+    "jharkhand",
+    "madhya_pradesh",
+    "rajasthan",
+    "uttar_pradesh",
+    "uttarakhand",
+    "delhi",
+    "andaman_nicobar",
+  ]);
+  const sharedRegionIds = teluguSharedRegionIds.has(selectedRegionId)
+    ? teluguSharedRegionIds
+    : hindiSharedRegionIds.has(selectedRegionId)
+      ? hindiSharedRegionIds
+      : new Set(selectedRegionId ? [selectedRegionId] : []);
+  if (
+    selectedRegionId &&
+    item.regionId &&
+    item.regionId !== selectedRegionId &&
+    !sharedRegionIds.has(item.regionId)
+  ) {
     return null;
   }
   return item;
@@ -173,7 +238,9 @@ export async function isValidManualEventCategoryId(
   return Boolean(item?.active);
 }
 
-export function toAssignableManualCategory(item: ManualEventCategoryRecord): CategoryDef {
+export function toAssignableManualCategory(
+  item: ManualEventCategoryRecord,
+): CategoryDef {
   return {
     id: item.id,
     label: item.label,
