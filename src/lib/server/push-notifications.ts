@@ -75,6 +75,15 @@ function trimValue(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function notificationPaletteIndex(categoryKey: string) {
+  const daySeed = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  let hash = 0;
+  for (const char of categoryKey) {
+    hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  }
+  return String(Math.abs(daySeed + hash) % 5);
+}
+
 function uniqueTokens(
   values: Array<{ token: string; refPath?: string }>,
 ): Array<{ token: string; refPath?: string }> {
@@ -217,15 +226,23 @@ export function buildPushData(payload: {
   category: string;
   imageUrl: string;
 }) {
+  const categoryKey = trimValue(payload.category) || "afternoon";
+  const message = trimValue(payload.message);
+  const title = trimValue(payload.title);
+  const imageUrl = trimValue(payload.imageUrl);
   return {
     click_action: "FLUTTER_NOTIFICATION_CLICK",
     route: trimValue(payload.route) || "home",
-    category: trimValue(payload.category),
-    imageUrl: trimValue(payload.imageUrl),
-    posterImage: trimValue(payload.imageUrl),
+    category: categoryKey,
+    categoryKey,
+    imageUrl,
+    posterImage: imageUrl,
     userPhoto: "",
-    title: trimValue(payload.title),
-    body: trimValue(payload.message),
+    title,
+    body: message,
+    headerText: message,
+    footerText: "Share now",
+    paletteIndex: notificationPaletteIndex(categoryKey),
     title_key: trimValue(payload.titleKey),
     body_key: trimValue(payload.bodyKey),
     source: "admin_push_portal",
@@ -243,13 +260,6 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
     imageUrl: record.imageUrl,
   });
   const ref = adminDb.collection("adminPushNotifications").doc(record.id);
-  const imageUrl = trimValue(record.imageUrl);
-  const notificationPayload = {
-    title: trimValue(record.title),
-    body: trimValue(record.message),
-    ...(imageUrl ? { imageUrl } : {}),
-  };
-  const androidNotification = imageUrl ? { imageUrl } : undefined;
 
   await ref.set(
     {
@@ -269,11 +279,9 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
     const sentAt = Date.now();
     await adminMessaging.send({
       topic: target.topic,
-      notification: notificationPayload,
       data: dataPayload,
       android: {
         priority: "high",
-        notification: androidNotification,
       },
     });
 
@@ -319,11 +327,9 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
   for (const group of chunk(tokens, 500)) {
     const response = await adminMessaging.sendEachForMulticast({
       tokens: group.map((item) => item.token),
-      notification: notificationPayload,
       data: dataPayload,
       android: {
         priority: "high",
-        notification: androidNotification,
       },
     });
 

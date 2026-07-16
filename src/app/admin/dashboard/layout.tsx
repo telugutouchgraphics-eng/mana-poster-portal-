@@ -51,6 +51,11 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       shortLabel: "Assets",
     },
     {
+      href: "/admin/dashboard/editor-fonts",
+      label: "Editor Fonts",
+      shortLabel: "Fonts",
+    },
+    {
       href: "/admin/dashboard/app-posters",
       label: isTelugu ? "షెడ్యూల్డ్ యాప్ అప్లోడ్" : "Scheduled App Upload",
       shortLabel: isTelugu ? "షెడ్యూల్డ్" : "Scheduled",
