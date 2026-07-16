@@ -14,6 +14,38 @@ function regionMetadataForStateName(stateName: string) {
   return region ? { regionId: region.id, regionName: region.name } : {};
 }
 
+function parseTargetRegionIds(value: FormDataEntryValue | null): string[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item ?? "").trim()).filter(Boolean);
+    }
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function cleanTargetRegionIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+}
+
+function regionMetadataForIds(regionIds: string[]) {
+  const regions = regionIds
+    .map((id) => DASHBOARD_REGIONS.find((item) => item.id === id))
+    .filter(Boolean) as typeof DASHBOARD_REGIONS;
+  return {
+    regionIds: regions.map((item) => item.id),
+    regionNames: regions.map((item) => item.name),
+  };
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ bannerId: string }> },
@@ -30,8 +62,17 @@ export async function PATCH(
       imagePath?: string;
       placement?: string;
       targetState?: string;
+      targetRegionIds?: string[];
     };
-    await assertActorCanManageBannerTarget(actor, String(existingData.targetState ?? ""));
+    await assertActorCanManageBannerTarget(
+      actor,
+      String(existingData.targetState ?? ""),
+      cleanTargetRegionIds(existingData.targetRegionIds),
+    );
+    const existingRegionIds = cleanTargetRegionIds(existingData.targetRegionIds);
+    const existingRegionMetadata = existingRegionIds.length > 0
+      ? regionMetadataForIds(existingRegionIds)
+      : regionMetadataForStateName(String(existingData.targetState ?? ""));
     const contentType = req.headers.get("content-type") ?? "";
 
     if (contentType.includes("application/json")) {
@@ -52,7 +93,7 @@ export async function PATCH(
         targetId: bannerId,
         targetType: "appBanner",
         message: "Updated app banner status/order",
-        metadata: regionMetadataForStateName(String(existingData.targetState ?? "")),
+        metadata: existingRegionMetadata,
       });
       return NextResponse.json({ ok: true });
     }
@@ -63,6 +104,7 @@ export async function PATCH(
     const ctaLabel = String(formData.get("ctaLabel") ?? "").trim();
     const ctaTarget = String(formData.get("ctaTarget") ?? "").trim();
     const placement = String(formData.get("placement") ?? existingData.placement ?? "home_category_banner").trim();
+    const targetRegionIds = parseTargetRegionIds(formData.get("targetRegionIds"));
     const targetState = String(formData.get("targetState") ?? "").trim();
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
@@ -71,11 +113,16 @@ export async function PATCH(
     const image = formData.get("image");
     let imageUrl: string | undefined;
     let imagePath: string | undefined;
-    const regionMetadata = regionMetadataForStateName(targetState);
-    if (!regionMetadata.regionId) {
+    const effectiveRegionIds = targetRegionIds.length > 0
+      ? targetRegionIds
+      : DASHBOARD_REGIONS.filter((item) => item.name === targetState).map((item) => item.id);
+    const regionMetadata = targetRegionIds.length > 0
+      ? regionMetadataForIds(targetRegionIds)
+      : regionMetadataForStateName(targetState);
+    if (effectiveRegionIds.length === 0) {
       return NextResponse.json({ ok: false, error: "Valid State / UT target is required." }, { status: 400 });
     }
-    await assertActorCanManageBannerTarget(actor, targetState);
+    await assertActorCanManageBannerTarget(actor, targetState, effectiveRegionIds);
 
     if (image instanceof File && image.size > 0) {
       if (image.size > MAX_IMAGE_UPLOAD_BYTES) {
@@ -100,6 +147,7 @@ export async function PATCH(
         ctaLabel,
         ctaTarget,
         placement,
+        targetRegionIds: effectiveRegionIds,
         targetState,
         targetDistrict,
         targetCity,
@@ -137,8 +185,16 @@ export async function DELETE(
     const { bannerId } = await params;
     const ref = adminDb.collection("appBanners").doc(bannerId);
     const snap = await ref.get();
-    const data = snap.exists ? (snap.data() as { imagePath?: string; targetState?: string }) : null;
-    await assertActorCanManageBannerTarget(actor, String(snap.data()?.targetState ?? ""));
+    const data = snap.exists ? (snap.data() as { imagePath?: string; targetState?: string; targetRegionIds?: string[] }) : null;
+    await assertActorCanManageBannerTarget(
+      actor,
+      String(snap.data()?.targetState ?? ""),
+      cleanTargetRegionIds(snap.data()?.targetRegionIds),
+    );
+    const existingRegionIds = cleanTargetRegionIds(data?.targetRegionIds);
+    const existingRegionMetadata = existingRegionIds.length > 0
+      ? regionMetadataForIds(existingRegionIds)
+      : regionMetadataForStateName(String(data?.targetState ?? ""));
     await ref.delete();
     await deleteAdminAsset(data?.imagePath);
     await writeAuditLog({
@@ -149,7 +205,7 @@ export async function DELETE(
       targetId: bannerId,
       targetType: "appBanner",
       message: "Deleted app banner",
-      metadata: regionMetadataForStateName(String(data?.targetState ?? "")),
+      metadata: existingRegionMetadata,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -18,6 +18,44 @@ function regionMetadataForStateName(stateName: string) {
   return region ? { regionId: region.id, regionName: region.name } : {};
 }
 
+function parseTargetRegionIds(value: FormDataEntryValue | null): string[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item ?? "").trim()).filter(Boolean);
+    }
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function regionMetadataForIds(regionIds: string[]) {
+  const regions = regionIds
+    .map((id) => DASHBOARD_REGIONS.find((item) => item.id === id))
+    .filter(Boolean) as typeof DASHBOARD_REGIONS;
+  return {
+    regionIds: regions.map((item) => item.id),
+    regionNames: regions.map((item) => item.name),
+  };
+}
+
+function bannerMatchesRegion(
+  banner: { targetRegionIds?: string[]; targetState?: string },
+  region: { id: string; name: string },
+) {
+  const regionIds = Array.isArray(banner.targetRegionIds)
+    ? banner.targetRegionIds.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+  if (regionIds.length > 0) {
+    return regionIds.includes(region.id);
+  }
+  return String(banner.targetState ?? "").trim() === region.name;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
@@ -30,7 +68,7 @@ export async function GET(req: NextRequest) {
     const targetRegion = await assertActorCanAccessRegion(actor, regionId);
     return NextResponse.json({
       ok: true,
-      banners: scopedBanners.filter((banner) => String(banner.targetState ?? "").trim() === targetRegion.name),
+      banners: scopedBanners.filter((banner) => bannerMatchesRegion(banner, targetRegion)),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load banners.";
@@ -47,6 +85,7 @@ export async function POST(req: NextRequest) {
     const ctaLabel = String(formData.get("ctaLabel") ?? "").trim();
     const ctaTarget = String(formData.get("ctaTarget") ?? "").trim();
     const placement = String(formData.get("placement") ?? "home_category_banner").trim();
+    const targetRegionIds = parseTargetRegionIds(formData.get("targetRegionIds"));
     const targetState = String(formData.get("targetState") ?? "").trim();
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
@@ -63,11 +102,16 @@ export async function POST(req: NextRequest) {
     if (image.size > MAX_IMAGE_UPLOAD_BYTES) {
       return NextResponse.json({ ok: false, error: "Image must be 500 KB or smaller." }, { status: 400 });
     }
-    const regionMetadata = regionMetadataForStateName(targetState);
-    if (!regionMetadata.regionId) {
+    const effectiveRegionIds = targetRegionIds.length > 0
+      ? targetRegionIds
+      : DASHBOARD_REGIONS.filter((item) => item.name === targetState).map((item) => item.id);
+    const regionMetadata = targetRegionIds.length > 0
+      ? regionMetadataForIds(targetRegionIds)
+      : regionMetadataForStateName(targetState);
+    if (effectiveRegionIds.length === 0) {
       return NextResponse.json({ ok: false, error: "Valid State / UT target is required." }, { status: 400 });
     }
-    await assertActorCanManageBannerTarget(actor, targetState);
+    await assertActorCanManageBannerTarget(actor, targetState, effectiveRegionIds);
 
     const now = Date.now();
     const ext = image.type.includes("jpeg") ? "jpg" : image.type.includes("webp") ? "webp" : "png";
@@ -87,6 +131,7 @@ export async function POST(req: NextRequest) {
       ctaLabel,
       ctaTarget,
       placement,
+      targetRegionIds: effectiveRegionIds,
       targetState,
       targetDistrict,
       targetCity,

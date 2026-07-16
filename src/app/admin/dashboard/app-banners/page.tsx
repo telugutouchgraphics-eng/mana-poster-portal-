@@ -12,6 +12,7 @@ interface AppBannerItem {
   ctaLabel: string;
   ctaTarget: string;
   placement: string;
+  targetRegionIds?: string[];
   targetState?: string;
   targetDistrict?: string;
   targetCity?: string;
@@ -51,6 +52,7 @@ export default function AdminAppBannersPage() {
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaTarget, setCtaTarget] = useState("");
   const [targetState, setTargetState] = useState("");
+  const [targetRegionIds, setTargetRegionIds] = useState<string[]>([]);
   const [targetDistrict, setTargetDistrict] = useState("");
   const [targetCity, setTargetCity] = useState("");
   const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
@@ -105,6 +107,7 @@ export default function AdminAppBannersPage() {
     setCtaLabel("");
     setCtaTarget("");
     setTargetState(defaultTargetState);
+    setTargetRegionIds([region.id]);
     setTargetDistrict("");
     setTargetCity("");
     setSortOrder("10");
@@ -119,7 +122,11 @@ export default function AdminAppBannersPage() {
     setSubtitle(item.subtitle);
     setCtaLabel(item.ctaLabel);
     setCtaTarget(item.ctaTarget);
-    setTargetState(item.targetState ?? "");
+    const nextRegionIds = item.targetRegionIds?.length
+      ? item.targetRegionIds
+      : regions.filter((candidate) => candidate.name === item.targetState).map((candidate) => candidate.id);
+    setTargetRegionIds(nextRegionIds.length ? nextRegionIds : [region.id]);
+    setTargetState(item.targetState ?? regions.find((candidate) => candidate.id === nextRegionIds[0])?.name ?? region.name);
     setTargetDistrict(item.targetDistrict ?? "");
     setTargetCity(item.targetCity ?? "");
     setSortOrder(String(item.sortOrder));
@@ -152,15 +159,17 @@ export default function AdminAppBannersPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) throw new Error("Login required.");
+      const preciseTargetEnabled = targetRegionIds.length === 1;
       const body = new FormData();
       body.set("title", title);
       body.set("subtitle", subtitle);
       body.set("ctaLabel", ctaLabel);
       body.set("ctaTarget", ctaTarget);
       body.set("sortOrder", sortOrder);
-      body.set("targetState", targetState.trim());
-      body.set("targetDistrict", targetDistrict.trim());
-      body.set("targetCity", targetCity.trim());
+      body.set("targetRegionIds", JSON.stringify(targetRegionIds));
+      body.set("targetState", preciseTargetEnabled ? targetState.trim() : "");
+      body.set("targetDistrict", preciseTargetEnabled ? targetDistrict.trim() : "");
+      body.set("targetCity", preciseTargetEnabled ? targetCity.trim() : "");
       body.set("active", "true");
       body.set("placement", "home_category_banner");
       if (file) {
@@ -216,6 +225,8 @@ export default function AdminAppBannersPage() {
   const previewImage = previewUrl ?? currentPreview;
   const stateOptions = regions.map((region) => region.name);
   const defaultTargetState = region.name;
+  const selectedTargetRegions = regions.filter((item) => targetRegionIds.includes(item.id));
+  const hasSingleTargetRegion = targetRegionIds.length === 1;
   const districtOptions = Array.from(
     new Set(
       locationRows
@@ -235,13 +246,34 @@ export default function AdminAppBannersPage() {
   ).sort((a, b) => a.localeCompare(b));
 
   useEffect(() => {
-    if (targetState === region.name) {
+    if (targetRegionIds.length === 0) {
+      setTargetRegionIds([region.id]);
+      setTargetState(region.name);
+    }
+  }, [region.id, region.name, targetRegionIds.length]);
+
+  useEffect(() => {
+    if (targetRegionIds.length !== 1) {
+      setTargetDistrict("");
+      setTargetCity("");
       return;
     }
-    setTargetState(region.name);
-    setTargetDistrict("");
-    setTargetCity("");
-  }, [region.name, targetState]);
+    const selected = regions.find((item) => item.id === targetRegionIds[0]);
+    if (selected && targetState !== selected.name) {
+      setTargetState(selected.name);
+      setTargetDistrict("");
+      setTargetCity("");
+    }
+  }, [regions, targetRegionIds, targetState]);
+
+  function toggleTargetRegion(regionId: string) {
+    setTargetRegionIds((current) => {
+      const next = current.includes(regionId)
+        ? current.filter((item) => item !== regionId)
+        : [...current, regionId];
+      return next.length > 0 ? next : [region.id];
+    });
+  }
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
@@ -262,7 +294,23 @@ export default function AdminAppBannersPage() {
           <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
             <p className="text-sm font-bold text-emerald-900">Area targeting</p>
             <p className="mt-1 text-xs leading-6 text-emerald-700">
-              This banner is scoped to the selected dashboard State/UT.
+              Select the State/UTs where this banner should appear in the app.
+            </p>
+            <div className="mt-4 grid max-h-56 gap-2 overflow-y-auto rounded-2xl border border-emerald-100 bg-white/70 p-3 sm:grid-cols-2 lg:grid-cols-3">
+              {regions.map((item) => (
+                <label key={item.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-semibold text-emerald-950">
+                  <input
+                    type="checkbox"
+                    checked={targetRegionIds.includes(item.id)}
+                    onChange={() => toggleTargetRegion(item.id)}
+                    className="h-4 w-4 accent-emerald-700"
+                  />
+                  <span>{item.name}</span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-emerald-700">
+              Selected: {selectedTargetRegions.map((item) => item.name).join(", ")}
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">
@@ -270,10 +318,15 @@ export default function AdminAppBannersPage() {
                 <select
                   value={targetState}
                   onChange={(event) => {
+                    const selected = regions.find((item) => item.name === event.target.value);
+                    if (selected) {
+                      setTargetRegionIds([selected.id]);
+                    }
                     setTargetState(event.target.value);
                     setTargetDistrict("");
                     setTargetCity("");
                   }}
+                  disabled={!hasSingleTargetRegion}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
                   {stateOptions.map((state) => (
@@ -289,6 +342,7 @@ export default function AdminAppBannersPage() {
                     setTargetDistrict(event.target.value);
                     setTargetCity("");
                   }}
+                  disabled={!hasSingleTargetRegion}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
                   <option value="">All districts</option>
@@ -302,6 +356,7 @@ export default function AdminAppBannersPage() {
                 <select
                   value={targetCity}
                   onChange={(event) => setTargetCity(event.target.value)}
+                  disabled={!hasSingleTargetRegion}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
                   <option value="">All cities</option>
@@ -370,7 +425,12 @@ export default function AdminAppBannersPage() {
                         Placement: App Home Banner | Position: {bannerPositionLabel(item.sortOrder)}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        Area: {[item.targetCity, item.targetDistrict, item.targetState].filter(Boolean).join(", ") || "All areas"}
+                        Area: {item.targetRegionIds?.length
+                          ? regions
+                              .filter((candidate) => item.targetRegionIds?.includes(candidate.id))
+                              .map((candidate) => candidate.name)
+                              .join(", ")
+                          : [item.targetCity, item.targetDistrict, item.targetState].filter(Boolean).join(", ") || "All areas"}
                       </p>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>

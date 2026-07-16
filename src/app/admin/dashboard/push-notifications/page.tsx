@@ -205,15 +205,15 @@ export default function AdminPushNotificationsPage() {
             <label className="space-y-2 text-sm text-slate-700">
               <span className="font-semibold">Audience</span>
               <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800">
-                Selected State / UT users
+                App selected State / UT users
               </div>
             </label>
           </div>
 
           <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
-            <p className="text-sm font-bold text-emerald-900">Area targeting</p>
+            <p className="text-sm font-bold text-emerald-900">State and local area targeting</p>
             <p className="mt-1 text-xs leading-6 text-emerald-700">
-              Sends only to users who allowed location and match selected State/UT area. Exact GPS is not used.
+              State targeting uses the user&apos;s selected app state. District and city filters use saved local area when available.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { adminDb, adminMessaging } from "@/lib/firebase/admin";
 import { deleteAdminAsset } from "@/lib/server/content-management";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
 export type PushAudience = "all_users" | "creators_only" | "area_users";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
@@ -148,6 +149,14 @@ function cleanLocationText(value: unknown) {
   return trimValue(value).toLowerCase();
 }
 
+function regionIdForStateName(stateName: string) {
+  const normalized = cleanLocationText(stateName);
+  return (
+    DASHBOARD_REGIONS.find((region) => cleanLocationText(region.name) === normalized)
+      ?.id ?? ""
+  );
+}
+
 function readUserArea(data: FirebaseFirestore.DocumentData) {
   const area = data.locationArea;
   if (area && typeof area === "object" && !Array.isArray(area)) {
@@ -158,6 +167,20 @@ function readUserArea(data: FirebaseFirestore.DocumentData) {
     };
   }
   return { state: "", district: "", city: "" };
+}
+
+function selectedRegionMatches(
+  data: FirebaseFirestore.DocumentData,
+  targetRegionId: string,
+  targetState: string,
+) {
+  const selectedRegion = cleanLocationText(data.selectedRegion);
+  if (targetRegionId && selectedRegion === cleanLocationText(targetRegionId)) {
+    return true;
+  }
+
+  const selectedRegionName = cleanLocationText(data.selectedRegionName);
+  return Boolean(targetState && selectedRegionName === cleanLocationText(targetState));
 }
 
 function areaMatches(
@@ -178,10 +201,33 @@ function areaMatches(
 }
 
 async function loadAreaUserUids(target: { state: string; district: string; city: string }) {
-  const snap = await adminDb.collection("users").where("locationEnabled", "==", true).get();
+  const targetRegionId = regionIdForStateName(target.state);
+  const targetDistrict = cleanLocationText(target.district);
+  const targetCity = cleanLocationText(target.city);
+  const needsLocalArea = Boolean(targetDistrict || targetCity);
+  const snapshots = targetRegionId
+    ? await Promise.all([
+        adminDb.collection("users").where("selectedRegion", "==", targetRegionId).get(),
+        adminDb.collection("users").where("selectedRegionName", "==", target.state).get(),
+      ])
+    : [await adminDb.collection("users").get()];
+  const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  for (const snap of snapshots) {
+    for (const doc of snap.docs) {
+      docs.set(doc.id, doc);
+    }
+  }
   const ids: string[] = [];
-  for (const doc of snap.docs) {
-    if (areaMatches(readUserArea(doc.data()), target)) {
+  for (const doc of docs.values()) {
+    const data = doc.data();
+    if (!selectedRegionMatches(data, targetRegionId, target.state)) {
+      continue;
+    }
+    if (!needsLocalArea) {
+      ids.push(doc.id);
+      continue;
+    }
+    if (areaMatches(readUserArea(data), { ...target, state: "" })) {
       ids.push(doc.id);
     }
   }
