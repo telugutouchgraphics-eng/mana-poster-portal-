@@ -62,6 +62,7 @@ export default function AdminAppBannersPage() {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPreview, setCurrentPreview] = useState<string | null>(null);
+  const [regionMenuOpen, setRegionMenuOpen] = useState(false);
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
   useEffect(() => {
@@ -223,10 +224,15 @@ export default function AdminAppBannersPage() {
   }
 
   const previewImage = previewUrl ?? currentPreview;
-  const stateOptions = regions.map((region) => region.name);
   const defaultTargetState = region.name;
   const selectedTargetRegions = regions.filter((item) => targetRegionIds.includes(item.id));
   const hasSingleTargetRegion = targetRegionIds.length === 1;
+  const targetRegionSummary =
+    selectedTargetRegions.length === 0
+      ? "Select State / UT"
+      : selectedTargetRegions.length === 1
+        ? selectedTargetRegions[0].name
+        : `${selectedTargetRegions.length} State / UTs selected`;
   const districtOptions = Array.from(
     new Set(
       locationRows
@@ -271,7 +277,12 @@ export default function AdminAppBannersPage() {
       const next = current.includes(regionId)
         ? current.filter((item) => item !== regionId)
         : [...current, regionId];
-      return next.length > 0 ? next : [region.id];
+      const safeNext = next.length > 0 ? next : [region.id];
+      const firstSelected = regions.find((item) => item.id === safeNext[0]) ?? region;
+      setTargetState(safeNext.length === 1 ? firstSelected.name : "");
+      setTargetDistrict("");
+      setTargetCity("");
+      return safeNext;
     });
   }
 
@@ -296,21 +307,49 @@ export default function AdminAppBannersPage() {
             <p className="mt-1 text-xs leading-6 text-emerald-700">
               Select the State/UTs where this banner should appear in the app.
             </p>
-            <div className="mt-4 grid max-h-56 gap-2 overflow-y-auto rounded-2xl border border-emerald-100 bg-white/70 p-3 sm:grid-cols-2 lg:grid-cols-3">
-              {regions.map((item) => (
-                <label key={item.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-semibold text-emerald-950">
-                  <input
-                    type="checkbox"
-                    checked={targetRegionIds.includes(item.id)}
-                    onChange={() => toggleTargetRegion(item.id)}
-                    className="h-4 w-4 accent-emerald-700"
-                  />
-                  <span>{item.name}</span>
-                </label>
-              ))}
+            <div className="relative mt-4 space-y-2 text-sm text-emerald-950">
+              <span className="font-semibold">State / UT</span>
+              <button
+                type="button"
+                onClick={() => setRegionMenuOpen((open) => !open)}
+                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-950 outline-none transition hover:border-emerald-300 focus:border-emerald-400"
+              >
+                <span className="min-w-0 flex-1 truncate">{targetRegionSummary}</span>
+                <span className="shrink-0 text-xs text-emerald-700">{regionMenuOpen ? "^" : "v"}</span>
+              </button>
+              {regionMenuOpen ? (
+                <div className="absolute left-0 right-0 z-50 mt-2 max-h-80 w-full max-w-full overflow-y-auto overflow-x-hidden rounded-2xl border border-emerald-200 bg-white p-2 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
+                  {regions.map((item) => (
+                    <label
+                      key={item.id}
+                      className="grid w-full cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={targetRegionIds.includes(item.id)}
+                        onChange={() => toggleTargetRegion(item.id)}
+                        className="h-4 w-4 accent-emerald-700"
+                      />
+                      <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-left text-slate-950">
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 text-[11px] font-medium text-emerald-700">{item.kind}</span>
+                    </label>
+                  ))}
+                  <div className="sticky bottom-0 mt-2 border-t border-emerald-100 bg-white pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegionMenuOpen(false)}
+                      className="w-full rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-800"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <p className="mt-2 text-xs text-emerald-700">
-              Selected: {selectedTargetRegions.map((item) => item.name).join(", ")}
+            <p className="mt-2 text-xs leading-5 text-emerald-700">
+              {selectedTargetRegions.map((item) => item.name).join(", ")}
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">
@@ -329,8 +368,8 @@ export default function AdminAppBannersPage() {
                   disabled={!hasSingleTargetRegion}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
-                  {stateOptions.map((state) => (
-                    <option key={state} value={state}>{state}</option>
+                  {regions.map((item) => (
+                    <option key={item.id} value={item.name}>{item.name}</option>
                   ))}
                 </select>
               </label>
