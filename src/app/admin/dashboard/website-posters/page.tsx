@@ -45,6 +45,7 @@ export default function AdminWebsitePostersPage() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   async function load(page = pagination.page) {
     const token = await user?.getIdToken();
@@ -68,6 +69,10 @@ export default function AdminWebsitePostersPage() {
         throw new Error(data.error ?? t("websitePosters.unableLoad", lang));
       }
       setItems(data.posters);
+      setSelectedIds((prev) => {
+        const visibleIds = new Set(data.posters?.map((item) => item.id) ?? []);
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
       setPagination(data.pagination);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("websitePosters.unableLoad", lang));
@@ -99,7 +104,62 @@ export default function AdminWebsitePostersPage() {
       setMessage(t("websitePosters.deleted", lang));
       const nextPage =
         items.length === 1 && pagination.page > 1 ? pagination.page - 1 : pagination.page;
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       await load(nextPage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("websitePosters.unableDelete", lang));
+    }
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) => {
+      if (items.length > 0 && items.every((item) => prev.has(item.id))) {
+        return new Set([...prev].filter((id) => !items.some((item) => item.id === id)));
+      }
+      return new Set([...prev, ...items.map((item) => item.id)]);
+    });
+  }
+
+  async function removeSelectedPosters() {
+    const ids = items.map((item) => item.id).filter((id) => selectedIds.has(id));
+    if (ids.length === 0) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    const confirmed = window.confirm(`Delete ${ids.length} selected website poster(s)?`);
+    if (!confirmed) return;
+    setMessage(null);
+    try {
+      for (const id of ids) {
+        const response = await fetch(`/api/admin/website-posters/${id}`, {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? t("websitePosters.unableDelete", lang));
+        }
+      }
+      setItems((prev) => prev.filter((item) => !ids.includes(item.id)));
+      setSelectedIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setMessage(`${ids.length} website poster(s) deleted.`);
+      await load(pagination.page);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("websitePosters.unableDelete", lang));
     }
@@ -134,10 +194,34 @@ export default function AdminWebsitePostersPage() {
           </p>
         ) : null}
 
+        {items.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && items.every((item) => selectedIds.has(item.id))}
+                onChange={toggleAllVisible}
+                className="h-4 w-4 accent-rose-600"
+              />
+              Select visible
+            </label>
+            <span className="text-xs font-semibold text-slate-500">{selectedIds.size} selected</span>
+            <button
+              type="button"
+              onClick={() => void removeSelectedPosters()}
+              disabled={selectedIds.size === 0}
+              className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Delete selected
+            </button>
+          </div>
+        ) : null}
+
         <div className="mt-5 overflow-x-auto rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
           <table className="min-w-[980px] w-full text-sm">
             <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               <tr>
+                <th className="px-4 py-3">Select</th>
                 <th className="px-4 py-3">{t("websitePosters.preview", lang)}</th>
                 <th className="px-4 py-3">{t("websitePosters.category", lang)}</th>
                 <th className="px-4 py-3">State/UT</th>
@@ -148,21 +232,29 @@ export default function AdminWebsitePostersPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     {t("websitePosters.loading", lang)}
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     {t("websitePosters.empty", lang)}
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id} className="border-t border-slate-100/80 bg-white align-top">
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelection(item.id)}
+                        className="h-4 w-4 accent-rose-600"
+                      />
+                    </td>
                     <td className="px-4 py-4">
                       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -60,6 +60,7 @@ export function DashboardAdminAccessConsole() {
   const [expandedAdminRows, setExpandedAdminRows] = useState<Record<string, boolean>>({});
   const [rowsBusy, setRowsBusy] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setCredentialEmail(displayAdminEmail(user?.email ?? ""));
@@ -98,10 +99,19 @@ export function DashboardAdminAccessConsole() {
       if (!response.ok || !data.ok || !data.admins) {
         throw new Error(data.error ?? "Unable to load dashboard admin access.");
       }
-      setRows(data.admins);
+      const admins = data.admins;
+      setRows(admins);
+      const visibleIds = new Set(admins.map((row) => row.uid));
+      setSelectedAdminIds((prev) => {
+        const next = new Set<string>();
+        prev.forEach((uid) => {
+          if (visibleIds.has(uid)) next.add(uid);
+        });
+        return next;
+      });
       setRegionMap(
         Object.fromEntries(
-          data.admins.map((row) => [row.uid, row.assignedRegionIds ?? []]),
+          admins.map((row) => [row.uid, row.assignedRegionIds ?? []]),
         ),
       );
     } catch (error) {
@@ -276,6 +286,22 @@ export function DashboardAdminAccessConsole() {
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to delete dashboard admin access.");
       }
+      setRows((prev) => prev.filter((item) => item.uid !== row.uid));
+      setRegionMap((prev) => {
+        const next = { ...prev };
+        delete next[row.uid];
+        return next;
+      });
+      setSelectedAdminIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.uid);
+        return next;
+      });
+      setExpandedAdminRows((prev) => {
+        const next = { ...prev };
+        delete next[row.uid];
+        return next;
+      });
       await loadAdmins();
     } catch (error) {
       setRowsError(
@@ -289,9 +315,88 @@ export function DashboardAdminAccessConsole() {
     () => rows.filter((item) => item.dashboardAdminStatus === "active").length,
     [rows],
   );
+  const deletableAdminRows = useMemo(
+    () => rows.filter((row) => row.uid !== currentUid),
+    [currentUid, rows],
+  );
+  const selectedCount = selectedAdminIds.size;
+  const allVisibleSelected =
+    deletableAdminRows.length > 0 &&
+    deletableAdminRows.every((row) => selectedAdminIds.has(row.uid));
 
   function toggleAdminRow(uid: string) {
     setExpandedAdminRows((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  }
+
+  function toggleAdminSelection(row: DashboardAdminAccessRow) {
+    if (row.uid === currentUid) return;
+    setSelectedAdminIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(row.uid)) {
+        next.delete(row.uid);
+      } else {
+        next.add(row.uid);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleAdmins() {
+    setSelectedAdminIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        deletableAdminRows.forEach((row) => next.delete(row.uid));
+      } else {
+        deletableAdminRows.forEach((row) => next.add(row.uid));
+      }
+      return next;
+    });
+  }
+
+  async function deleteSelectedAdminAccess() {
+    const ids = Array.from(selectedAdminIds).filter((uid) =>
+      deletableAdminRows.some((row) => row.uid === uid),
+    );
+    if (ids.length === 0) return;
+    const confirmed = window.confirm(`Delete dashboard admin access for ${ids.length} selected admin(s)?`);
+    if (!confirmed) return;
+    setRowsBusy(true);
+    setRowsError(null);
+    try {
+      const headers = await authHeader();
+      for (const uid of ids) {
+        const response = await fetch(
+          `/api/admin/dashboard-access/${encodeURIComponent(uid)}/toggle-status`,
+          {
+            method: "DELETE",
+            headers,
+          },
+        );
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Unable to delete dashboard admin access.");
+        }
+      }
+      setRows((prev) => prev.filter((row) => !ids.includes(row.uid)));
+      setRegionMap((prev) => {
+        const next = { ...prev };
+        ids.forEach((uid) => delete next[uid]);
+        return next;
+      });
+      setExpandedAdminRows((prev) => {
+        const next = { ...prev };
+        ids.forEach((uid) => delete next[uid]);
+        return next;
+      });
+      setSelectedAdminIds(new Set());
+      await loadAdmins();
+    } catch (error) {
+      setRowsError(
+        error instanceof Error ? error.message : "Unable to delete dashboard admin access.",
+      );
+    } finally {
+      setRowsBusy(false);
+    }
   }
 
   return (
@@ -464,8 +569,35 @@ export function DashboardAdminAccessConsole() {
           </p>
         ) : null}
 
+        {deletableAdminRows.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleAllVisibleAdmins}
+                className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)]"
+              />
+              Select all deletable admins
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-slate-500">
+                {selectedCount} selected
+              </span>
+              <button
+                type="button"
+                disabled={rowsBusy || selectedCount === 0}
+                onClick={() => void deleteSelectedAdminAccess()}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete selected
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 space-y-3 lg:hidden">
-          {rowsBusy ? (
+          {rowsBusy && rows.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
               Loading dashboard admin access...
             </div>
@@ -479,6 +611,16 @@ export function DashboardAdminAccessConsole() {
               const expanded = expandedAdminRows[row.uid] === true;
               return (
                 <div key={`mobile-${row.uid}`} className="rounded-[24px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                  <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdminIds.has(row.uid)}
+                      disabled={selfRow || rowsBusy}
+                      onChange={() => toggleAdminSelection(row)}
+                      className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
+                    />
+                    Select admin
+                  </label>
                   <button
                     type="button"
                     onClick={() => toggleAdminRow(row.uid)}
@@ -562,6 +704,7 @@ export function DashboardAdminAccessConsole() {
           <table className="min-w-[840px] w-full text-sm">
             <thead className="bg-white text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               <tr>
+                <th className="px-4 py-3">Select</th>
                 <th className="px-4 py-3">Admin</th>
                 <th className="px-4 py-3">Dashboard ID</th>
                 <th className="px-4 py-3">Email</th>
@@ -573,15 +716,15 @@ export function DashboardAdminAccessConsole() {
               </tr>
             </thead>
             <tbody>
-              {rowsBusy ? (
+              {rowsBusy && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
                     Loading dashboard admin access...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
                     No dashboard admin access records found.
                   </td>
                 </tr>
@@ -592,6 +735,16 @@ export function DashboardAdminAccessConsole() {
                   return (
                     <Fragment key={row.uid}>
                       <tr className="border-t border-slate-100/80 bg-white">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedAdminIds.has(row.uid)}
+                            disabled={selfRow || rowsBusy}
+                            onChange={() => toggleAdminSelection(row)}
+                            className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
+                            aria-label="Select admin"
+                          />
+                        </td>
                         <td colSpan={8} className="px-4 py-3">
                           <button
                             type="button"
@@ -614,6 +767,7 @@ export function DashboardAdminAccessConsole() {
                       </tr>
                       {expanded ? (
                         <tr className="border-t border-slate-100/80 bg-white align-top">
+                          <td className="px-4 py-4" />
                           <td className="px-4 py-4 text-slate-700">{row.name || "Admin user"}</td>
                           <td className="px-4 py-4 text-slate-700">{row.dashboardAdminLoginId || "-"}</td>
                           <td className="px-4 py-4 text-slate-700">{row.email}</td>

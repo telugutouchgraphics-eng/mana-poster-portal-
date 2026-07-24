@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Gift">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#7f00ff"/><stop offset="1" stop-color="#e100ff"/></linearGradient>
+    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
+  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
+  <path d="M28 50 H100 V68 H28 Z M36 68 H92 V104 H36 Z M64 50 V104 M46 50 C34 38 44 28 64 50 C84 28 94 38 82 50" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

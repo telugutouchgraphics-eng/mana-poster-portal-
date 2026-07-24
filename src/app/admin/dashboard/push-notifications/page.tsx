@@ -4,6 +4,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
 interface PushNotificationItem {
   id: string;
@@ -15,6 +16,7 @@ interface PushNotificationItem {
   route: string;
   audience: "area_users";
   targetState?: string;
+  targetRegionIds?: string[];
   targetDistrict?: string;
   targetCity?: string;
   category: string;
@@ -43,7 +45,7 @@ export default function AdminPushNotificationsPage() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [audience] = useState<"area_users">("area_users");
-  const [targetState, setTargetState] = useState(region.name);
+  const [targetRegionIds, setTargetRegionIds] = useState<string[]>([region.id]);
   const [targetDistrict, setTargetDistrict] = useState("");
   const [targetCity, setTargetCity] = useState("");
   const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
@@ -98,21 +100,31 @@ export default function AdminPushNotificationsPage() {
       setStatusMessage("Enter notification title and message.");
       return;
     }
-    if (audience === "area_users" && !targetState.trim()) {
-      setStatusMessage("Select State / UT for area targeting.");
+    if (audience === "area_users" && targetRegionIds.length === 0) {
+      setStatusMessage("Select at least one State / UT for area targeting.");
+      return;
+    }
+    if (targetRegionIds.length > 1 && (targetDistrict.trim() || targetCity.trim())) {
+      setStatusMessage("District and city targeting is available only when one State / UT is selected.");
       return;
     }
 
     setBusy(true);
     setStatusMessage(null);
     try {
+      const selectedRegionNames = regions
+        .filter((item) => targetRegionIds.includes(item.id))
+        .map((item) => item.name);
       const formData = new FormData();
       formData.set("title", title.trim());
       formData.set("message", message.trim());
       formData.set("route", "home");
       formData.set("audience", audience);
       formData.set("category", "");
-      formData.set("targetState", audience === "area_users" ? targetState.trim() : "");
+      formData.set("targetState", audience === "area_users" ? selectedRegionNames.join(", ") : "");
+      targetRegionIds.forEach((regionId) => {
+        formData.append("targetRegionIds", regionId);
+      });
       formData.set("targetDistrict", audience === "area_users" ? targetDistrict.trim() : "");
       formData.set("targetCity", audience === "area_users" ? targetCity.trim() : "");
       if (imageFile) {
@@ -132,7 +144,7 @@ export default function AdminPushNotificationsPage() {
 
       setTitle("");
       setMessage("");
-      setTargetState(region.name);
+      setTargetRegionIds([region.id]);
       setTargetDistrict("");
       setTargetCity("");
       setImageFile(null);
@@ -149,13 +161,13 @@ export default function AdminPushNotificationsPage() {
     }
   }
 
-  const stateOptions = Array.from(
-    new Set(regions.map((region) => region.name).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b));
+  const selectedRegions = regions.filter((item) => targetRegionIds.includes(item.id));
+  const singleSelectedRegion = selectedRegions.length === 1 ? selectedRegions[0] : null;
+  const selectedStateName = singleSelectedRegion?.name ?? "";
   const districtOptions = Array.from(
     new Set(
       locationRows
-        .filter((row) => !targetState || row.state === targetState)
+        .filter((row) => !selectedStateName || row.state === selectedStateName)
         .map((row) => row.district)
         .filter(Boolean),
     ),
@@ -163,7 +175,7 @@ export default function AdminPushNotificationsPage() {
   const cityOptions = Array.from(
     new Set(
       locationRows
-        .filter((row) => !targetState || row.state === targetState)
+        .filter((row) => !selectedStateName || row.state === selectedStateName)
         .filter((row) => !targetDistrict || row.district === targetDistrict)
         .map((row) => row.city)
         .filter(Boolean),
@@ -171,13 +183,32 @@ export default function AdminPushNotificationsPage() {
   ).sort((a, b) => a.localeCompare(b));
 
   useEffect(() => {
-    if (stateOptions.includes(targetState)) {
+    if (targetRegionIds.length > 0) {
       return;
     }
-    setTargetState(region.name);
+    setTargetRegionIds([region.id]);
     setTargetDistrict("");
     setTargetCity("");
-  }, [region.name, stateOptions, targetState]);
+  }, [region.id, targetRegionIds.length]);
+
+  useEffect(() => {
+    if (targetRegionIds.length <= 1) {
+      return;
+    }
+    setTargetDistrict("");
+    setTargetCity("");
+  }, [targetRegionIds.length]);
+
+  function displayTargetStates(item: PushNotificationItem) {
+    const regionIds = item.targetRegionIds ?? [];
+    if (regionIds.length > 0) {
+      const names = regions
+        .filter((regionItem) => regionIds.includes(regionItem.id))
+        .map((regionItem) => regionItem.name);
+      return names.length > 0 ? names.join(", ") : regionIds.join(", ");
+    }
+    return item.targetState ?? "";
+  }
 
   return (
     <section className="grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">
@@ -217,20 +248,17 @@ export default function AdminPushNotificationsPage() {
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">
-                <span className="font-semibold">State / UT</span>
-                <select
-                  value={targetState}
-                  onChange={(event) => {
-                    setTargetState(event.target.value);
+                <span className="font-semibold">States / UTs</span>
+                <RegionMultiSelectDropdown
+                  regions={regions}
+                  selectedRegionIds={targetRegionIds}
+                  onChange={(nextRegionIds) => {
+                    setTargetRegionIds(nextRegionIds);
                     setTargetDistrict("");
                     setTargetCity("");
                   }}
-                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
-                >
-                  {stateOptions.map((state) => (
-                    <option key={state} value={state}>{state}</option>
-                  ))}
-                </select>
+                  label="Add State / UT"
+                />
               </label>
               <label className="space-y-2 text-sm text-emerald-950">
                 <span className="font-semibold">District</span>
@@ -240,9 +268,10 @@ export default function AdminPushNotificationsPage() {
                     setTargetDistrict(event.target.value);
                     setTargetCity("");
                   }}
+                  disabled={targetRegionIds.length !== 1}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
-                  <option value="">Any district</option>
+                  <option value="">{targetRegionIds.length === 1 ? "Any district" : "Single state only"}</option>
                   {districtOptions.map((district) => (
                     <option key={district} value={district}>{district}</option>
                   ))}
@@ -253,9 +282,10 @@ export default function AdminPushNotificationsPage() {
                 <select
                   value={targetCity}
                   onChange={(event) => setTargetCity(event.target.value)}
+                  disabled={targetRegionIds.length !== 1}
                   className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
                 >
-                  <option value="">Any city</option>
+                  <option value="">{targetRegionIds.length === 1 ? "Any city" : "Single state only"}</option>
                   {cityOptions.map((city) => (
                     <option key={city} value={city}>{city}</option>
                   ))}
@@ -365,7 +395,7 @@ export default function AdminPushNotificationsPage() {
                     </p>
                     {item.audience === "area_users" ? (
                       <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        Area: {[item.targetCity, item.targetDistrict, item.targetState]
+                        Area: {[item.targetCity, item.targetDistrict, displayTargetStates(item)]
                           .filter(Boolean)
                           .join(", ") || "Selected area"}
                       </p>

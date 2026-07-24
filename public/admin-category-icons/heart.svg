@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Heart">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#f953c6"/><stop offset="1" stop-color="#b91d73"/></linearGradient>
+    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
+  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
+  <path d="M64 104 C40 84 28 72 28 54 C28 42 37 34 48 34 C56 34 61 39 64 45 C67 39 72 34 80 34 C91 34 100 42 100 54 C100 72 88 84 64 104 Z" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

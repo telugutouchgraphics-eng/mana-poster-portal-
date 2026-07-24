@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Trophy">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#00c6ff"/><stop offset="1" stop-color="#0072ff"/></linearGradient>
+    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
+  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
+  <path d="M44 30 H84 V52 C84 70 76 80 64 80 C52 80 44 70 44 52 Z M44 40 H28 C28 56 34 66 46 68 M84 40 H100 C100 56 94 66 82 68 M56 80 V96 H72 V80 M44 104 H84" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

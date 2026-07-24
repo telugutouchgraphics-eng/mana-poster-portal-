@@ -592,13 +592,13 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
         </div>
       ) : null}
 
-      {loading ? (
+      {loading && competitions.length === 0 ? (
         <div className="rounded-[28px] border border-[var(--portal-border)] bg-white px-5 py-8 text-center text-sm text-slate-500">
           {texts.loading}
         </div>
       ) : null}
 
-      {!loading && tab === "live" ? (
+      {tab === "live" && (!loading || competitions.length > 0) ? (
         <div className="space-y-5">
           {liveCompetitions.length === 0 ? (
             <EmptyState text={texts.emptyLive} />
@@ -610,7 +610,7 @@ export function CompetitionHub({ mode }: CompetitionHubProps) {
         </div>
       ) : null}
 
-      {!loading && tab === "all" ? (
+      {tab === "all" && (!loading || competitions.length > 0) ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {competitions.length === 0 ? (
             <EmptyState text={texts.emptyAll} />

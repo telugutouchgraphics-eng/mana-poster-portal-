@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Diya">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#00c6ff"/><stop offset="1" stop-color="#0072ff"/></linearGradient>
+    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
+  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
+  <path d="M32 72 C48 90 80 90 96 72 C88 98 40 98 32 72 Z M64 62 C58 50 60 38 68 28 C74 40 74 54 64 62 Z" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

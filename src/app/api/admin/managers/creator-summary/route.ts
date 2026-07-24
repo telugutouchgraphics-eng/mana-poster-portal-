@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRoles } from "@/lib/server/role-utils";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
 import { loadActorAllowedRegionIds, sanitizeDashboardRegionIds } from "@/lib/server/region-scope";
 
 interface RawManagerDoc {
@@ -52,13 +53,21 @@ export async function GET(req: NextRequest) {
     const status = (url.searchParams.get("status") ?? "all").trim();
     const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
 
-    const [primaryRoleSnapshot, multiRoleSnapshot, creatorSnapshot, manualCategories] = await Promise.all([
+    const [
+      primaryRoleSnapshot,
+      multiRoleSnapshot,
+      creatorSnapshot,
+      manualCategories,
+      permanentCategories,
+    ] = await Promise.all([
       adminDb.collection("users").where("role", "==", "manager").get(),
       adminDb.collection("users").where("roles", "array-contains", "manager").get(),
       adminDb.collection("creatorProfiles").get(),
       listManualEventCategories(),
+      listActivePermanentCategories(),
     ]);
     const manualCategoryIds = manualCategories.map((item) => item.id);
+    const permanentCategoryIds = permanentCategories.map((item) => item.id);
 
     const mergedDocs = new Map<string, (typeof primaryRoleSnapshot.docs)[number]>();
     for (const doc of primaryRoleSnapshot.docs) {
@@ -98,7 +107,7 @@ export async function GET(req: NextRequest) {
         : [];
       const { assignedCategories } = filterKnownAssignedCategories(
         rawAssignedCategories,
-        manualCategoryIds,
+        [...manualCategoryIds, ...permanentCategoryIds],
       );
       creators.push({
         creatorPublicId: String(item.creatorPublicId ?? doc.id),

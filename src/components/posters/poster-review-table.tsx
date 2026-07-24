@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
+import {
+  AppStyleNameStrip,
+  isPhotoInNameStripSafeZone,
+  NameStripOverlapWarning,
+  nameStripSafeZoneHeightPercent,
+} from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import {
   photoShapeAspectRatio,
@@ -41,7 +47,9 @@ interface PosterRow {
   title: string;
   categoryId: string;
   categoryLabel: string;
+  mediaType: string;
   imageUrl: string;
+  videoUrl: string;
   status: string;
   reviewComment: string;
   duplicateStatus: string;
@@ -66,6 +74,11 @@ interface PosterRow {
   updatedAt: number;
   approvedAt: number;
   dashboardVisibleUntil: number;
+}
+
+interface MediaDimensions {
+  width: number;
+  height: number;
 }
 
 const REVIEW_TABS = [
@@ -95,6 +108,71 @@ function statusClass(status: string): string {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
+const SUPPORTED_UPLOAD_DIMENSIONS = [
+  { label: "1:1", width: 1080, height: 1080 },
+  { label: "4:5", width: 1080, height: 1350 },
+  { label: "9:16", width: 1080, height: 1920 },
+] as const;
+
+const ASPECT_RATIO_TOLERANCE = 0.01;
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y > 0) {
+    const next = x % y;
+    x = y;
+    y = next;
+  }
+  return x || 1;
+}
+
+function reducedRatio(width: number, height: number): string {
+  if (width <= 0 || height <= 0) return "-";
+  const divisor = gcd(width, height);
+  return `${width / divisor}:${height / divisor}`;
+}
+
+function dimensionStatus(dimensions?: MediaDimensions) {
+  if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {
+    return {
+      label: "Reading dimensions",
+      className: "border-slate-200 bg-slate-50 text-slate-600",
+    };
+  }
+  const exact = SUPPORTED_UPLOAD_DIMENSIONS.find(
+    (item) => item.width === dimensions.width && item.height === dimensions.height,
+  );
+  if (exact) {
+    return {
+      label: `GREEN ${exact.label} exact px`,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+  const actualAspect = dimensions.width / dimensions.height;
+  const supportedRatio = SUPPORTED_UPLOAD_DIMENSIONS.find((item) => {
+    const expectedAspect = item.width / item.height;
+    return Math.abs(actualAspect - expectedAspect) <= ASPECT_RATIO_TOLERANCE;
+  });
+  if (supportedRatio) {
+    return {
+      label: `GREEN ${supportedRatio.label} ratio ok`,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+  const ratio = reducedRatio(dimensions.width, dimensions.height);
+  return {
+    label: `RED unsupported ${ratio}`,
+    className: "border-rose-200 bg-rose-50 text-rose-700",
+  };
+}
+
+function recommendedDimensionsText(): string {
+  return SUPPORTED_UPLOAD_DIMENSIONS.map(
+    (item) => `${item.label} = ${item.width}x${item.height}px`,
+  ).join(" | ");
+}
+
 export function PosterReviewTable() {
   const { user } = useAuth();
   const { region } = useDashboardRegion();
@@ -106,6 +184,14 @@ export function PosterReviewTable() {
   const [reviewCommentMap, setReviewCommentMap] = useState<Record<string, string>>({});
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
   const [saleAmountMap, setSaleAmountMap] = useState<Record<string, string>>({});
+  const [previewPoster, setPreviewPoster] = useState<{
+    mediaUrl: string;
+    mediaType: string;
+    title: string;
+  } | null>(null);
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
+  const [mediaDimensionsMap, setMediaDimensionsMap] = useState<Record<string, MediaDimensions>>({});
+  const loadRequestIdRef = useRef(0);
 
   const authHeader = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -115,8 +201,12 @@ export function PosterReviewTable() {
     return { authorization: `Bearer ${token}` };
   }, [user]);
 
-  const loadPosters = useCallback(async () => {
-    setLoading(true);
+  const loadPosters = useCallback(async (options?: { silent?: boolean }) => {
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const headers = await authHeader();
@@ -134,13 +224,24 @@ export function PosterReviewTable() {
       if (!response.ok || !data.ok || !data.posters) {
         throw new Error(data.error ?? "Unable to load poster review list.");
       }
-      setRows(data.posters);
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
+      const nextPosters =
+        status === "all"
+          ? data.posters
+          : data.posters.filter((item) => item.status === status);
+      setRows(nextPosters);
+      setSelectedPosterIds((prev) => {
+        const visibleIds = new Set(nextPosters.map((item) => item.id));
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
       setReviewCommentMap(
         Object.fromEntries(
-          data.posters.map((item) => [item.id, item.reviewComment ?? ""])
+          nextPosters.map((item) => [item.id, item.reviewComment ?? ""])
         )
       );
-      const posterRows = data.posters;
+      const posterRows = nextPosters;
       setSaleAmountMap((prev) => {
         const next = { ...prev };
         for (const item of posterRows) {
@@ -151,9 +252,14 @@ export function PosterReviewTable() {
         return next;
       });
     } catch (err) {
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unable to load posters.");
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current && !options?.silent) {
+        setLoading(false);
+      }
     }
   }, [authHeader, status, query, region.id]);
 
@@ -165,6 +271,91 @@ export function PosterReviewTable() {
   }, [user, loadPosters]);
 
   const currentListCount = useMemo(() => rows.length, [rows]);
+  const selectedCount = selectedPosterIds.size;
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedPosterIds.has(row.id));
+
+  function togglePosterSelection(posterId: string) {
+    setSelectedPosterIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(posterId)) {
+        next.delete(posterId);
+      } else {
+        next.add(posterId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisiblePosters() {
+    setSelectedPosterIds((prev) => {
+      if (rows.length === 0) {
+        return new Set();
+      }
+      if (rows.every((row) => prev.has(row.id))) {
+        return new Set([...prev].filter((id) => !rows.some((row) => row.id === id)));
+      }
+      return new Set([...prev, ...rows.map((row) => row.id)]);
+    });
+  }
+
+  async function deleteSelectedPosters() {
+    const ids = [...selectedPosterIds].filter((id) => rows.some((row) => row.id === id));
+    if (ids.length === 0) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete ${ids.length} selected poster(s) permanently?`);
+    if (!confirmed) {
+      return;
+    }
+    setBusyMap((prev) => ({
+      ...prev,
+      ...Object.fromEntries(ids.map((id) => [id, true])),
+    }));
+    setError(null);
+    try {
+      const headers = await authHeader();
+      for (const posterId of ids) {
+        const response = await fetch(
+          `/api/manager/posters/${encodeURIComponent(posterId)}/review`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify({
+              status: "deleted",
+              reviewComment: reviewCommentMap[posterId] ?? "",
+            }),
+          },
+        );
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Unable to delete selected posters.");
+        }
+      }
+      setRows((prev) => prev.filter((row) => !ids.includes(row.id)));
+      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setReviewCommentMap((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setSaleAmountMap((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      await loadPosters({ silent: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete selected posters.");
+    } finally {
+      setBusyMap((prev) => ({
+        ...prev,
+        ...Object.fromEntries(ids.map((id) => [id, false])),
+      }));
+    }
+  }
 
   async function submitReview(
     posterId: string,
@@ -192,7 +383,23 @@ export function PosterReviewTable() {
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to update poster status.");
       }
-      await loadPosters();
+      setRows((prev) => prev.filter((row) => row.id !== posterId));
+      setSelectedPosterIds((prev) => {
+        const next = new Set(prev);
+        next.delete(posterId);
+        return next;
+      });
+      setReviewCommentMap((prev) => {
+        const next = { ...prev };
+        delete next[posterId];
+        return next;
+      });
+      setSaleAmountMap((prev) => {
+        const next = { ...prev };
+        delete next[posterId];
+        return next;
+      });
+      await loadPosters({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update poster.");
     } finally {
@@ -283,6 +490,29 @@ export function PosterReviewTable() {
         })}
       </div>
 
+      {rows.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleAllVisiblePosters}
+              className="h-4 w-4 accent-rose-600"
+            />
+            Select visible
+          </label>
+          <span className="text-xs font-semibold text-slate-500">{selectedCount} selected</span>
+          <button
+            type="button"
+            onClick={() => void deleteSelectedPosters()}
+            disabled={selectedCount === 0}
+            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Delete selected
+          </button>
+        </div>
+      ) : null}
+
       {error ? (
         <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {error}
@@ -290,7 +520,7 @@ export function PosterReviewTable() {
       ) : null}
 
       <div className="mt-5 grid gap-4">
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-8 text-center text-sm text-slate-600">
             Loading poster reviews...
           </div>
@@ -302,20 +532,87 @@ export function PosterReviewTable() {
           rows.map((row) => {
             const config = row.personalizationConfig;
             const approved = row.status === "approved";
+            const isVideo = row.mediaType === "video" && row.videoUrl.trim().length > 0;
+            const mediaUrl = isVideo ? row.videoUrl : row.imageUrl;
+            const dimensions = mediaDimensionsMap[row.id];
+            const dimensionsBadge = dimensionStatus(dimensions);
+            const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(config);
+            const posterAspectRatio =
+              dimensions && dimensions.width > 0 && dimensions.height > 0
+                ? dimensions.width / dimensions.height
+                : 1;
+            const stripOverlapWarning = isPhotoInNameStripSafeZone({
+              config,
+              posterAspectRatio,
+              photoY: config.photoY,
+              photoScale: config.photoScale,
+            });
             return (
               <article
                 key={row.id}
-                className="grid gap-4 rounded-[26px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_10px_26px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]"
+                className="grid gap-5 rounded-[26px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_10px_26px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
               >
-                <div className="mx-auto w-full max-w-[300px] rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-2 sm:max-w-none lg:mx-0">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 lg:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedPosterIds.has(row.id)}
+                    onChange={() => togglePosterSelection(row.id)}
+                    className="h-4 w-4 accent-rose-600"
+                  />
+                  Select poster
+                </label>
+                <div className="mx-auto w-full max-w-[420px] rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-2 sm:max-w-none lg:mx-0">
                   <div className="w-full overflow-hidden rounded-lg">
-                    <div className="relative max-h-[min(52vh,380px)] overflow-hidden bg-black">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={row.imageUrl}
-                        alt={row.title}
-                        className="mx-auto h-auto max-h-[min(52vh,380px)] w-full object-contain"
-                      />
+                    <div className="relative max-h-[min(68vh,620px)] overflow-hidden bg-black">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewPoster({
+                            mediaUrl,
+                            mediaType: isVideo ? "video" : "image",
+                            title: row.title,
+                          })
+                        }
+                        className="block w-full cursor-zoom-in"
+                        aria-label="Open poster preview"
+                      >
+                        {isVideo ? (
+                          <video
+                            src={mediaUrl}
+                            className="mx-auto h-auto max-h-[min(68vh,620px)] w-full object-contain"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            onLoadedMetadata={(event) => {
+                              const video = event.currentTarget;
+                              setMediaDimensionsMap((prev) => ({
+                                ...prev,
+                                [row.id]: {
+                                  width: video.videoWidth,
+                                  height: video.videoHeight,
+                                },
+                              }));
+                            }}
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={mediaUrl}
+                            alt={row.title}
+                            className="mx-auto h-auto max-h-[min(68vh,620px)] w-full object-contain"
+                            onLoad={(event) => {
+                              const image = event.currentTarget;
+                              setMediaDimensionsMap((prev) => ({
+                                ...prev,
+                                [row.id]: {
+                                  width: image.naturalWidth,
+                                  height: image.naturalHeight,
+                                },
+                              }));
+                            }}
+                          />
+                        )}
+                      </button>
                       <div
                         className="absolute overflow-hidden"
                         style={{
@@ -336,6 +633,9 @@ export function PosterReviewTable() {
                           alt: "Creator sample",
                         })}
                      </div>
+                      {stripOverlapWarning ? (
+                        <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                      ) : null}
                       {!config.showBottomStrip ? (
                         <div
                           className="absolute max-w-[92%] -translate-x-1/2 -translate-y-1/2"
@@ -360,14 +660,14 @@ export function PosterReviewTable() {
                         </div>
                       ) : null}
                       {config.showBottomStrip ? (
-                        <div className="absolute inset-x-0 bottom-0 z-[3] bg-white px-3 py-1.5 text-center text-slate-900">
-                          <p className="truncate text-sm font-bold">
-                            {config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
-                            <span className="mx-2 text-slate-400">|</span>
-                            <span className="text-xs font-semibold text-slate-600">
-                              {config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
-                            </span>
-                          </p>
+                        <div className="absolute inset-x-0 bottom-0 z-[3]">
+                          <AppStyleNameStrip
+                            config={config}
+                            imageSeed={row.imageUrl || row.videoUrl || row.id}
+                            sampleName={config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
+                            sampleDesignation={config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
+                            compact
+                          />
                         </div>
                       ) : null}
                     </div>
@@ -379,32 +679,73 @@ export function PosterReviewTable() {
                       </div>
                     ) : null}
                   </div>
-                  <a
-                    href={row.imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewPoster({
+                        mediaUrl,
+                        mediaType: isVideo ? "video" : "image",
+                        title: row.title,
+                      })
+                    }
                     className="mt-3 inline-flex text-xs font-semibold text-blue-700 underline"
                   >
                     Open original poster
-                  </a>
+                  </button>
                 </div>
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="truncate text-base font-semibold text-slate-900">
-                        {row.creatorPublicId}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Creator: {row.creatorName} ({row.creatorPublicId})
-                      </p>
-                      <p className="text-xs text-slate-600">
-                        Category:{" "}
-                        <CategoryLabelWithLogo
-                          id={row.categoryId}
-                          label={row.categoryLabel || row.categoryId}
-                        />
-                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-violet-600">
+                            Creator Name
+                          </p>
+                          <p className="mt-1 truncate text-lg font-black text-violet-950">
+                            {row.creatorName || "-"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-blue-600">
+                            Creator ID
+                          </p>
+                          <p className="mt-1 truncate text-lg font-black text-blue-950">
+                            {row.creatorPublicId || "-"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                            Category
+                          </p>
+                          <div className="mt-1 text-base font-black text-emerald-950">
+                            <CategoryLabelWithLogo
+                              id={row.categoryId}
+                              label={row.categoryLabel || row.categoryId}
+                            />
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-orange-700">
+                            Dimensions
+                          </p>
+                          <p className="mt-1 text-lg font-black text-orange-950">
+                            {dimensions
+                              ? `${dimensions.width}x${dimensions.height}px`
+                              : "Reading..."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full border px-3 py-1.5 text-xs font-black uppercase ${dimensionsBadge.className}`}
+                        >
+                          {dimensionsBadge.label}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
+                          Required: {recommendedDimensionsText()}
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-600">
                         Uploaded: {formatDate(row.createdAt)}
                       </p>
@@ -515,6 +856,46 @@ export function PosterReviewTable() {
           })
         )}
       </div>
+      {previewPoster ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Poster preview"
+          onClick={() => setPreviewPoster(null)}
+        >
+          <div
+            className="relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewPoster(null)}
+              className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-xl font-black text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:bg-slate-100"
+              aria-label="Close poster preview"
+            >
+              X
+            </button>
+            <div className="max-h-[92vh] overflow-auto bg-black p-3">
+              {previewPoster.mediaType === "video" ? (
+                <video
+                  src={previewPoster.mediaUrl}
+                  className="mx-auto h-auto max-h-[88vh] w-auto max-w-full object-contain"
+                  controls
+                  playsInline
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewPoster.mediaUrl}
+                  alt={previewPoster.title}
+                  className="mx-auto h-auto max-h-[88vh] w-auto max-w-full object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

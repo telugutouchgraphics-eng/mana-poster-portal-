@@ -4,7 +4,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   good_afternoon: "☀️",
   good_night: "🌙",
   motivational: "🔥",
-  love_quotes: "❤️",
+  good_evening: "🌆",
   today_special: "⭐",
   birthdays: "🎂",
   life_advice: "🧭",
@@ -122,6 +122,7 @@ export function categoryIconFor(id: string, label = ""): string {
   const text = label.toLowerCase();
   if (key.startsWith("party_")) return "";
   if (CATEGORY_ICONS[key]) return CATEGORY_ICONS[key];
+  if (text.includes("birthday")) return CATEGORY_ICONS.birthdays;
   if (key.startsWith("weekday_")) return "📅";
   if (key.includes("jayanthi") || text.includes("jayanthi")) return "🙏";
   if (key.includes("vardhanthi") || text.includes("vardhanthi")) return "🕯️";
@@ -132,6 +133,7 @@ export function categoryIconFor(id: string, label = ""): string {
   if (text.includes("anniversary")) return "💞";
   if (text.includes("morning")) return "🌅";
   if (text.includes("afternoon")) return "☀️";
+  if (text.includes("evening")) return "🌆";
   if (text.includes("night")) return "🌙";
   if (text.includes("devotional") || text.includes("bhakti")) return "🙏";
   if (text.includes("bible")) return "✝️";

@@ -6,6 +6,12 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import {
+  AppStyleNameStrip,
+  isPhotoInNameStripSafeZone,
+  NameStripOverlapWarning,
+  nameStripSafeZoneHeightPercent,
+} from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
@@ -93,14 +99,6 @@ interface ImageMeta {
 
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
-
-const POSTER_STRIP_GRADIENTS = [
-  ["#071E48", "#0057B8"],
-  ["#062D1D", "#0F9F6E"],
-  ["#4A1407", "#E76F1E"],
-  ["#34115B", "#9D4EDD"],
-  ["#5A3A00", "#FFB703"],
-] as const;
 
 const defaultPersonalization: PersonalizationConfig = {
   photoShape: "circle",
@@ -374,34 +372,6 @@ function parsePersonalizationConfig(
   );
 }
 
-function resolvePosterStripGradient(
-  sampleName: string,
-  stripHeight: number,
-): readonly [string, string] {
-  const seedSource = `${sampleName}|${stripHeight}`;
-  let hash = 23;
-  for (const char of seedSource) {
-    hash = 41 * hash + char.charCodeAt(0);
-  }
-  return POSTER_STRIP_GRADIENTS[Math.abs(hash) % POSTER_STRIP_GRADIENTS.length]!;
-}
-
-function stripTextColor(gradient: readonly [string, string]): string {
-  const luminance =
-    gradient
-      .map((color) => {
-        const hex = color.replace("#", "");
-        const r = Number.parseInt(hex.slice(0, 2), 16) / 255;
-        const g = Number.parseInt(hex.slice(2, 4), 16) / 255;
-        const b = Number.parseInt(hex.slice(4, 6), 16) / 255;
-        const channel = (value: number) =>
-          value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-      })
-      .reduce((sum, value) => sum + value, 0) / gradient.length;
-  return luminance > 0.48 ? "#111827" : "#FFFFFF";
-}
-
 function formatDate(epochMs: number): string {
   if (!epochMs) return "-";
   return new Date(epochMs).toLocaleString("en-IN", {
@@ -448,6 +418,7 @@ export default function AdminUploadStudioPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [requestedPublishDate, setRequestedPublishDate] = useState("");
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -796,11 +767,22 @@ export default function AdminUploadStudioPage() {
       : "1 / 1";
   const safePersonalization = clampPhotoSafeArea(personalization, fileMeta);
   const isVideoPreview = Boolean(file && isVideoFile(file));
-  const stripGradient = resolvePosterStripGradient(
-    PERMANENT_SAMPLE_NAME,
-    personalization.stripHeight,
-  );
-  const gradientTextColor = stripTextColor(stripGradient);
+  const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
+  const posterAspectRatio = posterAspect(fileMeta);
+  const stripOverlapWarning =
+    isPhotoInNameStripSafeZone({
+      config: personalization,
+      posterAspectRatio,
+      photoY: safePersonalization.photoY,
+      photoScale: safePersonalization.photoScale,
+    }) ||
+    (safePersonalization.showVideoExtraPhoto &&
+      isPhotoInNameStripSafeZone({
+        config: personalization,
+        posterAspectRatio,
+        photoY: safePersonalization.videoExtraPhotoY,
+        photoScale: safePersonalization.videoExtraPhotoScale,
+      }));
   async function startVideoPreviewPlayback() {
     if (!isVideoPreview) return;
     setVideoPreviewCycle((prev) => prev + 1);
@@ -981,9 +963,84 @@ export default function AdminUploadStudioPage() {
       if (editingPosterId === posterId) {
         setEditingPosterId(null);
       }
+      setSelectedPosterIds((prev) => {
+        const next = new Set(prev);
+        next.delete(posterId);
+        return next;
+      });
+      setDashboard((prev) =>
+        prev
+          ? {
+              ...prev,
+              posters: (prev.posters ?? []).filter((item) => item.id !== posterId),
+            }
+          : prev,
+      );
       await loadDashboard(true);
     } catch (err) {
       setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
+    }
+  }
+
+  function togglePosterSelection(posterId: string) {
+    setSelectedPosterIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(posterId)) {
+        next.delete(posterId);
+      } else {
+        next.add(posterId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisiblePosters() {
+    const ids = visibleRecentUploads.map((poster) => poster.id);
+    setSelectedPosterIds((prev) => {
+      if (ids.length > 0 && ids.every((id) => prev.has(id))) {
+        return new Set([...prev].filter((id) => !ids.includes(id)));
+      }
+      return new Set([...prev, ...ids]);
+    });
+  }
+
+  async function deleteSelectedPosters() {
+    const ids = visibleRecentUploads
+      .map((poster) => poster.id)
+      .filter((id) => selectedPosterIds.has(id));
+    if (ids.length === 0) return;
+    const ok = window.confirm(`Delete ${ids.length} selected upload(s) permanently?`);
+    if (!ok) return;
+    try {
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+      }
+      for (const posterId of ids) {
+        const response = await fetch(`/api/admin/app-posters/${posterId}`, {
+          method: "DELETE",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Unable to delete selected posters.");
+        }
+      }
+      if (editingPosterId && ids.includes(editingPosterId)) {
+        setEditingPosterId(null);
+      }
+      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setDashboard((prev) =>
+        prev
+          ? {
+              ...prev,
+              posters: (prev.posters ?? []).filter((item) => !ids.includes(item.id)),
+            }
+          : prev,
+      );
+      await loadDashboard(true);
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : "Unable to delete selected posters.");
     }
   }
 
@@ -1262,6 +1319,32 @@ export default function AdminUploadStudioPage() {
               </div>
             </div>
 
+            {visibleRecentUploads.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={
+                      visibleRecentUploads.length > 0 &&
+                      visibleRecentUploads.every((poster) => selectedPosterIds.has(poster.id))
+                    }
+                    onChange={toggleAllVisiblePosters}
+                    className="h-4 w-4 accent-rose-600"
+                  />
+                  Select visible
+                </label>
+                <span className="text-xs font-semibold text-slate-500">{selectedPosterIds.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => void deleteSelectedPosters()}
+                  disabled={selectedPosterIds.size === 0}
+                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Delete selected
+                </button>
+              </div>
+            ) : null}
+
             {visibleRecentUploads.length === 0 ? (
               <p className="mt-4 text-sm text-slate-600">No uploads yet.</p>
             ) : (
@@ -1271,6 +1354,15 @@ export default function AdminUploadStudioPage() {
                     key={poster.id}
                     className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedPosterIds.has(poster.id)}
+                        onChange={() => togglePosterSelection(poster.id)}
+                        className="h-4 w-4 accent-rose-600"
+                      />
+                      Select
+                    </label>
                     <div className="flex items-center gap-3">
                       <div className="h-14 w-14 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                         {isVideoPoster(poster) ? (
@@ -1724,6 +1816,9 @@ export default function AdminUploadStudioPage() {
                           </button>
                         ) : null}
 
+                        {stripOverlapWarning ? (
+                          <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                        ) : null}
                         {!personalization.showBottomStrip ? (
                           <div
                             onPointerDown={startNameDrag}
@@ -1752,26 +1847,13 @@ export default function AdminUploadStudioPage() {
                           </div>
                         ) : null}
                         {personalization.showBottomStrip ? (
-                          <div
-                            className="absolute inset-x-0 bottom-0 z-[3] px-4 py-2 text-center"
-                            style={{
-                              backgroundImage: `linear-gradient(90deg, ${stripGradient[0]}, ${stripGradient[1]})`,
-                              color: gradientTextColor,
-                            }}
-                          >
-                            <p
-                              className="truncate text-xl font-semibold leading-tight tracking-wide"
-                              style={{
-                                fontFamily:
-                                  "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
-                              }}
-                            >
-                              {PERMANENT_SAMPLE_NAME}
-                              <span className="mx-3 opacity-75">|</span>
-                              <span className="text-base font-semibold opacity-90">
-                                {PERMANENT_SAMPLE_DESIGNATION}
-                              </span>
-                            </p>
+                          <div className="absolute inset-x-0 bottom-0 z-[3]">
+                            <AppStyleNameStrip
+                              config={personalization}
+                              imageSeed={file?.name ?? activeEditingPoster?.imageUrl ?? "admin-upload"}
+                              sampleName={PERMANENT_SAMPLE_NAME}
+                              sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                            />
                           </div>
                         ) : null}
                       </div>

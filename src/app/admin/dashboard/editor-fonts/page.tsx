@@ -41,6 +41,7 @@ export default function EditorFontsPage() {
   const [selectedFontId, setSelectedFontId] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedFontIds, setSelectedFontIds] = useState<Set<string>>(() => new Set());
 
   const authHeaders = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -56,7 +57,16 @@ export default function EditorFontsPage() {
     });
     const data = (await response.json()) as { ok: boolean; fonts?: EditorFont[]; error?: string };
     if (!response.ok || !data.ok) throw new Error(data.error ?? "Unable to load fonts.");
-    setFonts(data.fonts ?? []);
+    const nextFonts = data.fonts ?? [];
+    setFonts(nextFonts);
+    const visibleIds = new Set(nextFonts.map((font) => font.id));
+    setSelectedFontIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (visibleIds.has(id)) next.add(id);
+      });
+      return next;
+    });
   }, [authHeaders, user]);
 
   useEffect(() => {
@@ -153,6 +163,63 @@ export default function EditorFontsPage() {
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Delete failed.");
       setMessage("Font deleted.");
       if (selectedFontId === id) setSelectedFontId("");
+      setSelectedFontIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setFonts((prev) => prev.filter((font) => font.id !== id));
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Delete failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const selectedCount = selectedFontIds.size;
+  const allVisibleSelected =
+    sortedFonts.length > 0 && sortedFonts.every((font) => selectedFontIds.has(font.id));
+
+  function toggleFontSelection(id: string) {
+    setSelectedFontIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllFonts() {
+    setSelectedFontIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) sortedFonts.forEach((font) => next.delete(font.id));
+      else sortedFonts.forEach((font) => next.add(font.id));
+      return next;
+    });
+  }
+
+  async function deleteSelectedFonts() {
+    const ids = Array.from(selectedFontIds).filter((id) =>
+      sortedFonts.some((font) => font.id === id),
+    );
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected font(s) permanently?`)) return;
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      for (const id of ids) {
+        const response = await fetch(`/api/admin/editor-fonts/${id}`, {
+          method: "DELETE",
+          headers,
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) throw new Error(data.error ?? "Delete failed.");
+      }
+      setMessage(`${ids.length} font(s) deleted.`);
+      if (selectedFontId && ids.includes(selectedFontId)) setSelectedFontId("");
+      setFonts((prev) => prev.filter((font) => !ids.includes(font.id)));
+      setSelectedFontIds(new Set());
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Delete failed.");
@@ -242,6 +309,45 @@ export default function EditorFontsPage() {
           <p className="mt-4 rounded-lg bg-slate-50 px-4 py-5 text-sm text-slate-500">No fonts uploaded.</p>
         ) : (
           <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllFonts}
+                  className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)]"
+                />
+                Select all fonts
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-slate-500">{selectedCount} selected</span>
+                <button
+                  type="button"
+                  disabled={busy || selectedCount === 0}
+                  onClick={() => void deleteSelectedFonts()}
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Delete selected
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {sortedFonts.map((font) => (
+                <label
+                  key={font.id}
+                  className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedFontIds.has(font.id)}
+                    disabled={busy}
+                    onChange={() => toggleFontSelection(font.id)}
+                    className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
+                  />
+                  <span className="truncate">{fontOptionLabel(font)}</span>
+                </label>
+              ))}
+            </div>
             <select
               value={selectedFont?.id ?? ""}
               onChange={(event) => setSelectedFontId(event.target.value)}

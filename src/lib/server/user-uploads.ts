@@ -212,6 +212,7 @@ export function buildUserUploadHistoryEntry(params: {
 
 export function buildUserUploadApprovalWrite(params: {
   uploadId: string;
+  userId: string;
   posterId: string;
   userName: string;
   userEmail: string;
@@ -242,7 +243,9 @@ export function buildUserUploadApprovalWrite(params: {
     imageUrl: params.imageUrl,
     imagePath: params.imagePath,
     mediaType: "image",
-    status: "approved",
+    status: "private_approved",
+    visibilityScope: "uploader_only",
+    ownerUserId: params.userId,
     reviewComment: "Approved from user contribution queue.",
     createdAt: params.approvedAt,
     updatedAt: params.approvedAt,

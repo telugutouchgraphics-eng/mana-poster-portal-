@@ -322,7 +322,7 @@ export function createDefaultLandingPageRecord(): LandingPageRecord {
         createCategoryItem("cat-3", "Motivational", "ðŸ”¥", 30),
         createCategoryItem("cat-4", "Birthday", "ðŸŽ‚", 40),
         createCategoryItem("cat-5", "Devotional", "ðŸ™", 50),
-        createCategoryItem("cat-6", "Love Quotes", "â¤ï¸", 60),
+        createCategoryItem("cat-6", "Good Evening", "ðŸŒ†", 60),
         createCategoryItem("cat-7", "Mahabharatam", "ðŸ¹", 70),
         createCategoryItem("cat-8", "Bhagavad Gita", "ðŸ“œ", 80),
         createCategoryItem("cat-9", "Today Special", "âœ¨", 90),

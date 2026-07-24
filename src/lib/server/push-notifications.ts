@@ -46,6 +46,7 @@ export interface PushHistoryRecord {
   route: string;
   audience: PushAudience;
   targetState: string;
+  targetRegionIds?: string[];
   targetDistrict: string;
   targetCity: string;
   category: string;
@@ -157,6 +158,13 @@ function regionIdForStateName(stateName: string) {
   );
 }
 
+function regionNameForId(regionId: string) {
+  return (
+    DASHBOARD_REGIONS.find((region) => region.id === trimValue(regionId))
+      ?.name ?? ""
+  );
+}
+
 function readUserArea(data: FirebaseFirestore.DocumentData) {
   const area = data.locationArea;
   if (area && typeof area === "object" && !Array.isArray(area)) {
@@ -200,17 +208,46 @@ function areaMatches(
   );
 }
 
-async function loadAreaUserUids(target: { state: string; district: string; city: string }) {
+async function loadAreaUserUidsForRegionIds(target: {
+  state: string;
+  regionIds: string[];
+  district: string;
+  city: string;
+}) {
   const targetRegionId = regionIdForStateName(target.state);
+  const targetRegionIds = Array.from(
+    new Set(
+      (target.regionIds.length > 0 ? target.regionIds : [targetRegionId])
+        .map((item) => trimValue(item))
+        .filter(Boolean),
+    ),
+  );
+  const targetRegionNames = Array.from(
+    new Set(
+      targetRegionIds
+        .map((regionId) => regionNameForId(regionId))
+        .filter(Boolean),
+    ),
+  );
   const targetDistrict = cleanLocationText(target.district);
   const targetCity = cleanLocationText(target.city);
   const needsLocalArea = Boolean(targetDistrict || targetCity);
-  const snapshots = targetRegionId
-    ? await Promise.all([
-        adminDb.collection("users").where("selectedRegion", "==", targetRegionId).get(),
-        adminDb.collection("users").where("selectedRegionName", "==", target.state).get(),
-      ])
-    : [await adminDb.collection("users").get()];
+  const snapshots: FirebaseFirestore.QuerySnapshot[] = [];
+  if (targetRegionIds.length > 0) {
+    for (const group of chunk(targetRegionIds, 30)) {
+      snapshots.push(await adminDb.collection("users").where("selectedRegion", "in", group).get());
+    }
+  } else {
+    snapshots.push(await adminDb.collection("users").get());
+  }
+  if (targetRegionId) {
+    snapshots.push(await adminDb.collection("users").where("selectedRegionName", "==", target.state).get());
+  }
+  if (targetRegionNames.length > 0) {
+    for (const group of chunk(targetRegionNames, 30)) {
+      snapshots.push(await adminDb.collection("users").where("selectedRegionName", "in", group).get());
+    }
+  }
   const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   for (const snap of snapshots) {
     for (const doc of snap.docs) {
@@ -220,7 +257,13 @@ async function loadAreaUserUids(target: { state: string; district: string; city:
   const ids: string[] = [];
   for (const doc of docs.values()) {
     const data = doc.data();
-    if (!selectedRegionMatches(data, targetRegionId, target.state)) {
+    const matchedByRegionIds = targetRegionIds.length > 0
+      ? targetRegionIds.some((regionId) => selectedRegionMatches(data, regionId, regionNameForId(regionId)))
+      : selectedRegionMatches(data, targetRegionId, target.state);
+    const matchedByStateName = targetRegionId
+      ? selectedRegionMatches(data, targetRegionId, target.state)
+      : false;
+    if (!matchedByRegionIds && !matchedByStateName) {
       continue;
     }
     if (!needsLocalArea) {
@@ -236,7 +279,7 @@ async function loadAreaUserUids(target: { state: string; district: string; city:
 
 async function resolveAudienceTargets(
   audience: PushAudience,
-  targetLocation: { state: string; district: string; city: string },
+  targetLocation: { state: string; regionIds: string[]; district: string; city: string },
 ) {
   if (audience === "all_users") {
     return { mode: "topic" as const, topic: "all_users", targets: [] as Array<{ token: string; refPath?: string }> };
@@ -252,7 +295,7 @@ async function resolveAudienceTargets(
   }
 
   if (audience === "area_users") {
-    const userUids = await loadAreaUserUids(targetLocation);
+    const userUids = await loadAreaUserUidsForRegionIds(targetLocation);
     return {
       mode: "tokens" as const,
       topic: "",
@@ -317,6 +360,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
 
   const target = await resolveAudienceTargets(record.audience, {
     state: record.targetState,
+    regionIds: record.targetRegionIds ?? [],
     district: record.targetDistrict,
     city: record.targetCity,
   });
@@ -423,6 +467,7 @@ export async function createPushHistoryRecord(input: {
   route: string;
   audience: PushAudience;
   targetState: string;
+  targetRegionIds?: string[];
   targetDistrict: string;
   targetCity: string;
   category: string;
@@ -443,6 +488,9 @@ export async function createPushHistoryRecord(input: {
     route: trimValue(input.route) || "home",
     audience: input.audience,
     targetState: trimValue(input.targetState),
+    targetRegionIds: Array.isArray(input.targetRegionIds)
+      ? input.targetRegionIds.map((item) => trimValue(item)).filter(Boolean)
+      : [],
     targetDistrict: trimValue(input.targetDistrict),
     targetCity: trimValue(input.targetCity),
     category: trimValue(input.category),

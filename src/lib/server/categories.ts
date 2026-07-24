@@ -8,10 +8,14 @@ import { RESOLVED_LUNAR_EVENT_DATES } from "./dynamic-lunar-event-dates";
 import { getIstEndOfDay, getNextIstWeekdayStart } from "./ist-schedule";
 import { REGIONAL_DYNAMIC_EVENT_CATEGORIES } from "./regional-dynamic-events";
 import { POLITICAL_PARTY_CATEGORIES } from "@/lib/political-party-categories";
+import type { CategoryLabelsByLanguage } from "@/lib/server/category-label-translations";
 
 export interface CategoryDef {
   id: string;
   label: string;
+  labelsByLanguage?: CategoryLabelsByLanguage;
+  iconAssetPath?: string;
+  regionIds?: string[];
 }
 
 export interface VisibleCategoryDef extends CategoryDef {
@@ -44,7 +48,7 @@ export const PERMANENT_CREATOR_CATEGORIES: CategoryDef[] = [
   { id: "good_afternoon", label: "Good Afternoon" },
   { id: "good_night", label: "Good Night" },
   { id: "motivational", label: "Motivational" },
-  { id: "love_quotes", label: "Love Quotes" },
+  { id: "good_evening", label: "Good Evening" },
   { id: "today_special", label: "Today Special" },
   { id: "birthdays", label: "Birthdays" },
   { id: "life_advice", label: "Life Advice" },
@@ -108,6 +112,24 @@ const EVENT_DYNAMIC_CATEGORY_IDS = new Set<string>([
   ...FLOATING_DYNAMIC_EVENT_CATEGORIES.map((item) => item.id),
   ...LUNAR_DYNAMIC_CATEGORIES.map((item) => item.id),
 ]);
+
+const LEGACY_DYNAMIC_CATEGORY_ID_MAP: Record<string, string> = {
+  nara_lokesh_jayanthi: "nara_lokesh_birthday",
+  n_chandrababu_naidu_jayanthi: "n_chandrababu_naidu_birthday",
+  pawan_kalyan_jayanthi: "pawan_kalyan_birthday",
+  k_chandrashekar_rao_jayanthi: "k_chandrashekar_rao_birthday",
+  k_t_rama_rao_jayanthi: "k_t_rama_rao_birthday",
+  a_revanth_reddy_jayanthi: "a_revanth_reddy_birthday",
+  y_s_jagan_mohan_reddy_jayanthi: "y_s_jagan_mohan_reddy_birthday",
+  nandamuri_balakrishna_jayanthi: "nandamuri_balakrishna_birthday",
+  nandamuri_taraka_rama_rao_jr_jayanthi:
+    "nandamuri_taraka_rama_rao_jr_birthday",
+};
+
+export function canonicalCategoryId(categoryId: string): string {
+  const normalized = categoryId.trim();
+  return LEGACY_DYNAMIC_CATEGORY_ID_MAP[normalized] ?? normalized;
+}
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -233,15 +255,21 @@ export function getVisibleAssignableCategories(
     if (!dynamicEventMatchesRegion(event.regionIds, normalizedRegionId)) {
       return [];
     }
+    const resolved = RESOLVED_LUNAR_EVENT_DATES[today.getFullYear()]?.[event.id];
     const eventStart = new Date(
       today.getFullYear(),
-      event.month - 1,
-      event.day,
+      (resolved?.month ?? event.month) - 1,
+      resolved?.day ?? event.day,
     );
     const visibleStart = plusDays(eventStart, -daysBeforeDashboard);
     const blinkingStart = plusDays(eventStart, -blinkingDays);
-    const durationDays = Math.max(1, event.durationDays ?? 1);
-    const eventEnd = plusDays(eventStart, durationDays - 1);
+    const eventEnd =
+      resolved?.endMonth != null && resolved.endDay != null
+        ? new Date(today.getFullYear(), resolved.endMonth - 1, resolved.endDay)
+        : plusDays(
+            eventStart,
+            Math.max(1, resolved?.durationDays ?? event.durationDays ?? 1) - 1,
+          );
     if (!isDateInRange(today, visibleStart, eventEnd)) {
       return [];
     }
@@ -251,7 +279,10 @@ export function getVisibleAssignableCategories(
         label: event.label,
         isBlinking: isDateInRange(today, blinkingStart, eventEnd),
         isDynamic: true,
-        eventDateLabel: formatEventDateLabel(event.month, event.day),
+        eventDateLabel: formatEventDateLabel(
+          resolved?.month ?? event.month,
+          resolved?.day ?? event.day,
+        ),
         eventStartAt: eventStart.getTime(),
         eventEndAt: endOfDay(eventEnd).getTime(),
       },
@@ -260,6 +291,9 @@ export function getVisibleAssignableCategories(
 
   const visibleFloatingDynamicEvents =
     FLOATING_DYNAMIC_EVENT_CATEGORIES.flatMap((event) => {
+      if (!dynamicEventMatchesRegion(event.regionIds, normalizedRegionId)) {
+        return [];
+      }
       const eventStart = resolveFloatingEventStart(event, today.getFullYear());
       if (!eventStart) {
         return [];
@@ -288,6 +322,9 @@ export function getVisibleAssignableCategories(
     });
 
   const resolvedLunarEvents = LUNAR_DYNAMIC_CATEGORIES.flatMap((event) => {
+    if (!dynamicEventMatchesRegion(event.regionIds, normalizedRegionId)) {
+      return [];
+    }
     const resolved =
       RESOLVED_LUNAR_EVENT_DATES[today.getFullYear()]?.[event.id];
     if (!resolved) {
@@ -373,7 +410,10 @@ const CREATOR_ASSIGNABLE_CATEGORY_ID_SET = new Set(
 );
 
 export function isValidCategoryId(id: string): boolean {
-  return CREATOR_ASSIGNABLE_CATEGORIES.some((category) => category.id === id);
+  const canonicalId = canonicalCategoryId(id);
+  return CREATOR_ASSIGNABLE_CATEGORIES.some(
+    (category) => category.id === canonicalId,
+  );
 }
 
 export function filterKnownAssignedCategories(
@@ -388,12 +428,13 @@ export function filterKnownAssignedCategories(
   const removedCategoryIds: string[] = [];
 
   for (const categoryId of assignedCategories) {
-    if (!validIds.has(categoryId)) {
+    const canonicalId = canonicalCategoryId(categoryId);
+    if (!validIds.has(canonicalId)) {
       removedCategoryIds.push(categoryId);
       continue;
     }
-    if (!keptCategoryIds.includes(categoryId)) {
-      keptCategoryIds.push(categoryId);
+    if (!keptCategoryIds.includes(canonicalId)) {
+      keptCategoryIds.push(canonicalId);
     }
   }
 
@@ -411,7 +452,7 @@ export function getVisibleDynamicCategoryById(
   blinkingDays = daysBeforeEvent,
   regionId?: string | null,
 ): VisibleCategoryDef | null {
-  const normalized = categoryId.trim();
+  const normalized = canonicalCategoryId(categoryId);
   if (!normalized) {
     return null;
   }
@@ -460,13 +501,15 @@ export function pruneInactiveAssignedCategories(
   const removedCategoryIds: string[] = [];
 
   for (const categoryId of assignedCategories) {
-    if (!EVENT_DYNAMIC_CATEGORY_IDS.has(categoryId)) {
-      keptCategoryIds.push(categoryId);
+    const canonicalId = canonicalCategoryId(categoryId);
+
+    if (!EVENT_DYNAMIC_CATEGORY_IDS.has(canonicalId)) {
+      keptCategoryIds.push(canonicalId);
       continue;
     }
 
-    if (visibleDynamicCategoryIds.has(categoryId)) {
-      keptCategoryIds.push(categoryId);
+    if (visibleDynamicCategoryIds.has(canonicalId)) {
+      keptCategoryIds.push(canonicalId);
       continue;
     }
 

@@ -35,12 +35,31 @@ const BANNER_POSITION_OPTIONS = [
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
+const HOME_BANNER_WIDTH = 1080;
+const HOME_BANNER_HEIGHT = 190;
+const HOME_BANNER_SIZE_LABEL = `${HOME_BANNER_WIDTH} x ${HOME_BANNER_HEIGHT} px`;
 
 function bannerPositionLabel(sortOrder: number) {
   return (
     BANNER_POSITION_OPTIONS.find((option) => Number(option.value) === sortOrder)?.label ??
     `${sortOrder}`
   );
+}
+
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Unable to read banner image dimensions."));
+    };
+    image.src = objectUrl;
+  });
 }
 
 export default function AdminAppBannersPage() {
@@ -63,6 +82,7 @@ export default function AdminAppBannersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPreview, setCurrentPreview] = useState<string | null>(null);
   const [regionMenuOpen, setRegionMenuOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
   useEffect(() => {
@@ -81,7 +101,12 @@ export default function AdminAppBannersPage() {
     });
     const data = (await response.json()) as { ok: boolean; banners?: AppBannerItem[]; error?: string };
     if (response.ok && data.ok) {
-      setItems((data.banners ?? []).filter((item) => item.placement === "home_category_banner"));
+      const nextItems = (data.banners ?? []).filter((item) => item.placement === "home_category_banner");
+      setItems(nextItems);
+      setSelectedIds((prev) => {
+        const visibleIds = new Set(nextItems.map((item) => item.id));
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
     } else {
       setMessage(data.error ?? "Unable to load banners.");
     }
@@ -136,7 +161,7 @@ export default function AdminAppBannersPage() {
     setMessage(null);
   }
 
-  function handleFileChange(fileInput: HTMLInputElement) {
+  async function handleFileChange(fileInput: HTMLInputElement) {
     const selectedFile = fileInput.files?.[0] ?? null;
     if (selectedFile && selectedFile.size > MAX_IMAGE_UPLOAD_BYTES) {
       const warning = `Image must be ${MAX_IMAGE_UPLOAD_LABEL} or smaller.`;
@@ -146,6 +171,25 @@ export default function AdminAppBannersPage() {
       fileInput.value = "";
       return;
     }
+    if (selectedFile) {
+      try {
+        const dimensions = await readImageDimensions(selectedFile);
+        if (dimensions.width !== HOME_BANNER_WIDTH || dimensions.height !== HOME_BANNER_HEIGHT) {
+          const warning = `Recommended app banner size is ${HOME_BANNER_SIZE_LABEL}. Selected image is ${dimensions.width} x ${dimensions.height} px; preview below shows the app fit.`;
+          setMessage(warning);
+          setFile(selectedFile);
+          return;
+        }
+      } catch (error) {
+        const warning = error instanceof Error ? error.message : "Unable to read banner image dimensions.";
+        alert(warning);
+        setMessage(warning);
+        setFile(null);
+        fileInput.value = "";
+        return;
+      }
+    }
+    setMessage(selectedFile ? "Banner image ready." : null);
     setFile(selectedFile);
   }
 
@@ -220,6 +264,44 @@ export default function AdminAppBannersPage() {
     if (editingId === id) {
       resetForm();
     }
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    await load();
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) =>
+      items.length > 0 && items.every((item) => prev.has(item.id))
+        ? new Set([...prev].filter((id) => !items.some((item) => item.id === id)))
+        : new Set([...prev, ...items.map((item) => item.id)]),
+    );
+  }
+
+  async function deleteSelected() {
+    const ids = items.map((item) => item.id).filter((id) => selectedIds.has(id));
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected app banner(s)?`)) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    for (const id of ids) {
+      await fetch(`/api/admin/banners/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+    }
+    if (editingId && ids.includes(editingId)) resetForm();
+    setItems((prev) => prev.filter((item) => !ids.includes(item.id)));
+    setSelectedIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
     await load();
   }
 
@@ -294,7 +376,9 @@ export default function AdminAppBannersPage() {
         <p className="mt-2 text-sm leading-7 text-slate-600">
           Upload and manage mobile app home banners from here.
         </p>
-        <p className="mt-2 text-xs font-semibold text-slate-500">Recommended size: 1080 x 300 px</p>
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          Recommended size: {HOME_BANNER_SIZE_LABEL}. Other image sizes are allowed; use the preview to confirm the app fit.
+        </p>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Banner title" className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
           <textarea value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Banner subtitle" className="min-h-28 w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white" />
@@ -414,14 +498,14 @@ export default function AdminAppBannersPage() {
                 </option>
               ))}
             </select>
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleFileChange(e.currentTarget)} className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none file:mr-3 file:rounded-xl file:border-0 file:bg-[var(--portal-purple)] file:px-3 file:py-2 file:text-white" />
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => void handleFileChange(e.currentTarget)} className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none file:mr-3 file:rounded-xl file:border-0 file:bg-[var(--portal-purple)] file:px-3 file:py-2 file:text-white" />
           </div>
           <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-slate-900">Preview</p>
-              <p className="text-xs text-slate-500">Fit check</p>
+              <p className="text-xs text-slate-500">{HOME_BANNER_SIZE_LABEL} fit check</p>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-[var(--portal-border)] bg-white" style={{ aspectRatio: "1080 / 300" }}>
+            <div className="overflow-hidden rounded-2xl border border-[var(--portal-border)] bg-white" style={{ aspectRatio: "1080 / 190" }}>
               {previewImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={previewImage} alt="App banner preview" className="h-full w-full object-cover" />
@@ -447,11 +531,25 @@ export default function AdminAppBannersPage() {
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-2xl font-bold text-slate-950">Banner List</h3>
         <p className="mt-2 text-sm text-slate-600">Active and inactive app banners.</p>
+        {items.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" checked={items.every((item) => selectedIds.has(item.id))} onChange={toggleAllVisible} className="h-4 w-4 accent-rose-600" />
+              Select visible
+            </label>
+            <span className="text-xs font-semibold text-slate-500">{selectedIds.size} selected</span>
+            <button type="button" onClick={() => void deleteSelected()} disabled={selectedIds.size === 0} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button>
+          </div>
+        ) : null}
         <div className="mt-5 space-y-4">
           {items.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">No app banners yet.</div>
           ) : items.map((item) => (
             <div key={item.id} className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+              <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelection(item.id)} className="h-4 w-4 accent-rose-600" />
+                Select
+              </label>
               <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.imageUrl} alt={item.title} className="h-32 w-full rounded-2xl object-cover" />

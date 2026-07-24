@@ -27,19 +27,36 @@ function regionForStateName(stateName: string) {
   return DASHBOARD_REGIONS.find((region) => normalize(region.name) === normalized) ?? null;
 }
 
+function regionsForIds(regionIds: string[]) {
+  const regionMap = new Map(DASHBOARD_REGIONS.map((region) => [region.id, region]));
+  return regionIds
+    .map((regionId) => regionMap.get(regionId))
+    .filter((region): region is (typeof DASHBOARD_REGIONS)[number] => Boolean(region));
+}
+
 async function actorRegionContext(actor: Awaited<ReturnType<typeof requireRole>>) {
   const allowedRegionIds = await loadActorAllowedRegionIds(actor);
   const hasAllRegions = allowedRegionIds.length === DASHBOARD_REGIONS.length;
   return { allowedRegionIds, hasAllRegions };
 }
 
+function cleanRegionIds(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+}
+
 function notificationVisibleToActor(
-  item: { audience: PushAudience; targetState?: string },
+  item: { audience: PushAudience; targetState?: string; targetRegionIds?: string[] },
   allowedRegionIds: string[],
   hasAllRegions: boolean,
 ) {
   if (item.audience !== "area_users") {
     return false;
+  }
+  const targetRegionIds = cleanRegionIds(item.targetRegionIds);
+  if (targetRegionIds.length > 0) {
+    return hasAllRegions || targetRegionIds.some((regionId) => allowedRegionIds.includes(regionId));
   }
   const region = regionForStateName(String(item.targetState ?? ""));
   return Boolean(region && (hasAllRegions || allowedRegionIds.includes(region.id)));
@@ -78,6 +95,14 @@ export async function POST(req: NextRequest) {
     const route = requestedRoute;
     const category = "";
     const targetState = String(formData.get("targetState") ?? "").trim();
+    const requestedRegionIds = Array.from(
+      new Set(
+        formData
+          .getAll("targetRegionIds")
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
     const image = formData.get("image");
@@ -100,23 +125,37 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
-    if (audience === "area_users" && !targetState) {
+    const fallbackTargetRegion = audience === "area_users" && targetState ? regionForStateName(targetState) : null;
+    const targetRegions = regionsForIds(
+      requestedRegionIds.length > 0
+        ? requestedRegionIds
+        : fallbackTargetRegion
+          ? [fallbackTargetRegion.id]
+          : [],
+    );
+    if (audience === "area_users" && targetRegions.length === 0) {
       return NextResponse.json(
-        { ok: false, error: "Select State / UT for area targeting." },
+        { ok: false, error: "Select at least one valid State / UT for area targeting." },
         { status: 400 },
       );
     }
-    const targetRegion = audience === "area_users" ? regionForStateName(targetState) : null;
-    if (audience === "area_users" && !targetRegion) {
+    if (targetRegions.length !== (requestedRegionIds.length || (fallbackTargetRegion ? 1 : 0))) {
       return NextResponse.json(
-        { ok: false, error: "Valid State / UT is required." },
+        { ok: false, error: "One or more selected State / UT values are invalid." },
         { status: 400 },
       );
     }
-    if (targetRegion && !allowedRegionIds.includes(targetRegion.id)) {
+    const forbiddenRegion = targetRegions.find((targetRegion) => !allowedRegionIds.includes(targetRegion.id));
+    if (forbiddenRegion) {
       return NextResponse.json(
         { ok: false, error: "Forbidden State / UT target." },
         { status: 403 },
+      );
+    }
+    if (targetRegions.length > 1 && (targetDistrict || targetCity)) {
+      return NextResponse.json(
+        { ok: false, error: "District and city targeting is available only when one State / UT is selected." },
+        { status: 400 },
       );
     }
     const hasImage = image instanceof File && image.size > 0;
@@ -130,6 +169,8 @@ export async function POST(req: NextRequest) {
     const scheduledFor: number | null = null;
 
     const now = Date.now();
+    const targetRegionIds = targetRegions.map((targetRegion) => targetRegion.id);
+    const targetStateNames = targetRegions.map((targetRegion) => targetRegion.name).join(", ");
     let imageUrl = "";
     let imagePath = "";
     if (hasImage) {
@@ -156,7 +197,8 @@ export async function POST(req: NextRequest) {
       imagePath,
       route,
       audience,
-      targetState,
+      targetState: targetStateNames,
+      targetRegionIds,
       targetDistrict,
       targetCity,
       category,
@@ -183,14 +225,16 @@ export async function POST(req: NextRequest) {
         route,
         imageUrl,
         audience,
-        targetState,
+        targetState: targetStateNames,
+        targetRegionIds,
         targetDistrict,
         targetCity,
         category,
         title,
         message,
         scheduledFor,
-        ...(targetRegion ? { regionId: targetRegion.id, regionName: targetRegion.name } : {}),
+        regionIds: targetRegionIds,
+        regionNames: targetStateNames,
       },
     });
 

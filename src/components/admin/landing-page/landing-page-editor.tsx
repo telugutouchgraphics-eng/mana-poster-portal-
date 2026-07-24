@@ -1192,7 +1192,9 @@ export function LandingPageEditor({ initialSection = "overview" }: { initialSect
   async function load() {
     const token = await user?.getIdToken();
     if (!token) return;
-    setLoading(true);
+    if (!data) {
+      setLoading(true);
+    }
     const [landingResponse, postersResponse] = await Promise.all([
       fetch("/api/admin/landing-page", {
         headers: { authorization: `Bearer ${token}` },
@@ -1593,6 +1595,8 @@ export function LandingPageEditor({ initialSection = "overview" }: { initialSect
     if (!response.ok || !payload.ok) {
       throw new Error(payload.error ?? "Unable to delete website poster.");
     }
+    setWebsitePosters((prev) => prev.filter((item) => item.id !== id));
+    setSavedWebsitePosters((prev) => prev.filter((item) => item.id !== id));
     await load();
   }
 

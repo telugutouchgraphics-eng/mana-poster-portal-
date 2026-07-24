@@ -46,6 +46,7 @@ export default function AdminCreatorBannersPage() {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPreview, setCurrentPreview] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
   useEffect(() => {
@@ -64,7 +65,12 @@ export default function AdminCreatorBannersPage() {
     });
     const data = (await response.json()) as { ok: boolean; banners?: AppBannerItem[]; error?: string };
     if (response.ok && data.ok) {
-      setItems((data.banners ?? []).filter((item) => item.placement === "creator_overview_banner"));
+      const nextItems = (data.banners ?? []).filter((item) => item.placement === "creator_overview_banner");
+      setItems(nextItems);
+      setSelectedIds((prev) => {
+        const visibleIds = new Set(nextItems.map((item) => item.id));
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
     } else {
       setMessage(data.error ?? "Unable to load banners.");
     }
@@ -178,6 +184,44 @@ export default function AdminCreatorBannersPage() {
     if (editingId === id) {
       resetForm();
     }
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    await load();
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) =>
+      items.length > 0 && items.every((item) => prev.has(item.id))
+        ? new Set([...prev].filter((id) => !items.some((item) => item.id === id)))
+        : new Set([...prev, ...items.map((item) => item.id)]),
+    );
+  }
+
+  async function deleteSelected() {
+    const ids = items.map((item) => item.id).filter((id) => selectedIds.has(id));
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected creator banner(s)?`)) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    for (const id of ids) {
+      await fetch(`/api/admin/banners/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+    }
+    if (editingId && ids.includes(editingId)) resetForm();
+    setItems((prev) => prev.filter((item) => !ids.includes(item.id)));
+    setSelectedIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
     await load();
   }
 
@@ -240,11 +284,25 @@ export default function AdminCreatorBannersPage() {
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-2xl font-bold text-slate-950">Creator Banner List</h3>
         <p className="mt-2 text-sm text-slate-600">Only creator overview banners are shown here.</p>
+        {items.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" checked={items.every((item) => selectedIds.has(item.id))} onChange={toggleAllVisible} className="h-4 w-4 accent-rose-600" />
+              Select visible
+            </label>
+            <span className="text-xs font-semibold text-slate-500">{selectedIds.size} selected</span>
+            <button type="button" onClick={() => void deleteSelected()} disabled={selectedIds.size === 0} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button>
+          </div>
+        ) : null}
         <div className="mt-5 space-y-4">
           {items.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">No creator banners yet.</div>
           ) : items.map((item) => (
             <div key={item.id} className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+              <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelection(item.id)} className="h-4 w-4 accent-rose-600" />
+                Select
+              </label>
               <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.imageUrl} alt={item.title} className="h-32 w-full rounded-2xl object-cover" />

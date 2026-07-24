@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
 import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 export interface CreatorAccessContext {
@@ -37,9 +38,10 @@ async function buildContextFromProfile(
     ? profile.assignedCategories.map(String)
     : [];
   const manualCategoryIds = (await listManualEventCategories()).map((item) => item.id);
+  const permanentCategoryIds = (await listActivePermanentCategories()).map((item) => item.id);
   const { assignedCategories: sanitizedAssignedCategories } = filterKnownAssignedCategories(
     assignedCategories,
-    manualCategoryIds,
+    [...manualCategoryIds, ...permanentCategoryIds],
   );
 
   return {

@@ -23,6 +23,7 @@ export default function AdminAnnouncementsPage() {
   const [priority, setPriority] = useState("important");
   const [audience, setAudience] = useState("creator");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   async function load() {
     const token = await user?.getIdToken();
@@ -33,6 +34,10 @@ export default function AdminAnnouncementsPage() {
     const data = (await response.json()) as { ok: boolean; announcements?: AnnouncementItem[]; error?: string };
     if (response.ok && data.ok) {
       setItems(data.announcements ?? []);
+      setSelectedIds((prev) => {
+        const visibleIds = new Set((data.announcements ?? []).map((item) => item.id));
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
     } else {
       setStatusMessage(data.error ?? "Unable to load announcements.");
     }
@@ -95,6 +100,46 @@ export default function AdminAnnouncementsPage() {
       method: "DELETE",
       headers: { authorization: `Bearer ${token}` },
     });
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    await load();
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) =>
+      items.length > 0 && items.every((item) => prev.has(item.id))
+        ? new Set([...prev].filter((id) => !items.some((item) => item.id === id)))
+        : new Set([...prev, ...items.map((item) => item.id)]),
+    );
+  }
+
+  async function removeSelected() {
+    const ids = items.map((item) => item.id).filter((id) => selectedIds.has(id));
+    if (ids.length === 0) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    if (!window.confirm(`Delete ${ids.length} selected announcement(s)?`)) return;
+    for (const id of ids) {
+      await fetch(`/api/admin/announcements/${id}`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+    }
+    setItems((prev) => prev.filter((item) => !ids.includes(item.id)));
+    setSelectedIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
     await load();
   }
 
@@ -131,11 +176,25 @@ export default function AdminAnnouncementsPage() {
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-2xl font-bold text-slate-950">Announcement List</h3>
         <p className="mt-2 text-sm text-slate-600">Active notices visible to {region.name} creators and teams.</p>
+        {items.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" checked={items.every((item) => selectedIds.has(item.id))} onChange={toggleAllVisible} className="h-4 w-4 accent-rose-600" />
+              Select visible
+            </label>
+            <span className="text-xs font-semibold text-slate-500">{selectedIds.size} selected</span>
+            <button type="button" onClick={() => void removeSelected()} disabled={selectedIds.size === 0} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button>
+          </div>
+        ) : null}
         <div className="mt-5 space-y-4">
           {items.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">No announcements yet.</div>
           ) : items.map((item) => (
             <div key={item.id} className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+              <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelection(item.id)} className="h-4 w-4 accent-rose-600" />
+                Select
+              </label>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-lg font-semibold text-slate-950">{item.title}</p>

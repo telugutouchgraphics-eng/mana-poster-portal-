@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
+  canonicalCategoryId,
   getWeekdayForCategoryId,
   getVisibleDynamicCategoryById,
   getVisibleAssignableCategories,
@@ -14,6 +15,10 @@ import {
   getManualEventCategoryById,
   listVisibleManualEventCategories,
 } from "@/lib/server/manual-event-categories";
+import {
+  getPermanentCategoryById,
+  listActivePermanentCategories,
+} from "@/lib/server/permanent-categories";
 import { uploadAdminAsset } from "@/lib/server/content-management";
 import {
   getCreatorPosterPublishAt,
@@ -41,6 +46,20 @@ const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
+const TELUGU_SHARED_CONTENT_REGION_IDS = ["andhra_pradesh", "telangana"];
+const HINDI_SHARED_CONTENT_REGION_IDS = [
+  "bihar",
+  "chhattisgarh",
+  "haryana",
+  "himachal_pradesh",
+  "jharkhand",
+  "madhya_pradesh",
+  "rajasthan",
+  "uttar_pradesh",
+  "uttarakhand",
+  "delhi",
+  "andaman_nicobar",
+];
 const payloadSchema = z.object({
   categoryId: z.string().trim().min(1),
   requestedPublishDate: z.string().trim().optional(),
@@ -95,7 +114,9 @@ const videoPhotoAnimationSchema = z.enum([
 const personalizationSchema = z.object({
   photoShape: photoShapeSchema.default("circle"),
   photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
-  edgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  edgeStyle: z
+    .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
+    .default("soft_fade"),
   photoFrameStyle: photoFrameStyleSchema.default("none"),
   showSafeAreas: z.boolean().default(true),
   photoX: z.number().min(0).max(100).default(78),
@@ -104,7 +125,9 @@ const personalizationSchema = z.object({
   showVideoExtraPhoto: z.boolean().default(false),
   videoExtraPhotoShape: photoShapeSchema.default("circle"),
   videoExtraPhotoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
-  videoExtraPhotoEdgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  videoExtraPhotoEdgeStyle: z
+    .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
+    .default("soft_fade"),
   videoExtraPhotoFrameStyle: photoFrameStyleSchema.default("none"),
   videoExtraPhotoX: z.number().min(0).max(100).default(24),
   videoExtraPhotoY: z.number().min(0).max(100).default(44),
@@ -116,7 +139,11 @@ const personalizationSchema = z.object({
   showBottomStrip: z.boolean().default(true),
   stripHeight: z.number().min(8).max(40).default(16),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
-  sampleDesignation: z.string().trim().max(80).default(PERMANENT_SAMPLE_DESIGNATION),
+  sampleDesignation: z
+    .string()
+    .trim()
+    .max(80)
+    .default(PERMANENT_SAMPLE_DESIGNATION),
 });
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -137,7 +164,11 @@ function clampPersonalizationSafeArea(
       y: clampNumber(y, margin + half - bleed, 100 - margin - half + bleed),
     };
   };
-  const mainOverlay = clampOverlay(config.photoX, config.photoY, config.photoScale);
+  const mainOverlay = clampOverlay(
+    config.photoX,
+    config.photoY,
+    config.photoScale,
+  );
   const extraOverlay = clampOverlay(
     config.videoExtraPhotoX,
     config.videoExtraPhotoY,
@@ -160,7 +191,9 @@ function sanitizeFileName(input: string): string {
 
 function getMediaKind(file: File): "image" | "video" | null {
   const mimeType = (file.type || "").toLowerCase();
-  if (["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)) {
+  if (
+    ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)
+  ) {
     return "image";
   }
   if (["video/mp4", "video/quicktime", "video/webm"].includes(mimeType)) {
@@ -187,6 +220,11 @@ function mapPoster(id: string, data: Record<string, unknown>) {
     categoryId: String(data.categoryId ?? ""),
     categoryLabel: String(data.categoryLabel ?? ""),
     regionId: String(data.regionId ?? ""),
+    targetRegionIds: Array.isArray(data.targetRegionIds)
+      ? data.targetRegionIds
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      : [],
     regionName: String(data.regionName ?? ""),
     mediaType: String(data.mediaType ?? "image"),
     imageUrl: String(data.imageUrl ?? ""),
@@ -209,13 +247,46 @@ function mapPoster(id: string, data: Record<string, unknown>) {
   };
 }
 
+function sharedContentRegionIdsFor(regionId: string) {
+  if (TELUGU_SHARED_CONTENT_REGION_IDS.includes(regionId)) {
+    return TELUGU_SHARED_CONTENT_REGION_IDS;
+  }
+  if (HINDI_SHARED_CONTENT_REGION_IDS.includes(regionId)) {
+    return HINDI_SHARED_CONTENT_REGION_IDS;
+  }
+  return regionId ? [regionId] : [];
+}
+
+function resolvePosterTargetRegionIds(regionId: string, categoryId: string) {
+  if (!regionId) {
+    return [];
+  }
+  if (POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) {
+    return [regionId];
+  }
+  return sharedContentRegionIdsFor(regionId);
+}
+
 async function buildAdminAppPosterCategories(regionId?: string | null) {
-  const visibleCategories = getVisibleAssignableCategories(new Date(), 2, 7, 2, regionId).filter(
-    (item) => item.id !== "all",
-  );
+  const visibleCategories = getVisibleAssignableCategories(
+    new Date(),
+    2,
+    7,
+    2,
+    regionId,
+  ).filter((item) => item.id !== "all");
   const politicalCategories = politicalPartyCategoriesForRegion(regionId);
-  const manualCategories = await listVisibleManualEventCategories(Date.now(), regionId);
-  const mergedVisible = [...visibleCategories, ...politicalCategories, ...manualCategories];
+  const manualCategories = await listVisibleManualEventCategories(
+    Date.now(),
+    regionId,
+  );
+  const permanentCategories = await listActivePermanentCategories(regionId);
+  const mergedVisible = [
+    ...visibleCategories,
+    ...politicalCategories,
+    ...manualCategories,
+    ...permanentCategories,
+  ];
   const visibleIds = new Set(mergedVisible.map((item) => item.id));
   const weekdayCategories = CREATOR_ASSIGNABLE_CATEGORIES.filter(
     (item) => item.id.startsWith("weekday_") && item.id !== "weekday_special",
@@ -225,10 +296,13 @@ async function buildAdminAppPosterCategories(regionId?: string | null) {
     isDynamic: true,
   }));
 
-  return localizeCategoryList([
-    ...mergedVisible,
-    ...weekdayCategories.filter((item) => !visibleIds.has(item.id)),
-  ], regionId);
+  return localizeCategoryList(
+    [
+      ...mergedVisible,
+      ...weekdayCategories.filter((item) => !visibleIds.has(item.id)),
+    ],
+    regionId,
+  );
 }
 
 async function resolveAdminPosterSchedule(
@@ -251,7 +325,8 @@ async function resolveAdminPosterSchedule(
       eventEndAt: getNextIstMidnight(scheduledStart) - 1,
       dynamicCategoryId: categoryId,
       dynamicCategoryLabel:
-        CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)?.label ?? "",
+        CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)
+          ?.label ?? "",
     };
   }
 
@@ -268,7 +343,10 @@ async function resolveAdminPosterSchedule(
     if (!item) {
       const publishAt =
         uploadSource === "upload_posters"
-          ? Math.max(requestedPublishAt || getCreatorPosterPublishAt(now), getCreatorPosterPublishAt(now))
+          ? Math.max(
+              requestedPublishAt || getCreatorPosterPublishAt(now),
+              getCreatorPosterPublishAt(now),
+            )
           : now;
       return {
         publishAt,
@@ -297,7 +375,9 @@ async function resolveAdminPosterSchedule(
   };
 }
 
-function resolveAdminPosterStorageFolder(uploadSource: "app_posters" | "upload_posters") {
+function resolveAdminPosterStorageFolder(
+  uploadSource: "app_posters" | "upload_posters",
+) {
   return uploadSource === "upload_posters"
     ? "portal_assets/admin_upload_posters"
     : "portal_assets/admin_app_posters";
@@ -312,7 +392,10 @@ export async function GET(req: NextRequest) {
       sourceParam === "upload_posters" || sourceParam === "app_posters"
         ? sourceParam
         : "app_posters";
-    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(
+      actor,
+      req.nextUrl.searchParams.get("regionId"),
+    );
     const snap = await adminDb
       .collection("creatorPosters")
       .where("createdByRole", "==", "admin")
@@ -320,7 +403,11 @@ export async function GET(req: NextRequest) {
       .get();
     const posters = snap.docs
       .map((doc) => mapPoster(doc.id, doc.data()))
-      .filter((poster) => poster.regionId === region.id)
+      .filter((poster) =>
+        poster.targetRegionIds.length > 0
+          ? poster.targetRegionIds.includes(region.id)
+          : poster.regionId === region.id,
+      )
       .filter((poster) => {
         const surface = poster.storageFolderKey || poster.createdBySurface;
         if (sourceFilter === "upload_posters") {
@@ -345,7 +432,8 @@ export async function GET(req: NextRequest) {
       posters,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load app posters.";
+    const message =
+      error instanceof Error ? error.message : "Unable to load app posters.";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }
@@ -356,20 +444,36 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
-      requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      requestedPublishDate:
+        String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
       uploadSource: formData.get("uploadSource"),
     });
     const region = await assertActorCanAccessRegion(actor, parsed.regionId);
+    const categoryId = canonicalCategoryId(parsed.categoryId);
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(
+      categoryId,
+      region.id,
+    );
+    const permanentCategory = await getPermanentCategoryById(categoryId, {
+      regionId: region.id,
+    });
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
+        ? politicalPartyCategoriesForRegion(region.id).find(
+            (item) => item.id === categoryId,
+          )
         : CREATOR_ASSIGNABLE_CATEGORIES.find(
-            (item) => item.id === parsed.categoryId && item.id !== "all",
+            (item) => item.id === categoryId && item.id !== "all",
           )) ??
+      (permanentCategory
+        ? {
+            id: permanentCategory.id,
+            label: permanentCategory.label,
+          }
+        : undefined) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
@@ -377,14 +481,23 @@ export async function POST(req: NextRequest) {
           }
         : undefined);
     if (!category) {
-      return NextResponse.json({ ok: false, error: "Valid category is required." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Valid category is required." },
+        { status: 400 },
+      );
     }
     const categoryLabel = localizeCategoryLabel(category, region);
+    const targetRegionIds = resolvePosterTargetRegionIds(region.id, categoryId);
 
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
-    if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
-      personalizationConfig = personalizationSchema.parse(JSON.parse(personalizationRaw));
+    if (
+      typeof personalizationRaw === "string" &&
+      personalizationRaw.trim().length > 0
+    ) {
+      personalizationConfig = personalizationSchema.parse(
+        JSON.parse(personalizationRaw),
+      );
     }
     personalizationConfig = {
       ...clampPersonalizationSafeArea(personalizationConfig),
@@ -394,12 +507,18 @@ export async function POST(req: NextRequest) {
 
     const media = formData.get("media") ?? formData.get("image");
     if (!(media instanceof File)) {
-      return NextResponse.json({ ok: false, error: "Poster image is required." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Poster image is required." },
+        { status: 400 },
+      );
     }
     const mediaKind = getMediaKind(media);
     if (!mediaKind) {
       return NextResponse.json(
-        { ok: false, error: "Only PNG, JPG, WEBP, MP4, MOV, or WEBM files are allowed." },
+        {
+          ok: false,
+          error: "Only PNG, JPG, WEBP, MP4, MOV, or WEBM files are allowed.",
+        },
         { status: 400 },
       );
     }
@@ -422,11 +541,14 @@ export async function POST(req: NextRequest) {
     const imageHash = createHash("sha256").update(bytes).digest("hex");
     const duplicateSnap = await adminDb
       .collection("creatorPosters")
-      .where("categoryId", "==", parsed.categoryId)
+      .where("categoryId", "==", categoryId)
       .where("imageHash", "==", imageHash)
-      .limit(1)
       .get();
-    if (!duplicateSnap.empty) {
+    const duplicate = duplicateSnap.docs.find((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      return String(data.status ?? "") !== "deleted";
+    });
+    if (duplicate) {
       return NextResponse.json(
         { ok: false, error: "Same poster already exists in this category." },
         { status: 409 },
@@ -440,33 +562,51 @@ export async function POST(req: NextRequest) {
       ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
       : null;
     if (parsed.requestedPublishDate && requestedPublishAtRaw == null) {
-      return NextResponse.json({ ok: false, error: "Choose a valid publish date." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Choose a valid publish date." },
+        { status: 400 },
+      );
     }
-    const weekday = getWeekdayForCategoryId(parsed.categoryId);
+    const weekday = getWeekdayForCategoryId(categoryId);
     let requestedPublishAt = 0;
     if (weekday && parsed.uploadSource === "upload_posters") {
       const earliestWeekdayPublishAt = getNextIstWeekdayStart(now, weekday);
       if (requestedPublishAtRaw != null) {
         if (getIstWeekday(requestedPublishAtRaw) !== weekday) {
           return NextResponse.json(
-            { ok: false, error: "Selected publish date must match the category weekday." },
+            {
+              ok: false,
+              error: "Selected publish date must match the category weekday.",
+            },
             { status: 400 },
           );
         }
         if (requestedPublishAtRaw < earliestWeekdayPublishAt) {
           return NextResponse.json(
-            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            {
+              ok: false,
+              error:
+                "Publish date cannot be earlier than the default app publish date.",
+            },
             { status: 400 },
           );
         }
         requestedPublishAt = requestedPublishAtRaw;
       }
-    } else if (!manualCategory && !weekday && parsed.uploadSource === "upload_posters") {
+    } else if (
+      !manualCategory &&
+      !weekday &&
+      parsed.uploadSource === "upload_posters"
+    ) {
       const earliestRegularPublishAt = getCreatorPosterPublishAt(now);
       if (requestedPublishAtRaw != null) {
         if (requestedPublishAtRaw < earliestRegularPublishAt) {
           return NextResponse.json(
-            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            {
+              ok: false,
+              error:
+                "Publish date cannot be earlier than the default app publish date.",
+            },
             { status: 400 },
           );
         }
@@ -476,7 +616,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const schedule = await resolveAdminPosterSchedule(
-      parsed.categoryId,
+      categoryId,
       now,
       parsed.uploadSource,
       requestedPublishAt,
@@ -488,7 +628,7 @@ export async function POST(req: NextRequest) {
     const uploaded = await uploadAdminAsset(
       bytes,
       mimeType,
-      `${storageFolder}/${parsed.categoryId}/${posterRef.id}/${now}-${safeOriginal}`,
+      `${storageFolder}/${categoryId}/${posterRef.id}/${now}-${safeOriginal}`,
     );
 
     const title = `Admin ${categoryLabel}`;
@@ -500,9 +640,10 @@ export async function POST(req: NextRequest) {
       managerEmail: actor.email ?? "",
       managerName: actor.email ?? "Admin",
       title,
-      categoryId: parsed.categoryId,
+      categoryId,
       categoryLabel,
       regionId: region.id,
+      targetRegionIds,
       regionName: region.name,
       regionLanguage: region.primaryLanguage,
       mediaType: mediaKind,
@@ -549,7 +690,10 @@ export async function POST(req: NextRequest) {
       dynamicCategoryId: schedule.dynamicCategoryId,
       dynamicCategoryLabel: schedule.dynamicCategoryId
         ? localizeCategoryLabel(
-            { id: schedule.dynamicCategoryId, label: schedule.dynamicCategoryLabel },
+            {
+              id: schedule.dynamicCategoryId,
+              label: schedule.dynamicCategoryLabel,
+            },
             region,
           )
         : "",
@@ -574,9 +718,10 @@ export async function POST(req: NextRequest) {
       targetId: posterRef.id,
       message: `Uploaded app poster: ${categoryLabel}`,
       metadata: {
-        categoryId: parsed.categoryId,
+        categoryId,
         categoryLabel,
         regionId: region.id,
+        targetRegionIds,
         regionName: region.name,
         uploadSource: parsed.uploadSource,
         publishAt: schedule.publishAt,
@@ -590,7 +735,7 @@ export async function POST(req: NextRequest) {
       poster: {
         id: posterRef.id,
         title,
-        categoryId: parsed.categoryId,
+        categoryId,
         categoryLabel,
         mediaType: mediaKind,
         imageUrl: mediaKind === "image" ? uploaded.imageUrl : "",
@@ -601,7 +746,8 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Poster upload failed.";
+    const message =
+      error instanceof Error ? error.message : "Poster upload failed.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

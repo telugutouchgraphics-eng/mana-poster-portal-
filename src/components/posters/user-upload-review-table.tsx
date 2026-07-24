@@ -9,6 +9,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import {
+  AppStyleNameStrip,
+  isPhotoInNameStripSafeZone,
+  NameStripOverlapWarning,
+  nameStripSafeZoneHeightPercent,
+} from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import type { DashboardRegionLanguage } from "@/lib/dashboard-regions";
@@ -121,14 +127,6 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
 
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
-
-const POSTER_STRIP_GRADIENTS = [
-  ["#071E48", "#0057B8"],
-  ["#062D1D", "#0F9F6E"],
-  ["#4A1407", "#E76F1E"],
-  ["#34115B", "#9D4EDD"],
-  ["#5A3A00", "#FFB703"],
-] as const;
 
 const REJECTION_REASON_OPTIONS: Record<DashboardRegionLanguage, string[]> = {
   assamese: [
@@ -377,40 +375,6 @@ function clampPhotoSafeArea(
   };
 }
 
-function resolvePosterStripGradient(
-  sampleName: string,
-  stripHeight: number,
-): readonly [string, string] {
-  const seedSource = `${sampleName}|${stripHeight}`;
-  let hash = 23;
-  for (const char of seedSource) {
-    hash = 41 * hash + char.charCodeAt(0);
-  }
-  return POSTER_STRIP_GRADIENTS[
-    Math.abs(hash) % POSTER_STRIP_GRADIENTS.length
-  ]!;
-}
-
-function stripTextColor(gradient: readonly [string, string]): string {
-  const luminance =
-    gradient
-      .map((color) => {
-        const hex = color.replace("#", "");
-        const r = Number.parseInt(hex.slice(0, 2), 16) / 255;
-        const g = Number.parseInt(hex.slice(2, 4), 16) / 255;
-        const b = Number.parseInt(hex.slice(4, 6), 16) / 255;
-        const channel = (value: number) =>
-          value <= 0.03928
-            ? value / 12.92
-            : ((value + 0.055) / 1.055) ** 2.4;
-        return (
-          0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-        );
-      })
-      .reduce((sum, value) => sum + value, 0) / gradient.length;
-  return luminance > 0.48 ? "#111827" : "#FFFFFF";
-}
-
 function PreviewModal({
   row,
   onClose,
@@ -520,11 +484,22 @@ function CustomizationModal({
 }) {
   if (!row) return null;
   const safePersonalization = clampPhotoSafeArea(value, fileMeta);
-  const stripGradient = resolvePosterStripGradient(
-    PERMANENT_SAMPLE_NAME,
-    value.stripHeight,
-  );
-  const gradientTextColor = stripTextColor(stripGradient);
+  const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(value);
+  const posterAspectRatio = posterAspect(fileMeta);
+  const stripOverlapWarning =
+    isPhotoInNameStripSafeZone({
+      config: value,
+      posterAspectRatio,
+      photoY: safePersonalization.photoY,
+      photoScale: safePersonalization.photoScale,
+    }) ||
+    (safePersonalization.showVideoExtraPhoto &&
+      isPhotoInNameStripSafeZone({
+        config: value,
+        posterAspectRatio,
+        photoY: safePersonalization.videoExtraPhotoY,
+        photoScale: safePersonalization.videoExtraPhotoScale,
+      }));
   return (
     <div data-no-auto-translate="true" className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4">
       <div className="mx-auto grid min-h-full max-w-7xl gap-3 py-2 sm:gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -838,6 +813,9 @@ function CustomizationModal({
                     </div>
                   ) : null}
 
+                  {stripOverlapWarning ? (
+                    <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                  ) : null}
                   {!value.showBottomStrip ? (
                     <div
                       onPointerDown={startNameDrag}
@@ -866,26 +844,13 @@ function CustomizationModal({
                     </div>
                   ) : null}
                   {value.showBottomStrip ? (
-                    <div
-                      className="absolute inset-x-0 bottom-0 z-[3] px-4 py-2 text-center"
-                      style={{
-                        backgroundImage: `linear-gradient(90deg, ${stripGradient[0]}, ${stripGradient[1]})`,
-                        color: gradientTextColor,
-                      }}
-                    >
-                      <p
-                        className="truncate text-xl font-semibold leading-tight tracking-wide"
-                        style={{
-                          fontFamily:
-                            "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
-                        }}
-                      >
-                        {PERMANENT_SAMPLE_NAME}
-                        <span className="mx-3 opacity-75">|</span>
-                        <span className="text-base font-semibold opacity-90">
-                          {PERMANENT_SAMPLE_DESIGNATION}
-                        </span>
-                      </p>
+                    <div className="absolute inset-x-0 bottom-0 z-[3]">
+                      <AppStyleNameStrip
+                        config={value}
+                        imageSeed={row.imageUrl || "user-upload-review"}
+                        sampleName={PERMANENT_SAMPLE_NAME}
+                        sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                      />
                     </div>
                   ) : null}
                 </div>
@@ -918,6 +883,9 @@ export function UserUploadReviewTable() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
+  const [selectedUploadIds, setSelectedUploadIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [rejectionReasonMap, setRejectionReasonMap] = useState<
     Record<string, string>
   >({});
@@ -986,6 +954,14 @@ export function UserUploadReviewTable() {
       }
       const uploads = data.uploads;
       setRows(uploads);
+      const visibleIds = new Set(uploads.map((item) => item.id));
+      setSelectedUploadIds((prev) => {
+        const next = new Set<string>();
+        prev.forEach((id) => {
+          if (visibleIds.has(id)) next.add(id);
+        });
+        return next;
+      });
       setRejectionReasonMap((prev) => {
         const next: Record<string, string> = {};
         uploads.forEach((item) => {
@@ -1366,7 +1342,13 @@ export function UserUploadReviewTable() {
         delete next[uploadId];
         return next;
       });
-      await loadUploads();
+      setSelectedUploadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(uploadId);
+        return next;
+      });
+      setRows((prev) => prev.filter((item) => item.id !== uploadId));
+      await loadUploads({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to review upload.");
     } finally {
@@ -1415,6 +1397,93 @@ export function UserUploadReviewTable() {
       setError(err instanceof Error ? err.message : "Unable to upload image.");
     } finally {
       setBusyMap((prev) => ({ ...prev, [row.id]: false }));
+    }
+  }
+
+  const selectableUploadIds = rows
+    .filter((row) => row.status === "approved" || row.status === "rejected")
+    .map((row) => row.id);
+  const selectedCount = selectedUploadIds.size;
+  const allVisibleSelected =
+    selectableUploadIds.length > 0 &&
+    selectableUploadIds.every((id) => selectedUploadIds.has(id));
+
+  function toggleUploadSelection(uploadId: string) {
+    setSelectedUploadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(uploadId)) {
+        next.delete(uploadId);
+      } else {
+        next.add(uploadId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleUploads() {
+    setSelectedUploadIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        selectableUploadIds.forEach((id) => next.delete(id));
+      } else {
+        selectableUploadIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  async function deleteSelectedUploads() {
+    const ids = Array.from(selectedUploadIds).filter((id) =>
+      selectableUploadIds.includes(id),
+    );
+    if (ids.length === 0) return;
+    const confirmed = window.confirm(`Delete ${ids.length} selected upload(s) permanently?`);
+    if (!confirmed) return;
+    setError(null);
+    setBusyMap((prev) => ({
+      ...prev,
+      ...Object.fromEntries(ids.map((id) => [id, true])),
+    }));
+    try {
+      const headers = await authHeader();
+      for (const uploadId of ids) {
+        const response = await fetch(
+          `/api/manager/user-uploads/${encodeURIComponent(uploadId)}/review`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify({ status: "deleted" }),
+          },
+        );
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Unable to delete selected uploads.");
+        }
+      }
+      if (previewRow && ids.includes(previewRow.id)) setPreviewRow(null);
+      if (customizeRow && ids.includes(customizeRow.id)) setCustomizeRow(null);
+      setManagerImageMap((prev) => {
+        const next = { ...prev };
+        ids.forEach((id) => delete next[id]);
+        return next;
+      });
+      setRows((prev) => prev.filter((item) => !ids.includes(item.id)));
+      setSelectedUploadIds(new Set());
+      setNotice(`${ids.length} upload(s) deleted.`);
+      await loadUploads({ silent: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete selected uploads.");
+    } finally {
+      setBusyMap((prev) => {
+        const next = { ...prev };
+        ids.forEach((id) => {
+          next[id] = false;
+        });
+        return next;
+      });
     }
   }
 
@@ -1605,8 +1674,35 @@ export function UserUploadReviewTable() {
           </p>
         ) : null}
 
+        {selectableUploadIds.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleAllVisibleUploads}
+                className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)]"
+              />
+              Select visible
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-slate-500">
+                {selectedCount} selected
+              </span>
+              <button
+                type="button"
+                disabled={selectedCount === 0}
+                onClick={() => void deleteSelectedUploads()}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete selected
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 grid gap-4">
-          {loading ? (
+          {loading && rows.length === 0 ? (
             <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-8 text-center text-sm text-slate-600">
               Loading user uploads...
             </div>
@@ -1623,6 +1719,19 @@ export function UserUploadReviewTable() {
                 key={row.id}
                 className="grid gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
               >
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 lg:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedUploadIds.has(row.id)}
+                    disabled={
+                      busyMap[row.id] ||
+                      (row.status !== "approved" && row.status !== "rejected")
+                    }
+                    onChange={() => toggleUploadSelection(row.id)}
+                    className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
+                  />
+                  Select upload
+                </label>
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
                   {displayRow.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

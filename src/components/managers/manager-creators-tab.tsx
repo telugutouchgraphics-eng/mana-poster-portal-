@@ -180,7 +180,7 @@ export function ManagerCreatorsTab() {
       ) : null}
 
       <div className="space-y-3 lg:hidden">
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
             {copy.loading}
           </div>
@@ -271,7 +271,7 @@ export function ManagerCreatorsTab() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && rows.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
                   {copy.loading}

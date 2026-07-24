@@ -13,7 +13,7 @@ export const WEBSITE_CATEGORY_CATALOG: WebsiteCategoryCatalogEntry[] = [
   { id: "good-morning", label: "Good Morning" },
   { id: "good-afternoon", label: "Good Afternoon", aliases: ["afternoon", "good noon", "noon"] },
   { id: "motivational", label: "Motivational" },
-  { id: "love-quotes", label: "Love Quotes" },
+  { id: "good-evening", label: "Good Evening", aliases: ["evening"] },
   { id: "today-special", label: "Today Special" },
   { id: "birthdays", label: "Birthdays", aliases: ["birthday"] },
   { id: "life-advice", label: "Life Advice", aliases: ["life advice quotes", "advice"] },

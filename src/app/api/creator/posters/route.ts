@@ -3,9 +3,14 @@ import { createHash } from "crypto";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { adminDb, adminStorage } from "@/lib/firebase/admin";
-import { CREATOR_ASSIGNABLE_CATEGORIES, getWeekdayForCategoryId } from "@/lib/server/categories";
+import {
+  CREATOR_ASSIGNABLE_CATEGORIES,
+  canonicalCategoryId,
+  getWeekdayForCategoryId,
+} from "@/lib/server/categories";
 import { requireCreatorAccessContext } from "@/lib/server/creator-dashboard";
 import { getManualEventCategoryById } from "@/lib/server/manual-event-categories";
+import { getPermanentCategoryById } from "@/lib/server/permanent-categories";
 import {
   buildCreatorUploadWindow,
   getCreatorPosterPublishAt,
@@ -75,7 +80,9 @@ const videoPhotoAnimationSchema = z.enum([
 const personalizationSchema = z.object({
   photoShape: photoShapeSchema.default("circle"),
   photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
-  edgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  edgeStyle: z
+    .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
+    .default("soft_fade"),
   photoFrameStyle: photoFrameStyleSchema.default("none"),
   showSafeAreas: z.boolean().default(true),
   photoX: z.number().min(0).max(100).default(78),
@@ -84,7 +91,9 @@ const personalizationSchema = z.object({
   showVideoExtraPhoto: z.boolean().default(false),
   videoExtraPhotoShape: photoShapeSchema.default("circle"),
   videoExtraPhotoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
-  videoExtraPhotoEdgeStyle: z.enum(["soft_fade", "sharp", "bottom_fade", "feather"]).default("soft_fade"),
+  videoExtraPhotoEdgeStyle: z
+    .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
+    .default("soft_fade"),
   videoExtraPhotoFrameStyle: photoFrameStyleSchema.default("none"),
   videoExtraPhotoX: z.number().min(0).max(100).default(24),
   videoExtraPhotoY: z.number().min(0).max(100).default(44),
@@ -96,7 +105,11 @@ const personalizationSchema = z.object({
   showBottomStrip: z.boolean().default(true),
   stripHeight: z.number().min(8).max(40).default(16),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
-  sampleDesignation: z.string().trim().max(80).default(PERMANENT_SAMPLE_DESIGNATION),
+  sampleDesignation: z
+    .string()
+    .trim()
+    .max(80)
+    .default(PERMANENT_SAMPLE_DESIGNATION),
 });
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -117,7 +130,11 @@ function clampPersonalizationSafeArea(
       y: clampNumber(y, margin + half - bleed, 100 - margin - half + bleed),
     };
   };
-  const mainOverlay = clampOverlay(config.photoX, config.photoY, config.photoScale);
+  const mainOverlay = clampOverlay(
+    config.photoX,
+    config.photoY,
+    config.photoScale,
+  );
   const extraOverlay = clampOverlay(
     config.videoExtraPhotoX,
     config.videoExtraPhotoY,
@@ -140,7 +157,9 @@ function sanitizeFileName(input: string): string {
 
 function getMediaKind(file: File): "image" | "video" | null {
   const mimeType = (file.type || "").toLowerCase();
-  if (["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)) {
+  if (
+    ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)
+  ) {
     return "image";
   }
   if (["video/mp4", "video/quicktime", "video/webm"].includes(mimeType)) {
@@ -159,7 +178,11 @@ function resolveFileExtension(file: File): string {
   return "png";
 }
 
-function buildStorageDownloadUrl(bucketName: string, filePath: string, token: string) {
+function buildStorageDownloadUrl(
+  bucketName: string,
+  filePath: string,
+  token: string,
+) {
   return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(
     bucketName,
   )}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
@@ -173,23 +196,33 @@ export async function POST(req: NextRequest) {
       .doc(creator.creatorPublicId)
       .get();
     const creatorProfileData = creatorProfileSnap.data() as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const managerUid = String(
       creatorProfileData?.managerUid ?? creatorProfileData?.assignedByUid ?? "",
     ).trim();
-    let managerEmail = String(creatorProfileData?.managerEmail ?? "").trim().toLowerCase();
+    let managerEmail = String(creatorProfileData?.managerEmail ?? "")
+      .trim()
+      .toLowerCase();
     let managerName = String(creatorProfileData?.managerName ?? "").trim();
     if (managerUid && (!managerEmail || !managerName)) {
-      const managerUserSnap = await adminDb.collection("users").doc(managerUid).get();
-      const managerUserData = managerUserSnap.data() as Record<string, unknown> | undefined;
-      managerEmail = managerEmail || String(managerUserData?.email ?? "").trim().toLowerCase();
+      const managerUserSnap = await adminDb
+        .collection("users")
+        .doc(managerUid)
+        .get();
+      const managerUserData = managerUserSnap.data() as
+        Record<string, unknown> | undefined;
+      managerEmail =
+        managerEmail ||
+        String(managerUserData?.email ?? "")
+          .trim()
+          .toLowerCase();
       managerName = managerName || String(managerUserData?.name ?? "").trim();
     }
     const formData = await req.formData();
     const parsed = payloadSchema.parse({
       categoryId: formData.get("categoryId"),
-      requestedPublishDate: String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
+      requestedPublishDate:
+        String(formData.get("requestedPublishDate") ?? "").trim() || undefined,
       regionId: String(formData.get("regionId") ?? "").trim() || undefined,
     });
     const region = getDashboardRegion(parsed.regionId);
@@ -201,7 +234,10 @@ export async function POST(req: NextRequest) {
     }
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
-    if (typeof personalizationRaw === "string" && personalizationRaw.trim().length > 0) {
+    if (
+      typeof personalizationRaw === "string" &&
+      personalizationRaw.trim().length > 0
+    ) {
       const parsedJson = JSON.parse(personalizationRaw) as unknown;
       personalizationConfig = personalizationSchema.parse(parsedJson);
     }
@@ -210,20 +246,37 @@ export async function POST(req: NextRequest) {
       sampleName: PERMANENT_SAMPLE_NAME,
       sampleDesignation: PERMANENT_SAMPLE_DESIGNATION,
     };
+    const categoryId = canonicalCategoryId(parsed.categoryId);
 
-    if (!creator.assignedCategories.includes(parsed.categoryId)) {
+    if (!creator.assignedCategories.includes(categoryId)) {
       return NextResponse.json(
         { ok: false, error: "This category is not assigned to you." },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    const manualCategory = await getManualEventCategoryById(parsed.categoryId, region.id);
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(parsed.categoryId);
+    const manualCategory = await getManualEventCategoryById(
+      categoryId,
+      region.id,
+    );
+    const permanentCategory = await getPermanentCategoryById(categoryId, {
+      regionId: region.id,
+    });
+    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find((item) => item.id === parsed.categoryId)
-        : CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === parsed.categoryId)) ??
+        ? politicalPartyCategoriesForRegion(region.id).find(
+            (item) => item.id === categoryId,
+          )
+        : CREATOR_ASSIGNABLE_CATEGORIES.find(
+            (item) => item.id === categoryId,
+          )) ??
+      (permanentCategory
+        ? {
+            id: permanentCategory.id,
+            label: permanentCategory.label,
+          }
+        : undefined) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
@@ -233,7 +286,7 @@ export async function POST(req: NextRequest) {
     if (!category) {
       return NextResponse.json(
         { ok: false, error: "Invalid category." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const categoryLabel = localizeCategoryLabel(category, region);
@@ -242,14 +295,17 @@ export async function POST(req: NextRequest) {
     if (!(media instanceof File)) {
       return NextResponse.json(
         { ok: false, error: "Poster image is required." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const mediaKind = getMediaKind(media);
     if (!mediaKind) {
       return NextResponse.json(
-        { ok: false, error: "Only PNG, JPG, WEBP, MP4, MOV, or WEBM files are allowed." },
-        { status: 400 }
+        {
+          ok: false,
+          error: "Only PNG, JPG, WEBP, MP4, MOV, or WEBM files are allowed.",
+        },
+        { status: 400 },
       );
     }
     const maxBytes =
@@ -263,7 +319,7 @@ export async function POST(req: NextRequest) {
               ? "Video must be 5 MB or smaller."
               : "Poster image must be 500 KB or smaller.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -277,7 +333,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Uploads are open until 10:00 PM. Uploads reopen after 12:00 AM.",
+          error:
+            "Uploads are open until 10:00 PM. Uploads reopen after 12:00 AM.",
         },
         { status: 403 },
       );
@@ -291,20 +348,27 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const weekday = getWeekdayForCategoryId(parsed.categoryId);
+    const weekday = getWeekdayForCategoryId(categoryId);
     let requestedPublishAt = 0;
     if (weekday) {
       const earliestWeekdayPublishAt = getCreatorPosterPublishAt(now);
       if (requestedPublishAtRaw != null) {
         if (getIstWeekday(requestedPublishAtRaw) !== weekday) {
           return NextResponse.json(
-            { ok: false, error: "Selected publish date must match the category weekday." },
+            {
+              ok: false,
+              error: "Selected publish date must match the category weekday.",
+            },
             { status: 400 },
           );
         }
         if (requestedPublishAtRaw < earliestWeekdayPublishAt) {
           return NextResponse.json(
-            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            {
+              ok: false,
+              error:
+                "Publish date cannot be earlier than the default app publish date.",
+            },
             { status: 400 },
           );
         }
@@ -315,7 +379,11 @@ export async function POST(req: NextRequest) {
       if (requestedPublishAtRaw != null) {
         if (requestedPublishAtRaw < earliestRegularPublishAt) {
           return NextResponse.json(
-            { ok: false, error: "Publish date cannot be earlier than the default app publish date." },
+            {
+              ok: false,
+              error:
+                "Publish date cannot be earlier than the default app publish date.",
+            },
             { status: 400 },
           );
         }
@@ -335,16 +403,21 @@ export async function POST(req: NextRequest) {
     const duplicateSnap = await adminDb
       .collection("creatorPosters")
       .where("creatorPublicId", "==", creator.creatorPublicId)
-      .where("categoryId", "==", parsed.categoryId)
+      .where("categoryId", "==", categoryId)
       .where("imageHash", "==", imageHash)
-      .limit(1)
       .get();
 
-    if (!duplicateSnap.empty) {
+    const duplicate = duplicateSnap.docs.find((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      return String(data.status ?? "") !== "deleted";
+    });
+
+    if (duplicate) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Same poster already uploaded in this category. Change design and upload again.",
+          error:
+            "Same poster already uploaded in this category. Change design and upload again.",
         },
         { status: 409 },
       );
@@ -361,7 +434,11 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    const assetUrl = buildStorageDownloadUrl(bucket.name, filePath, downloadToken);
+    const assetUrl = buildStorageDownloadUrl(
+      bucket.name,
+      filePath,
+      downloadToken,
+    );
 
     const posterRef = adminDb.collection("creatorPosters").doc();
     await posterRef.set({
@@ -372,7 +449,7 @@ export async function POST(req: NextRequest) {
       managerEmail,
       managerName,
       title,
-      categoryId: parsed.categoryId,
+      categoryId,
       categoryLabel,
       regionId: region.id,
       regionName: region.name,
@@ -424,7 +501,7 @@ export async function POST(req: NextRequest) {
       poster: {
         id: posterRef.id,
         title,
-        categoryId: parsed.categoryId,
+        categoryId,
         categoryLabel,
         mediaType: mediaKind,
         imageUrl: mediaKind === "image" ? assetUrl : "",
@@ -435,7 +512,8 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Poster upload failed.";
+    const message =
+      error instanceof Error ? error.message : "Poster upload failed.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

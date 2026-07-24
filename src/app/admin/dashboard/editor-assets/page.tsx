@@ -18,6 +18,7 @@ export default function EditorAssetsPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(() => new Set());
 
   const authHeaders = useCallback(async () => {
     const token = await user?.getIdToken();
@@ -31,7 +32,16 @@ export default function EditorAssetsPage() {
     const data = await response.json() as { ok: boolean; categories?: Category[]; assets?: Asset[]; error?: string };
     if (!response.ok || !data.ok) throw new Error(data.error ?? "Unable to load assets.");
     setCategories(data.categories ?? []);
-    setAssets(data.assets ?? []);
+    const nextAssets = data.assets ?? [];
+    setAssets(nextAssets);
+    const visibleIds = new Set(nextAssets.map((asset) => asset.id));
+    setSelectedAssetIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (visibleIds.has(id)) next.add(id);
+      });
+      return next;
+    });
     setSelectedCategory((current) => current || data.categories?.[0]?.id || "");
   }, [authHeaders, user]);
 
@@ -116,6 +126,54 @@ export default function EditorAssetsPage() {
       const response = await fetch(`/api/admin/editor-assets/${id}`, { method: "DELETE", headers: await authHeaders() });
       const data = await response.json() as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Delete failed.");
+      setAssets((prev) => prev.filter((asset) => asset.id !== id));
+      setSelectedAssetIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Delete failed."); } finally { setBusy(false); }
+  }
+
+  const selectedCount = selectedAssetIds.size;
+  const allVisibleSelected = visibleAssets.length > 0 && visibleAssets.every((asset) => selectedAssetIds.has(asset.id));
+
+  function toggleAssetSelection(id: string) {
+    setSelectedAssetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleAssets() {
+    setSelectedAssetIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleAssets.forEach((asset) => next.delete(asset.id));
+      else visibleAssets.forEach((asset) => next.add(asset.id));
+      return next;
+    });
+  }
+
+  async function removeSelectedAssets() {
+    const ids = Array.from(selectedAssetIds).filter((id) =>
+      visibleAssets.some((asset) => asset.id === id),
+    );
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected asset(s) permanently?`)) return;
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      for (const id of ids) {
+        const response = await fetch(`/api/admin/editor-assets/${id}`, { method: "DELETE", headers });
+        const data = await response.json() as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) throw new Error(data.error ?? "Delete failed.");
+      }
+      setAssets((prev) => prev.filter((asset) => !ids.includes(asset.id)));
+      setSelectedAssetIds(new Set());
+      setMessage(`${ids.length} asset(s) deleted.`);
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Delete failed."); } finally { setBusy(false); }
   }
@@ -155,9 +213,25 @@ export default function EditorAssetsPage() {
             <div className="mt-4 flex gap-3 border-t border-slate-100 pt-4"><input value={symbolValue} onChange={(e) => setSymbolValue(e.target.value)} maxLength={16} placeholder="Emoji or symbol" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-500" /><button type="button" onClick={() => void addSymbol()} disabled={busy || !selectedCategory || !symbolValue.trim()} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-800 disabled:opacity-50">Add symbol</button></div>
           </form>
           {message ? <p className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">{message}</p> : null}
+          {visibleAssets.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisibleAssets} className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)]" />
+                Select all
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-slate-500">{selectedCount} selected</span>
+                <button type="button" disabled={busy || selectedCount === 0} onClick={() => void removeSelectedAssets()} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button>
+              </div>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
             {visibleAssets.map((asset) => (
               <article key={asset.id} className="overflow-hidden rounded-lg border border-[var(--portal-border)] bg-white">
+                <label className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+                  <input type="checkbox" checked={selectedAssetIds.has(asset.id)} disabled={busy} onChange={() => toggleAssetSelection(asset.id)} className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50" />
+                  Select
+                </label>
                 <div className="aspect-square bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%,transparent_75%,#f1f5f9_75%),linear-gradient(45deg,#f1f5f9_25%,white_25%,white_75%,#f1f5f9_75%)] bg-[length:20px_20px] bg-[position:0_0,10px_10px] p-2">
                   {asset.kind === "text" ? <div className="flex h-full items-center justify-center text-5xl">{asset.value}</div> : <img src={asset.thumbnailUrl || asset.fileUrl} alt={asset.name} className="h-full w-full object-contain" />}
                 </div>

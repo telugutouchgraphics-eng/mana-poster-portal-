@@ -7,7 +7,11 @@ import {
 } from "@/lib/server/categories";
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
-import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
+import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
+import {
+  loadAppBanners,
+  loadCreatorAnnouncements,
+} from "@/lib/server/content-management";
 import {
   isApprovedEquivalentStatus,
   isVisiblePosterStatus,
@@ -18,8 +22,14 @@ import {
   buildCreatorEarningsSummary,
   loadPortalAnalyticsSnapshot,
 } from "@/lib/server/dashboard-metrics";
-import { buildCompetitionSnapshots, loadCompetitions } from "@/lib/server/competitions";
-import { buildCreatorUploadWindow, getIstDayKey } from "@/lib/server/ist-schedule";
+import {
+  buildCompetitionSnapshots,
+  loadCompetitions,
+} from "@/lib/server/competitions";
+import {
+  buildCreatorUploadWindow,
+  getIstDayKey,
+} from "@/lib/server/ist-schedule";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
 import { requireRole } from "@/lib/server/auth";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
@@ -37,7 +47,10 @@ function dayKey(epochMs: number): string {
 
 const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
 
-function isCreatorDashboardPosterVisible(item: { createdAt: number; status: string }, now: number): boolean {
+function isCreatorDashboardPosterVisible(
+  item: { createdAt: number; status: string },
+  now: number,
+): boolean {
   if (!isVisiblePosterStatus(item.status)) {
     return false;
   }
@@ -90,21 +103,27 @@ export async function GET(req: NextRequest) {
       );
     }
     const now = Date.now();
-    const region = await assertActorCanAccessRegion(actor, req.nextUrl.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(
+      actor,
+      req.nextUrl.searchParams.get("regionId"),
+    );
     const today = dayKey(now);
     const uploadWindow = buildCreatorUploadWindow(now);
     const todayUploadDayKey = getIstDayKey(now);
     const analytics = await loadPortalAnalyticsSnapshot();
-    const regionPosters = analytics.posters.filter((item) => item.regionId === region.id);
+    const regionPosters = analytics.posters.filter(
+      (item) => item.regionId === region.id,
+    );
     const competitions = await loadCompetitions();
     const banners = await loadAppBanners();
     const announcements = (await loadCreatorAnnouncements())
       .filter((item) => item.active)
       .filter((item) => item.startAt <= now && item.endAt >= now)
-      .filter((item) =>
-        item.audience === "all" ||
-        item.audience === "creator" ||
-        item.audience === "manager_creator",
+      .filter(
+        (item) =>
+          item.audience === "all" ||
+          item.audience === "creator" ||
+          item.audience === "manager_creator",
       )
       .slice(0, 6);
 
@@ -142,7 +161,9 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
     const visiblePosters = posters.filter(
-      (item) => Number(item.dashboardHiddenAt ?? 0) <= 0 && isCreatorDashboardPosterVisible(item, now),
+      (item) =>
+        Number(item.dashboardHiddenAt ?? 0) <= 0 &&
+        isCreatorDashboardPosterVisible(item, now),
     );
 
     const todayUploadsByCategory = Object.values(
@@ -157,29 +178,46 @@ export async function GET(req: NextRequest) {
         }, {}),
     );
 
-    const todayUploads = visiblePosters.filter((item) => dayKey(item.createdAt) === today).length;
-    const approvedCount = visiblePosters.filter((item) => isApprovedEquivalentStatus(item.status)).length;
-    const rejectedCount = visiblePosters.filter((item) => item.status === "rejected").length;
-    const pendingCount = visiblePosters.filter((item) => item.status === "pending").length;
+    const todayUploads = visiblePosters.filter(
+      (item) => dayKey(item.createdAt) === today,
+    ).length;
+    const approvedCount = visiblePosters.filter((item) =>
+      isApprovedEquivalentStatus(item.status),
+    ).length;
+    const rejectedCount = visiblePosters.filter(
+      (item) => item.status === "rejected",
+    ).length;
+    const pendingCount = visiblePosters.filter(
+      (item) => item.status === "pending",
+    ).length;
 
     const manualCategories = await listManualEventCategories(region.id);
-    const weekdayCategories = getUpcomingWeekdayAssignableCategories(new Date(now));
+    const permanentCategories = await listActivePermanentCategories(region.id);
+    const weekdayCategories = getUpcomingWeekdayAssignableCategories(
+      new Date(now),
+    );
     const visibleCategoryMeta = new Map(
-      [...getVisibleAssignableCategories(new Date(now), 2, 7, 2, region.id), ...weekdayCategories].map(
-        (item) => [
-          item.id,
-          {
-            isDynamic: Boolean(item.isDynamic),
-            eventDateLabel: item.eventDateLabel ?? "",
-            eventStartAt: Number(item.eventStartAt ?? 0),
-          },
-        ],
-      ),
+      [
+        ...getVisibleAssignableCategories(new Date(now), 2, 7, 2, region.id),
+        ...weekdayCategories,
+      ].map((item) => [
+        item.id,
+        {
+          isDynamic: Boolean(item.isDynamic),
+          eventDateLabel: item.eventDateLabel ?? "",
+          eventStartAt: Number(item.eventStartAt ?? 0),
+        },
+      ]),
     );
     const categoryMap = Object.fromEntries(
-      [...CREATOR_ASSIGNABLE_CATEGORIES, ...manualCategories.map((item) => ({ id: item.id, label: item.label }))].map(
-        (item) => [item.id, item.label],
-      ),
+      [
+        ...CREATOR_ASSIGNABLE_CATEGORIES,
+        ...manualCategories.map((item) => ({ id: item.id, label: item.label })),
+        ...permanentCategories.map((item) => ({
+          id: item.id,
+          label: item.label,
+        })),
+      ].map((item) => [item.id, item.label]),
     );
 
     const assignedCategories = creator.assignedCategories.map((categoryId) => {
@@ -190,7 +228,8 @@ export async function GET(req: NextRequest) {
           { id: categoryId, label: categoryMap[categoryId] ?? categoryId },
           region,
         ),
-        isDynamic: categoryId.startsWith("weekday_") || Boolean(meta?.isDynamic),
+        isDynamic:
+          categoryId.startsWith("weekday_") || Boolean(meta?.isDynamic),
         eventDateLabel: meta?.eventDateLabel ?? "",
         eventStartAt: meta?.eventStartAt ?? 0,
       };
@@ -202,7 +241,9 @@ export async function GET(req: NextRequest) {
       now,
     );
     const categoryPerformance = buildCategoryPerformance(
-      regionPosters.filter((item) => item.creatorPublicId === creator.creatorPublicId),
+      regionPosters.filter(
+        (item) => item.creatorPublicId === creator.creatorPublicId,
+      ),
     );
     const competition = buildCreatorCompetition(
       creator.creatorPublicId,
@@ -221,13 +262,15 @@ export async function GET(req: NextRequest) {
       )
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 12);
-    const activeCompetitions = (await buildCompetitionSnapshots(
-      competitions,
-      regionPosters,
-      analytics.creatorProfiles,
-      now,
-      region.id,
-    ))
+    const activeCompetitions = (
+      await buildCompetitionSnapshots(
+        competitions,
+        regionPosters,
+        analytics.creatorProfiles,
+        now,
+        region.id,
+      )
+    )
       .map((snapshot) => {
         const mine = snapshot.leaderboard.find(
           (leader) => leader.creatorPublicId === creator.creatorPublicId,
@@ -288,7 +331,10 @@ export async function GET(req: NextRequest) {
       },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load creator dashboard.";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to load creator dashboard.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

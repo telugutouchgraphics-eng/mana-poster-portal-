@@ -16,6 +16,10 @@ import {
 import { deleteAdminAsset } from "@/lib/server/content-management";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import {
+  CREATOR_ASSIGNABLE_CATEGORIES,
+  canonicalCategoryId,
+} from "@/lib/server/categories";
+import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
@@ -69,7 +73,6 @@ async function sendUserUploadStatusNotification(
     },
   });
 }
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ uploadId: string }> },
@@ -90,9 +93,14 @@ export async function POST(
     const current = uploadSnap.data() as Record<string, unknown>;
     const userId = String(current.userId ?? "").trim();
     const userName = String(current.userName ?? "").trim() || "User";
-    const categoryId = payload.categoryId ?? String(current.categoryId ?? "").trim();
-    const categoryLabel =
+    const categoryId = canonicalCategoryId(
+      payload.categoryId ?? String(current.categoryId ?? "").trim(),
+    );
+    const submittedCategoryLabel =
       payload.categoryLabel ?? String(current.categoryLabel ?? "").trim();
+    const categoryLabel =
+      CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)?.label ??
+      submittedCategoryLabel;
     const regionId = String(current.regionId ?? "").trim();
     const regionName = String(current.regionName ?? "").trim();
     await assertActorCanAccessRegion(actor, regionId);
@@ -186,6 +194,7 @@ export async function POST(
       await posterRef.set(
         buildUserUploadApprovalWrite({
           uploadId,
+          userId,
           posterId: approvedPosterTemplateId,
           userName,
           userEmail: String(current.userEmail ?? "").trim(),

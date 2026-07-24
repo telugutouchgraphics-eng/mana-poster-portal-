@@ -231,8 +231,14 @@ async function main() {
     throw new Error("Approved creatorPoster record was not created.");
   }
   const poster = posterSnap.data();
-  if (String(poster.status) !== "approved") {
+  if (String(poster.status) !== "private_approved") {
     throw new Error(`Linked poster status mismatch: ${poster.status}`);
+  }
+  if (String(poster.visibilityScope || "") !== "uploader_only") {
+    throw new Error(`Linked poster visibility mismatch: ${poster.visibilityScope}`);
+  }
+  if (String(poster.ownerUserId || "") !== String(uploadData.userId || "")) {
+    throw new Error("Linked poster owner mismatch.");
   }
   if (Number(poster.publishAt || 0) > Date.now()) {
     throw new Error(`Poster is not app-visible yet. publishAt=${poster.publishAt}`);

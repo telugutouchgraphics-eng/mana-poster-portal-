@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
-import { assertActorCanAccessRegion, recordAllowsRegion } from "@/lib/server/region-scope";
+import {
+  assertActorCanAccessRegion,
+  recordAllowsRegion,
+} from "@/lib/server/region-scope";
 import { loadScopedCreatorProfiles } from "@/lib/server/manager-scope";
 import { decryptSensitiveField } from "@/lib/server/secure-fields";
 import {
@@ -9,6 +12,7 @@ import {
   pruneInactiveAssignedCategories,
 } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
+import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
 interface RawCreatorDoc {
@@ -60,21 +64,34 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-async function loadDocsByCreatorIds(collectionName: string, creatorIds: string[]) {
+async function loadDocsByCreatorIds(
+  collectionName: string,
+  creatorIds: string[],
+) {
   const chunks = chunkArray(creatorIds, 30);
   const snapshots = await Promise.all(
     chunks.map((chunk) =>
-      adminDb.collection(collectionName).where("creatorPublicId", "in", chunk).get(),
+      adminDb
+        .collection(collectionName)
+        .where("creatorPublicId", "in", chunk)
+        .get(),
     ),
   );
   return snapshots.flatMap((snapshot) => snapshot.docs);
 }
 
-async function loadProfileDocsByIds(collectionName: string, creatorIds: string[]) {
+async function loadProfileDocsByIds(
+  collectionName: string,
+  creatorIds: string[],
+) {
   const chunks = chunkArray(creatorIds, 40);
   const docs = await Promise.all(
     chunks.map((chunk) =>
-      Promise.all(chunk.map((creatorId) => adminDb.collection(collectionName).doc(creatorId).get())),
+      Promise.all(
+        chunk.map((creatorId) =>
+          adminDb.collection(collectionName).doc(creatorId).get(),
+        ),
+      ),
     ),
   );
   return docs.flat().filter((doc) => doc.exists);
@@ -88,12 +105,19 @@ export async function GET(req: NextRequest) {
     const status = (url.searchParams.get("status") ?? "all").trim();
     const bankStatus = (url.searchParams.get("bankStatus") ?? "all").trim();
     const payoutStatus = (url.searchParams.get("payoutStatus") ?? "all").trim();
-    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
-    const [snapshot, manualCategories] = await Promise.all([
-      loadScopedCreatorProfiles(actor),
-      listManualEventCategories(region.id),
-    ]);
+    const region = await assertActorCanAccessRegion(
+      actor,
+      url.searchParams.get("regionId"),
+    );
+    const [snapshot, manualCategories, permanentCategories] = await Promise.all(
+      [
+        loadScopedCreatorProfiles(actor),
+        listManualEventCategories(region.id),
+        listActivePermanentCategories(region.id),
+      ],
+    );
     const manualCategoryIds = manualCategories.map((item) => item.id);
+    const permanentCategoryIds = permanentCategories.map((item) => item.id);
     const creatorIds = snapshot
       .map((doc) => String(doc.data().creatorPublicId ?? doc.id).trim())
       .filter((creatorId) => creatorId.length > 0);
@@ -137,7 +161,10 @@ export async function GET(req: NextRequest) {
       if (isApprovedEquivalentStatus(posterStatus)) current.approvedCount += 1;
       else if (posterStatus === "rejected") current.rejectedCount += 1;
       else current.pendingCount += 1;
-      current.lastUploadAt = Math.max(current.lastUploadAt, Number(data.createdAt ?? 0));
+      current.lastUploadAt = Math.max(
+        current.lastUploadAt,
+        Number(data.createdAt ?? 0),
+      );
       posterStats.set(creatorPublicId, current);
     }
 
@@ -156,13 +183,16 @@ export async function GET(req: NextRequest) {
         ifscCode: String(data.ifscCode ?? ""),
         accountNumberMasked: String(data.accountNumberMasked ?? ""),
         accountNumber:
-          actor.role === "admin" ? decryptSensitiveField(encryptedAccountNumber) : undefined,
+          actor.role === "admin"
+            ? decryptSensitiveField(encryptedAccountNumber)
+            : undefined,
         submittedAt: Number(data.submittedAt ?? 0),
         reviewedAt: Number(data.reviewedAt ?? 0),
         reviewComment: String(data.reviewComment ?? ""),
         signatureName: String(data.signatureName ?? ""),
         agreementAcceptedAt: Number(data.agreementAcceptedAt ?? 0),
-        agreementText: actor.role === "admin" ? String(data.agreementText ?? "") : "",
+        agreementText:
+          actor.role === "admin" ? String(data.agreementText ?? "") : "",
       });
     }
 
@@ -192,7 +222,10 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = snapshot
-      .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<RawCreatorDoc, "id">) }))
+      .map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Omit<RawCreatorDoc, "id">),
+      }))
       .filter((item) => {
         const itemCreatorId = String(item.creatorPublicId ?? item.id).trim();
         if (!recordAllowsRegion(item as Record<string, unknown>, region.id)) {
@@ -234,10 +267,11 @@ export async function GET(req: NextRequest) {
         const rawAssignedCategories = Array.isArray(item.assignedCategories)
           ? item.assignedCategories.map(String)
           : [];
-        const { assignedCategories: knownAssignedCategories } = filterKnownAssignedCategories(
-          rawAssignedCategories,
-          manualCategoryIds,
-        );
+        const { assignedCategories: knownAssignedCategories } =
+          filterKnownAssignedCategories(rawAssignedCategories, [
+            ...manualCategoryIds,
+            ...permanentCategoryIds,
+          ]);
         const { assignedCategories } = pruneInactiveAssignedCategories(
           knownAssignedCategories,
           new Date(),
@@ -282,7 +316,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, creators: rows });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load creators.";
+    const message =
+      error instanceof Error ? error.message : "Unable to load creators.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

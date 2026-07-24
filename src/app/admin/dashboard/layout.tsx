@@ -31,6 +31,11 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       shortLabel: isTelugu ? "క్యాటగిరీలు" : "Categories",
     },
     {
+      href: "/admin/dashboard/permanent-categories",
+      label: "Permanent Categories",
+      shortLabel: "Permanent",
+    },
+    {
       href: "/admin/dashboard/managers",
       label: t("admin.nav.managers", lang),
       shortLabel: t("admin.nav.managers", lang),

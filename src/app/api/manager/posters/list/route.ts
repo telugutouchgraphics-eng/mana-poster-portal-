@@ -128,14 +128,25 @@ function dashboardVisibleUntilForStatus(data: Record<string, unknown>): number {
   const status = String(data.status ?? "pending").trim().toLowerCase();
   if (status === "approved") {
     const approvedAt = Number(data.approvedAt ?? 0);
-    return approvedAt > 0 ? approvedAt + DASHBOARD_RETENTION_MS : 0;
+    const reviewVisibleUntil = approvedAt > 0 ? approvedAt + DASHBOARD_RETENTION_MS : 0;
+    const eventEndAt = Number(data.eventEndAt ?? 0);
+    return Math.max(reviewVisibleUntil, eventEndAt);
   }
   const createdAt = Number(data.createdAt ?? 0);
   return createdAt > 0 ? createdAt + DASHBOARD_RETENTION_MS : 0;
 }
 
+function isActiveApprovedEventPoster(data: Record<string, unknown>, now: number): boolean {
+  const status = String(data.status ?? "pending").trim().toLowerCase();
+  if (status !== "approved") {
+    return false;
+  }
+  const eventEndAt = Number(data.eventEndAt ?? 0);
+  return eventEndAt > now;
+}
+
 function isDashboardVisible(data: Record<string, unknown>, now: number): boolean {
-  if (Number(data.dashboardHiddenAt ?? 0) > 0) {
+  if (Number(data.dashboardHiddenAt ?? 0) > 0 && !isActiveApprovedEventPoster(data, now)) {
     return false;
   }
   const visibleUntil = dashboardVisibleUntilForStatus(data);

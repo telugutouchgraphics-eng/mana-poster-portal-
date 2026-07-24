@@ -72,6 +72,7 @@ export interface AdminPushNotificationRecord {
   route: string;
   audience: "all_users" | "creators_only" | "area_users";
   targetState?: string;
+  targetRegionIds?: string[];
   targetDistrict?: string;
   targetCity?: string;
   category: string;

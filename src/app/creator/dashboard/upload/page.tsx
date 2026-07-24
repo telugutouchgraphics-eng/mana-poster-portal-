@@ -6,6 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import {
+  AppStyleNameStrip,
+  isPhotoInNameStripSafeZone,
+  NameStripOverlapWarning,
+  nameStripSafeZoneHeightPercent,
+} from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
@@ -82,14 +88,6 @@ interface PersonalizationConfig {
 
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
-
-const POSTER_STRIP_GRADIENTS = [
-  ["#071E48", "#0057B8"],
-  ["#062D1D", "#0F9F6E"],
-  ["#4A1407", "#E76F1E"],
-  ["#34115B", "#9D4EDD"],
-  ["#5A3A00", "#FFB703"],
-] as const;
 
 interface CreatorDashboardResponse {
   ok: boolean;
@@ -371,30 +369,6 @@ function parsePersonalizationConfig(
   );
 }
 
-function resolvePosterStripGradient(sampleName: string, stripHeight: number): readonly [string, string] {
-  const seedSource = `${sampleName}|${stripHeight}`;
-  let hash = 23;
-  for (const char of seedSource) {
-    hash = 41 * hash + char.charCodeAt(0);
-  }
-  return POSTER_STRIP_GRADIENTS[Math.abs(hash) % POSTER_STRIP_GRADIENTS.length]!;
-}
-
-function stripTextColor(gradient: readonly [string, string]): string {
-  const luminance =
-    gradient
-      .map((color) => {
-        const hex = color.replace("#", "");
-        const r = Number.parseInt(hex.slice(0, 2), 16) / 255;
-        const g = Number.parseInt(hex.slice(2, 4), 16) / 255;
-        const b = Number.parseInt(hex.slice(4, 6), 16) / 255;
-        const channel = (value: number) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-      })
-      .reduce((sum, value) => sum + value, 0) / gradient.length;
-  return luminance > 0.48 ? "#111827" : "#FFFFFF";
-}
-
 function formatDate(epochMs: number): string {
   if (!epochMs) return "-";
   return new Date(epochMs).toLocaleString("en-IN", {
@@ -444,6 +418,7 @@ export default function CreatorUploadStudioPage() {
   const [activeTab, setActiveTab] = useState<"upload" | "review">("upload");
   const [editingPoster, setEditingPoster] = useState<CreatorPoster | null>(null);
   const [posterActionBusyMap, setPosterActionBusyMap] = useState<Record<string, boolean>>({});
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -764,11 +739,22 @@ export default function CreatorUploadStudioPage() {
   const isVideoPreview = Boolean(
     (file && isVideoFile(file)) || (activeEditPoster && isVideoPoster(activeEditPoster)),
   );
-  const stripGradient = resolvePosterStripGradient(
-    PERMANENT_SAMPLE_NAME,
-    personalization.stripHeight,
-  );
-  const gradientTextColor = stripTextColor(stripGradient);
+  const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
+  const posterAspectRatio = posterAspect(fileMeta);
+  const stripOverlapWarning =
+    isPhotoInNameStripSafeZone({
+      config: personalization,
+      posterAspectRatio,
+      photoY: safePersonalization.photoY,
+      photoScale: safePersonalization.photoScale,
+    }) ||
+    (safePersonalization.showVideoExtraPhoto &&
+      isPhotoInNameStripSafeZone({
+        config: personalization,
+        posterAspectRatio,
+        photoY: safePersonalization.videoExtraPhotoY,
+        photoScale: safePersonalization.videoExtraPhotoScale,
+      }));
   async function startVideoPreviewPlayback() {
     if (!isVideoPreview) return;
     setVideoPreviewCycle((prev) => prev + 1);
@@ -991,11 +977,100 @@ export default function CreatorUploadStudioPage() {
       if (editingPoster?.id === poster.id) {
         cancelEditPoster();
       }
+      setSelectedPosterIds((prev) => {
+        const next = new Set(prev);
+        next.delete(poster.id);
+        return next;
+      });
+      setDashboard((prev) =>
+        prev
+          ? {
+              ...prev,
+              posters: (prev.posters ?? []).filter((item) => item.id !== poster.id),
+            }
+          : prev,
+      );
       await loadDashboard(true);
     } catch (err) {
       setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
     } finally {
       setPosterActionBusyMap((prev) => ({ ...prev, [poster.id]: false }));
+    }
+  }
+
+  function togglePosterSelection(poster: CreatorPoster) {
+    if (!canCreatorDeletePoster(poster)) return;
+    setSelectedPosterIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(poster.id)) {
+        next.delete(poster.id);
+      } else {
+        next.add(poster.id);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisiblePosters() {
+    const deletableIds = reviewPosters.filter(canCreatorDeletePoster).map((poster) => poster.id);
+    setSelectedPosterIds((prev) => {
+      if (deletableIds.length > 0 && deletableIds.every((id) => prev.has(id))) {
+        return new Set([...prev].filter((id) => !deletableIds.includes(id)));
+      }
+      return new Set([...prev, ...deletableIds]);
+    });
+  }
+
+  async function deleteSelectedPosters() {
+    const selected = reviewPosters.filter((poster) => selectedPosterIds.has(poster.id) && canCreatorDeletePoster(poster));
+    if (selected.length === 0) return;
+    const confirmed = window.confirm(
+      isTelugu
+        ? `${selected.length} పోస్టర్లను డిలీట్ చేయాలా?`
+        : `Delete ${selected.length} selected poster(s)?`,
+    );
+    if (!confirmed) return;
+    const ids = selected.map((poster) => poster.id);
+    setPosterActionBusyMap((prev) => ({
+      ...prev,
+      ...Object.fromEntries(ids.map((id) => [id, true])),
+    }));
+    setUploadMessage(null);
+    try {
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+      }
+      for (const poster of selected) {
+        const response = await fetch(`/api/creator/posters/${encodeURIComponent(poster.id)}`, {
+          method: "DELETE",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        });
+        const data = await readUploadResponse(response);
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Unable to delete selected posters.");
+        }
+      }
+      if (editingPoster && ids.includes(editingPoster.id)) {
+        cancelEditPoster();
+      }
+      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setDashboard((prev) =>
+        prev
+          ? {
+              ...prev,
+              posters: (prev.posters ?? []).filter((item) => !ids.includes(item.id)),
+            }
+          : prev,
+      );
+      await loadDashboard(true);
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : "Unable to delete selected posters.");
+    } finally {
+      setPosterActionBusyMap((prev) => ({
+        ...prev,
+        ...Object.fromEntries(ids.map((id) => [id, false])),
+      }));
     }
   }
 
@@ -1311,6 +1386,32 @@ export default function CreatorUploadStudioPage() {
               </p>
             ) : null}
 
+            {reviewPosters.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={
+                      reviewPosters.filter(canCreatorDeletePoster).length > 0 &&
+                      reviewPosters.filter(canCreatorDeletePoster).every((poster) => selectedPosterIds.has(poster.id))
+                    }
+                    onChange={toggleAllVisiblePosters}
+                    className="h-4 w-4 accent-rose-600"
+                  />
+                  Select visible
+                </label>
+                <span className="text-xs font-semibold text-slate-500">{selectedPosterIds.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => void deleteSelectedPosters()}
+                  disabled={selectedPosterIds.size === 0}
+                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Delete selected
+                </button>
+              </div>
+            ) : null}
+
             <div className="mt-5 space-y-4">
               {reviewPosters.length === 0 ? (
                 <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
@@ -1327,6 +1428,16 @@ export default function CreatorUploadStudioPage() {
                       key={poster.id}
                       className="grid gap-4 rounded-[28px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)] md:grid-cols-[120px_minmax(0,1fr)]"
                     >
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedPosterIds.has(poster.id)}
+                          disabled={!deletable || busy}
+                          onChange={() => togglePosterSelection(poster)}
+                          className="h-4 w-4 accent-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        Select poster
+                      </label>
                       <div className="aspect-[3/4] w-full overflow-hidden rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
                         {isVideoPoster(poster) ? (
                           <video
@@ -1780,6 +1891,9 @@ export default function CreatorUploadStudioPage() {
                           </button>
                         ) : null}
 
+                        {stripOverlapWarning ? (
+                          <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                        ) : null}
                         {!personalization.showBottomStrip ? (
                           <div
                             onPointerDown={startNameDrag}
@@ -1808,26 +1922,13 @@ export default function CreatorUploadStudioPage() {
                           </div>
                         ) : null}
                         {personalization.showBottomStrip ? (
-                          <div
-                            className="absolute inset-x-0 bottom-0 z-[3] px-4 py-2 text-center"
-                            style={{
-                              backgroundImage: `linear-gradient(90deg, ${stripGradient[0]}, ${stripGradient[1]})`,
-                              color: gradientTextColor,
-                            }}
-                          >
-                            <p
-                              className="truncate text-xl font-semibold leading-tight tracking-wide"
-                              style={{
-                                fontFamily:
-                                  "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
-                              }}
-                            >
-                              {PERMANENT_SAMPLE_NAME}
-                              <span className="mx-3 opacity-75">|</span>
-                              <span className="text-base font-semibold opacity-90">
-                                {PERMANENT_SAMPLE_DESIGNATION}
-                              </span>
-                            </p>
+                          <div className="absolute inset-x-0 bottom-0 z-[3]">
+                            <AppStyleNameStrip
+                              config={personalization}
+                              imageSeed={file?.name ?? activeEditPoster?.imageUrl ?? "creator-upload"}
+                              sampleName={PERMANENT_SAMPLE_NAME}
+                              sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                            />
                           </div>
                         ) : null}
                       </div>

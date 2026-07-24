@@ -6,6 +6,8 @@ import { assertPosterInScope } from "@/lib/server/manager-scope";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { deleteAdminAsset } from "@/lib/server/content-management";
 import {
+  CREATOR_ASSIGNABLE_CATEGORIES,
+  canonicalCategoryId,
   getVisibleDynamicCategoryById,
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
@@ -28,11 +30,45 @@ import {
 } from "@/lib/political-party-categories";
 
 const APPROVAL_REWARD_AMOUNT = 10;
+const TELUGU_SHARED_CONTENT_REGION_IDS = ["andhra_pradesh", "telangana"];
+const HINDI_SHARED_CONTENT_REGION_IDS = [
+  "bihar",
+  "chhattisgarh",
+  "haryana",
+  "himachal_pradesh",
+  "jharkhand",
+  "madhya_pradesh",
+  "rajasthan",
+  "uttar_pradesh",
+  "uttarakhand",
+  "delhi",
+  "andaman_nicobar",
+];
 
 const payloadSchema = z.object({
   status: z.enum(["approved", "rejected", "archived", "deleted"]),
   reviewComment: z.string().trim().max(300).optional(),
 });
+
+function sharedContentRegionIdsFor(regionId: string) {
+  if (TELUGU_SHARED_CONTENT_REGION_IDS.includes(regionId)) {
+    return TELUGU_SHARED_CONTENT_REGION_IDS;
+  }
+  if (HINDI_SHARED_CONTENT_REGION_IDS.includes(regionId)) {
+    return HINDI_SHARED_CONTENT_REGION_IDS;
+  }
+  return regionId ? [regionId] : [];
+}
+
+function resolvePosterTargetRegionIds(regionId: string, categoryId: string) {
+  if (!regionId) {
+    return [];
+  }
+  if (POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) {
+    return [regionId];
+  }
+  return sharedContentRegionIdsFor(regionId);
+}
 
 async function resolveCreatorPosterPublishSchedule(
   categoryId: string,
@@ -156,8 +192,10 @@ export async function POST(
       const wasApproved = String(current.status ?? "pending") === "approved";
       const rewardAlreadyGranted = Number(current.approvalRewardAmount ?? 0) > 0;
       const creatorPublicId = String(current.creatorPublicId ?? "");
-      const categoryId = String(current.categoryId ?? "");
-      const categoryLabel = String(current.categoryLabel ?? "");
+      const categoryId = canonicalCategoryId(String(current.categoryId ?? ""));
+      const categoryLabel =
+        CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)?.label ??
+        String(current.categoryLabel ?? "");
       const title = String(current.title ?? "Poster");
       const uploadedAt = Number(current.createdAt ?? now);
       const requestedPublishAt = Number(current.requestedPublishAt ?? 0);
@@ -182,6 +220,8 @@ export async function POST(
           : Number(current.publishAt ?? 0);
       const nextUpdate: Record<string, unknown> = {
         status: payload.status,
+        categoryId,
+        categoryLabel,
         reviewComment: payload.reviewComment ?? "",
         updatedAt: now,
         archivedAt: payload.status === "archived" ? now : null,
@@ -209,6 +249,12 @@ export async function POST(
           payload.status === "approved"
             ? now + 24 * 60 * 60 * 1000
             : Number(current.dashboardVisibleUntil ?? 0),
+        targetRegionIds:
+          payload.status === "approved"
+            ? resolvePosterTargetRegionIds(regionId, categoryId)
+            : Array.isArray(current.targetRegionIds)
+              ? current.targetRegionIds
+              : [],
         reviewHistory: [
           ...history,
           {

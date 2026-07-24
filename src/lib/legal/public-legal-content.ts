@@ -16,7 +16,7 @@ export const privacySections = [
   {
     title: "Community Uploads and Review",
     body:
-      "Users may upload poster images for manager review. We may process the uploaded image, selected category, upload time, applicable visibility date, review status, rejection reason, contribution share and download counts, and related moderation history. Approved uploads may become visible to other users in the related category. Managers and admins may review, reject, remove, or retain uploads as part of moderation, abuse prevention, and record-keeping.",
+      "Users may upload poster images for manager review. We may process the uploaded image, selected category, upload time, applicable visibility date, review status, rejection reason, contribution share and download counts, and related moderation history. Approved community uploads are visible only to the uploading user in My Uploads and are not shown to other users in public app categories. Managers and admins may review, reject, remove, or retain uploads as part of moderation, abuse prevention, and record-keeping.",
   },
   {
     title: "Payments, Firebase, and Ads",

@@ -109,7 +109,7 @@ export default function AdminOverviewPage() {
   const { language } = useDashboardLanguage();
   const { region, regions } = useDashboardRegion();
   const lang = portalLanguage(language);
-  const [overviewRegionId, setOverviewRegionId] = useState(region.id);
+  const [overviewRegionId, setOverviewRegionId] = useState("all");
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,10 +145,6 @@ export default function AdminOverviewPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, lang, overviewRegionId]);
-
-  useEffect(() => {
-    setOverviewRegionId(region.id);
-  }, [region.id]);
 
   const trendMax = useMemo(
     () => Math.max(1, ...(data?.uploadsTrend?.map((item) => item.uploads) ?? [1])),

@@ -42,6 +42,7 @@ export function ManagerTable() {
   const [credentialResult, setCredentialResult] = useState<Record<string, ManagerCredentialReveal>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [regionMap, setRegionMap] = useState<Record<string, string[]>>({});
+  const [selectedManagerIds, setSelectedManagerIds] = useState<Set<string>>(() => new Set());
   const isTelugu = language === "telugu";
   const copy = {
     loginRequired: isTelugu ? "లాగిన్ రిక్వైర్డ్." : "Login required.",
@@ -140,6 +141,10 @@ export function ManagerTable() {
         throw new Error(data.error ?? copy.unableLoad);
       }
       setRows(data.managers);
+      setSelectedManagerIds((prev) => {
+        const visibleIds = new Set(data.managers?.map((row) => row.uid) ?? []);
+        return new Set([...prev].filter((id) => visibleIds.has(id)));
+      });
       setRegionMap(
         Object.fromEntries(data.managers.map((row) => [row.uid, row.assignedRegionIds ?? []])),
       );
@@ -306,6 +311,12 @@ export function ManagerTable() {
         delete next[managerUid];
         return next;
       });
+      setRows((prev) => prev.filter((row) => row.uid !== managerUid));
+      setSelectedManagerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(managerUid);
+        return next;
+      });
       await loadManagers();
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.unableDelete);
@@ -317,6 +328,62 @@ export function ManagerTable() {
       ...prev,
       [managerUid]: !prev[managerUid],
     }));
+  }
+
+  function toggleManagerSelection(managerUid: string) {
+    setSelectedManagerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(managerUid)) {
+        next.delete(managerUid);
+      } else {
+        next.add(managerUid);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllVisibleManagers() {
+    setSelectedManagerIds((prev) => {
+      if (rows.length > 0 && rows.every((row) => prev.has(row.uid))) {
+        return new Set([...prev].filter((id) => !rows.some((row) => row.uid === id)));
+      }
+      return new Set([...prev, ...rows.map((row) => row.uid)]);
+    });
+  }
+
+  async function deleteSelectedManagers() {
+    const ids = rows.map((row) => row.uid).filter((id) => selectedManagerIds.has(id));
+    if (ids.length === 0) return;
+    const confirmed = window.confirm(`Delete ${ids.length} selected manager access record(s)?`);
+    if (!confirmed) return;
+    try {
+      const headers = await authHeader();
+      for (const managerUid of ids) {
+        const response = await fetch(`/api/admin/managers/${encodeURIComponent(managerUid)}`, {
+          method: "DELETE",
+          headers,
+        });
+        const data = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? copy.unableDelete);
+        }
+      }
+      setCredentialResult((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setExpandedRows((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setSelectedManagerIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setRows((prev) => prev.filter((row) => !ids.includes(row.uid)));
+      await loadManagers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : copy.unableDelete);
+    }
   }
 
   return (
@@ -365,8 +432,31 @@ export function ManagerTable() {
         </p>
       ) : null}
 
+      {rows.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={rows.length > 0 && rows.every((row) => selectedManagerIds.has(row.uid))}
+              onChange={toggleAllVisibleManagers}
+              className="h-4 w-4 accent-rose-600"
+            />
+            Select visible
+          </label>
+          <span className="text-xs font-semibold text-slate-500">{selectedManagerIds.size} selected</span>
+          <button
+            type="button"
+            onClick={() => void deleteSelectedManagers()}
+            disabled={selectedManagerIds.size === 0}
+            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Delete selected
+          </button>
+        </div>
+      ) : null}
+
       <div className="space-y-3 lg:hidden">
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
             {copy.loading}
           </div>
@@ -380,6 +470,15 @@ export function ManagerTable() {
               key={`mobile-${row.uid}`}
               className="portal-mobile-card rounded-3xl p-4"
             >
+              <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={selectedManagerIds.has(row.uid)}
+                  onChange={() => toggleManagerSelection(row.uid)}
+                  className="h-4 w-4 accent-rose-600"
+                />
+                Select
+              </label>
               <button
                 type="button"
                 onClick={() => toggleExpanded(row.uid)}
@@ -498,6 +597,7 @@ export function ManagerTable() {
         <table className="min-w-[920px] w-full text-sm">
           <thead className="bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
             <tr>
+              <th className="px-4 py-3">Select</th>
               <th className="px-4 py-3">{copy.manager}</th>
               <th className="px-4 py-3">{copy.contact}</th>
               <th className="px-4 py-3">{copy.status}</th>
@@ -505,15 +605,15 @@ export function ManagerTable() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
                   {copy.loading}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
                   {copy.empty}
                 </td>
               </tr>
@@ -521,6 +621,14 @@ export function ManagerTable() {
               rows.map((row) => (
                 <Fragment key={row.uid}>
                   <tr key={`${row.uid}-summary`} className="border-t border-slate-100/80 align-top">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedManagerIds.has(row.uid)}
+                        onChange={() => toggleManagerSelection(row.uid)}
+                        className="h-4 w-4 accent-rose-600"
+                      />
+                    </td>
                     <td colSpan={4} className="px-4 py-3">
                       <button
                         type="button"
@@ -543,7 +651,7 @@ export function ManagerTable() {
                   </tr>
                   {expandedRows[row.uid] ? (
                     <tr key={`${row.uid}-details`} className="border-t border-slate-100/80 bg-white">
-                      <td colSpan={4} className="px-4 py-3">
+                      <td colSpan={5} className="px-4 py-3">
                         <div className="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700 md:grid-cols-3">
                           <p data-no-auto-translate="true" className="break-all">
                             {copy.loginEmail}: {row.email}

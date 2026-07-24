@@ -10,6 +10,10 @@ import {
   getVisibleAssignableCategories,
 } from "@/lib/server/categories";
 import { listVisibleManualEventCategories } from "@/lib/server/manual-event-categories";
+import {
+  isValidPermanentCategoryId,
+  listActivePermanentCategories,
+} from "@/lib/server/permanent-categories";
 import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
@@ -36,26 +40,37 @@ export async function POST(req: NextRequest, { params }: Params) {
       ...politicalPartyCategoriesForRegion(region.id),
       ...getUpcomingWeekdayAssignableCategories(),
       ...(await listVisibleManualEventCategories(Date.now(), region.id)),
+      ...(await listActivePermanentCategories(region.id)),
     ];
-    const visibleRegionCategoryIds = new Set(visibleRegionCategories.map((item) => item.id));
-    const outOfRegionId = uniqueIds.find((id) => !visibleRegionCategoryIds.has(id));
+    const visibleRegionCategoryIds = new Set(
+      visibleRegionCategories.map((item) => item.id),
+    );
+    const outOfRegionId = uniqueIds.find(
+      (id) => !visibleRegionCategoryIds.has(id),
+    );
     if (outOfRegionId) {
       return NextResponse.json(
-        { ok: false, error: `Category is not available for selected State / UT: ${outOfRegionId}` },
+        {
+          ok: false,
+          error: `Category is not available for selected State / UT: ${outOfRegionId}`,
+        },
         { status: 400 },
       );
     }
     const invalidIds = await Promise.all(
       uniqueIds.map(async (id) => ({
         id,
-        valid: isValidCategoryId(id) || (await isValidManualEventCategoryId(id, region.id)),
+        valid:
+          isValidCategoryId(id) ||
+          (await isValidManualEventCategoryId(id, region.id)) ||
+          (await isValidPermanentCategoryId(id)),
       })),
     );
     const invalidId = invalidIds.find((item) => !item.valid)?.id;
     if (invalidId) {
       return NextResponse.json(
         { ok: false, error: `Invalid category id: ${invalidId}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -69,7 +84,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         categoriesAssignedByRole: actor.role,
         updatedAt: Date.now(),
       },
-      { merge: true }
+      { merge: true },
     );
 
     await writeAuditLog({
@@ -87,7 +102,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ ok: true, assignedCategories: uniqueIds });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Category assignment failed.";
+    const message =
+      error instanceof Error ? error.message : "Category assignment failed.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

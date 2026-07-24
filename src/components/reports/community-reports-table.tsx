@@ -220,7 +220,7 @@ export function CommunityReportsTable({ role }: { role: PortalRole }) {
       ) : null}
 
       <div className="space-y-3 lg:hidden">
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-500">
             Loading reports...
           </div>
@@ -354,7 +354,7 @@ export function CommunityReportsTable({ role }: { role: PortalRole }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {loading ? (
+              {loading && rows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-center font-bold text-slate-500" colSpan={5}>
                     Loading reports...
