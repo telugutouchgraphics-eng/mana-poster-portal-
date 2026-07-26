@@ -85,6 +85,15 @@ interface PosterPersonalization {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  showPoliticalProtocol: boolean;
+  politicalProtocolX: number;
+  politicalProtocolY: number;
+  politicalProtocolScale: number;
+  politicalProtocolSlots: Array<{
+    x: number;
+    y: number;
+    scale: number;
+  }>;
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation: string;
@@ -203,6 +212,14 @@ const defaultPersonalization: PosterPersonalization = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  showPoliticalProtocol: false,
+  politicalProtocolX: 50,
+  politicalProtocolY: 7,
+  politicalProtocolScale: 100,
+  politicalProtocolSlots: [
+    { x: 28, y: 8, scale: 100 },
+    { x: 72, y: 8, scale: 100 },
+  ],
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
@@ -243,6 +260,19 @@ function parsePersonalization(input: unknown): PosterPersonalization {
     35,
     100,
   );
+  const politicalProtocolSlots = Array.isArray(raw.politicalProtocolSlots)
+    ? raw.politicalProtocolSlots.slice(0, 2).map((slot) => {
+        const record =
+          slot && typeof slot === "object"
+            ? (slot as Record<string, unknown>)
+            : {};
+        return {
+          x: numberInRange(record.x, 50, 4, 96),
+          y: numberInRange(record.y, 8, 4, 96),
+          scale: numberInRange(record.scale, 100, 45, 135),
+        };
+      })
+    : defaultPersonalization.politicalProtocolSlots;
 
   return {
     photoShape,
@@ -342,6 +372,29 @@ function parsePersonalization(input: unknown): PosterPersonalization {
       0,
       20,
     ),
+    showPoliticalProtocol:
+      typeof raw.showPoliticalProtocol === "boolean"
+        ? raw.showPoliticalProtocol
+        : defaultPersonalization.showPoliticalProtocol,
+    politicalProtocolX: numberInRange(
+      raw.politicalProtocolX,
+      defaultPersonalization.politicalProtocolX,
+      4,
+      96,
+    ),
+    politicalProtocolY: numberInRange(
+      raw.politicalProtocolY,
+      defaultPersonalization.politicalProtocolY,
+      4,
+      96,
+    ),
+    politicalProtocolScale: numberInRange(
+      raw.politicalProtocolScale,
+      defaultPersonalization.politicalProtocolScale,
+      45,
+      135,
+    ),
+    politicalProtocolSlots,
     showWhatsapp:
       typeof raw.showWhatsapp === "boolean"
         ? raw.showWhatsapp

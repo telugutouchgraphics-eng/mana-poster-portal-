@@ -53,9 +53,17 @@ interface PersonalizationConfig {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  showPoliticalProtocol: boolean;
+  politicalProtocolSlots: PoliticalProtocolSlot[];
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation: string;
+}
+
+interface PoliticalProtocolSlot {
+  x: number;
+  y: number;
+  scale: number;
 }
 
 interface ImageMeta {
@@ -126,6 +134,11 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  showPoliticalProtocol: false,
+  politicalProtocolSlots: [
+    { x: 28, y: 8, scale: 100 },
+    { x: 72, y: 8, scale: 100 },
+  ],
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
@@ -320,11 +333,23 @@ function normalizePersonalization(
   return {
     ...defaultPersonalizationConfig,
     ...(raw ?? {}),
+    politicalProtocolSlots: Array.isArray(raw?.politicalProtocolSlots)
+      ? raw.politicalProtocolSlots.slice(0, 2)
+      : defaultPersonalizationConfig.politicalProtocolSlots,
   };
 }
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function protocolSlotSidePercent(scale: number): number {
+  return 15 * (clampNumber(scale, 45, 135) / 100);
+}
+
+function protocolSlotCenterPercent(value: number, sidePercent: number): number {
+  const half = sidePercent / 2;
+  return clampNumber(value, half, 100 - half);
 }
 
 function posterAspect(meta: ImageMeta | null): number {
@@ -366,6 +391,14 @@ function clampPhotoSafeArea(
     stripWidth,
     stripX: clampNumber(config.stripX, stripHalfWidth, 100 - stripHalfWidth),
     stripBottom: clampNumber(config.stripBottom, 0, 20),
+    politicalProtocolSlots:
+      config.politicalProtocolSlots.length >= 2
+        ? config.politicalProtocolSlots.slice(0, 2).map((slot) => ({
+            x: clampNumber(Number(slot.x), 4, 96),
+            y: clampNumber(Number(slot.y), 4, 96),
+            scale: clampNumber(Number(slot.scale), 45, 135),
+          }))
+        : defaultPersonalizationConfig.politicalProtocolSlots,
     photoScale,
     photoX: clampNumber(config.photoX, margin + halfX, 100 - margin - halfX),
     photoY: clampNumber(
@@ -385,6 +418,36 @@ function clampPhotoSafeArea(
       100 - margin - extraHalfY + bottomBleed,
     ),
   };
+}
+
+function PoliticalProtocolSlotPreview({
+  config,
+}: {
+  config: PersonalizationConfig;
+}) {
+  if (!config.showPoliticalProtocol) return null;
+  return (
+    <>
+      {config.politicalProtocolSlots.slice(0, 2).map((slot, index) => {
+        const side = protocolSlotSidePercent(slot.scale);
+        return (
+          <div
+            key={index}
+            className="pointer-events-none absolute z-[2] flex items-center justify-center rounded-full border border-white bg-emerald-500 text-sm font-bold text-white"
+            style={{
+              left: `${protocolSlotCenterPercent(slot.x, side)}%`,
+              top: `${protocolSlotCenterPercent(slot.y, side)}%`,
+              width: `${side}%`,
+              aspectRatio: "1 / 1",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            {index + 1}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 function PreviewModal({
@@ -840,6 +903,8 @@ function CustomizationModal({
                       </div>
                     </div>
                   ) : null}
+
+                  <PoliticalProtocolSlotPreview config={safePersonalization} />
 
                   {stripOverlapWarning ? (
                     <NameStripOverlapWarning

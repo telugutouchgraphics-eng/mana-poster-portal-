@@ -8,7 +8,11 @@ import { DashboardSessionActions } from "@/components/layout/dashboard-session-a
 import { PortalDashboardShell } from "@/components/layout/portal-dashboard-shell";
 import { portalLanguage, t } from "@/lib/i18n";
 
-export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
+export default function AdminDashboardLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { name } = useAuth();
   const { language } = useDashboardLanguage();
   const lang = portalLanguage(language);
@@ -64,6 +68,11 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       href: "/admin/dashboard/app-posters",
       label: isTelugu ? "షెడ్యూల్డ్ యాప్ అప్లోడ్" : "Scheduled App Upload",
       shortLabel: isTelugu ? "షెడ్యూల్డ్" : "Scheduled",
+    },
+    {
+      href: "/admin/dashboard/political-protocol-photos",
+      label: "Protocol Photos",
+      shortLabel: "Protocol",
     },
     {
       href: "/admin/dashboard/upload-posters",

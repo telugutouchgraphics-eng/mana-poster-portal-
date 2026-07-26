@@ -38,6 +38,15 @@ export const defaultUserUploadPersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  showPoliticalProtocol: false,
+  politicalProtocolEnabledAtMillis: 0,
+  politicalProtocolX: 50,
+  politicalProtocolY: 7,
+  politicalProtocolScale: 100,
+  politicalProtocolSlots: [
+    { x: 28, y: 8, scale: 100 },
+    { x: 72, y: 8, scale: 100 },
+  ],
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
@@ -89,6 +98,47 @@ export function sanitizeUserUploadPersonalizationConfig(raw: unknown) {
       0,
       20,
     ),
+    showPoliticalProtocol:
+      typeof source.showPoliticalProtocol === "boolean"
+        ? source.showPoliticalProtocol
+        : defaultUserUploadPersonalizationConfig.showPoliticalProtocol,
+    politicalProtocolEnabledAtMillis: clampNumber(
+      source.politicalProtocolEnabledAtMillis,
+      defaultUserUploadPersonalizationConfig.politicalProtocolEnabledAtMillis,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    politicalProtocolX: clampNumber(
+      source.politicalProtocolX,
+      defaultUserUploadPersonalizationConfig.politicalProtocolX,
+      4,
+      96,
+    ),
+    politicalProtocolY: clampNumber(
+      source.politicalProtocolY,
+      defaultUserUploadPersonalizationConfig.politicalProtocolY,
+      4,
+      96,
+    ),
+    politicalProtocolScale: clampNumber(
+      source.politicalProtocolScale,
+      defaultUserUploadPersonalizationConfig.politicalProtocolScale,
+      45,
+      135,
+    ),
+    politicalProtocolSlots: Array.isArray(source.politicalProtocolSlots)
+      ? source.politicalProtocolSlots.slice(0, 2).map((slot) => {
+          const record =
+            slot && typeof slot === "object"
+              ? (slot as Record<string, unknown>)
+              : {};
+          return {
+            x: clampNumber(record.x, 50, 4, 96),
+            y: clampNumber(record.y, 8, 4, 96),
+            scale: clampNumber(record.scale, 100, 45, 135),
+          };
+        })
+      : defaultUserUploadPersonalizationConfig.politicalProtocolSlots,
   };
 }
 

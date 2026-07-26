@@ -119,6 +119,21 @@ const personalizationSchema = z.object({
     .default("soft_fade"),
   photoFrameStyle: photoFrameStyleSchema.default("none"),
   showSafeAreas: z.boolean().default(true),
+  showPoliticalProtocol: z.boolean().default(false),
+  politicalProtocolEnabledAtMillis: z.number().int().nonnegative().default(0),
+  politicalProtocolX: z.number().min(4).max(96).default(50),
+  politicalProtocolY: z.number().min(4).max(96).default(7),
+  politicalProtocolScale: z.number().min(45).max(135).default(100),
+  politicalProtocolSlots: z
+    .array(
+      z.object({
+        x: z.number().min(4).max(96),
+        y: z.number().min(4).max(96),
+        scale: z.number().min(45).max(135),
+      }),
+    )
+    .max(2)
+    .default([]),
   photoX: z.number().min(0).max(100).default(78),
   photoY: z.number().min(0).max(100).default(42),
   photoScale: z.number().min(10).max(100).default(44),
@@ -153,6 +168,51 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function protocolSlotSidePercent(scale: number): number {
+  return 15 * (clampNumber(scale, 45, 135) / 100);
+}
+
+function preventPoliticalProtocolOverlap(
+  slots: z.infer<typeof personalizationSchema>["politicalProtocolSlots"],
+): z.infer<typeof personalizationSchema>["politicalProtocolSlots"] {
+  if (slots.length < 2) return slots;
+  const first = slots[0]!;
+  const second = slots[1]!;
+  const minimumGap =
+    (protocolSlotSidePercent(first.scale) +
+      protocolSlotSidePercent(second.scale)) /
+      2 +
+    2;
+  const deltaX = second.x - first.x;
+  const deltaY = second.y - first.y;
+  if (Math.hypot(deltaX, deltaY) >= minimumGap) return slots;
+
+  const centerX = clampNumber(
+    (first.x + second.x) / 2,
+    minimumGap / 2,
+    100 - minimumGap / 2,
+  );
+  const direction = deltaX >= 0 ? 1 : -1;
+  return [
+    {
+      ...first,
+      x: clampNumber(
+        centerX - (minimumGap / 2) * direction,
+        protocolSlotSidePercent(first.scale) / 2,
+        100 - protocolSlotSidePercent(first.scale) / 2,
+      ),
+    },
+    {
+      ...second,
+      x: clampNumber(
+        centerX + (minimumGap / 2) * direction,
+        protocolSlotSidePercent(second.scale) / 2,
+        100 - protocolSlotSidePercent(second.scale) / 2,
+      ),
+    },
+  ];
+}
+
 function clampPersonalizationSafeArea(
   config: z.infer<typeof personalizationSchema>,
 ): z.infer<typeof personalizationSchema> {
@@ -184,6 +244,16 @@ function clampPersonalizationSafeArea(
     stripWidth,
     stripX: clampNumber(config.stripX, stripWidth / 2, 100 - stripWidth / 2),
     stripBottom: clampNumber(config.stripBottom, 0, 20),
+    politicalProtocolX: clampNumber(config.politicalProtocolX, 4, 96),
+    politicalProtocolY: clampNumber(config.politicalProtocolY, 4, 96),
+    politicalProtocolScale: clampNumber(config.politicalProtocolScale, 45, 135),
+    politicalProtocolSlots: preventPoliticalProtocolOverlap(
+      config.politicalProtocolSlots.slice(0, 2).map((slot) => ({
+        x: clampNumber(slot.x, 4, 96),
+        y: clampNumber(slot.y, 4, 96),
+        scale: clampNumber(slot.scale, 45, 135),
+      })),
+    ),
     photoScale: mainOverlay.scale,
     photoX: mainOverlay.x,
     photoY: mainOverlay.y,
@@ -566,6 +636,11 @@ export async function POST(req: NextRequest) {
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const now = Date.now();
+    personalizationConfig = {
+      ...personalizationConfig,
+      politicalProtocolEnabledAtMillis:
+        personalizationConfig.showPoliticalProtocol ? now : 0,
+    };
     const requestedPublishAtRaw = parsed.requestedPublishDate
       ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
       : null;

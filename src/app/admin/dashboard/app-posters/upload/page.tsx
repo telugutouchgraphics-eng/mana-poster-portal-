@@ -84,8 +84,19 @@ interface PersonalizationConfig {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  showPoliticalProtocol: boolean;
+  politicalProtocolX: number;
+  politicalProtocolY: number;
+  politicalProtocolScale: number;
+  politicalProtocolSlots: PoliticalProtocolSlot[];
   sampleName: string;
   sampleDesignation: string;
+}
+
+interface PoliticalProtocolSlot {
+  x: number;
+  y: number;
+  scale: number;
 }
 
 interface AdminAppPostersResponse {
@@ -129,6 +140,14 @@ const defaultPersonalization: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  showPoliticalProtocol: false,
+  politicalProtocolX: 50,
+  politicalProtocolY: 7,
+  politicalProtocolScale: 100,
+  politicalProtocolSlots: [
+    { x: 28, y: 8, scale: 100 },
+    { x: 72, y: 8, scale: 100 },
+  ],
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
@@ -363,6 +382,16 @@ function clampPhotoSafeArea(
     stripWidth,
     stripX: clampNumber(config.stripX, stripHalfWidth, 100 - stripHalfWidth),
     stripBottom: clampNumber(config.stripBottom, 0, 20),
+    showPoliticalProtocol: config.showPoliticalProtocol,
+    politicalProtocolX: clampNumber(config.politicalProtocolX, 4, 96),
+    politicalProtocolY: clampNumber(config.politicalProtocolY, 4, 96),
+    politicalProtocolScale: clampNumber(config.politicalProtocolScale, 45, 135),
+    politicalProtocolSlots: normalizePoliticalProtocolSlots(
+      config.politicalProtocolSlots,
+      config.politicalProtocolScale,
+      config.politicalProtocolX,
+      config.politicalProtocolY,
+    ),
     photoScale,
     photoX: clampNumber(
       config.photoX,
@@ -388,6 +417,59 @@ function clampPhotoSafeArea(
   };
 }
 
+function normalizePoliticalProtocolSlots(
+  raw: PoliticalProtocolSlot[] | undefined,
+  fallbackScale: number,
+  fallbackX: number,
+  fallbackY: number,
+): PoliticalProtocolSlot[] {
+  const avoidOverlap = (slots: PoliticalProtocolSlot[]) => {
+    if (slots.length < 2) return slots;
+    const first = slots[0]!;
+    const second = slots[1]!;
+    const firstSide = protocolSlotSidePercent(first.scale);
+    const secondSide = protocolSlotSidePercent(second.scale);
+    const minimumGap = (firstSide + secondSide) / 2 + 2;
+    const deltaX = second.x - first.x;
+    const deltaY = second.y - first.y;
+    if (Math.hypot(deltaX, deltaY) >= minimumGap) return slots;
+
+    const centerX = clampNumber((first.x + second.x) / 2, minimumGap / 2, 100 - minimumGap / 2);
+    const direction = deltaX >= 0 ? 1 : -1;
+    const nextFirstX = clampNumber(centerX - (minimumGap / 2) * direction, firstSide / 2, 100 - firstSide / 2);
+    const nextSecondX = clampNumber(centerX + (minimumGap / 2) * direction, secondSide / 2, 100 - secondSide / 2);
+    return [
+      { ...first, x: nextFirstX },
+      { ...second, x: nextSecondX },
+      ...slots.slice(2),
+    ];
+  };
+  if (Array.isArray(raw) && raw.length >= 2) {
+    return avoidOverlap(raw.slice(0, 2).map((slot) => ({
+      x: clampNumber(Number(slot.x), 4, 96),
+      y: clampNumber(Number(slot.y), 4, 96),
+      scale: clampNumber(Number(slot.scale || fallbackScale), 45, 135),
+    })));
+  }
+  const safeScale = clampNumber(fallbackScale, 45, 135);
+  const side = protocolSlotSidePercent(safeScale);
+  const spacing = side + 4;
+  return avoidOverlap(Array.from({ length: 2 }, (_, index) => ({
+    x: clampNumber(fallbackX + (index - 0.5) * spacing, 4, 96),
+    y: clampNumber(fallbackY, 4, 96),
+    scale: safeScale,
+  })));
+}
+
+function protocolSlotSidePercent(scale: number): number {
+  return 15 * (clampNumber(scale, 45, 135) / 100);
+}
+
+function protocolSlotCenterPercent(value: number, sidePercent: number): number {
+  const half = sidePercent / 2;
+  return clampNumber(value, half, 100 - half);
+}
+
 function parsePersonalizationConfig(
   input: Partial<PersonalizationConfig> | null | undefined,
 ): PersonalizationConfig {
@@ -395,6 +477,7 @@ function parsePersonalizationConfig(
     {
       ...defaultPersonalization,
       ...input,
+      politicalProtocolSlots: input?.politicalProtocolSlots ?? [],
       photoAnimation: parseVideoPhotoAnimation(input?.photoAnimation),
       videoExtraPhotoAnimation: parseVideoPhotoAnimation(
         input?.videoExtraPhotoAnimation,
@@ -466,6 +549,7 @@ export default function AdminUploadStudioPage() {
     target:
       | "photo"
       | "videoExtraPhoto"
+      | "politicalProtocolSlot"
       | "name"
       | "strip-left"
       | "strip-right"
@@ -478,6 +562,7 @@ export default function AdminUploadStudioPage() {
     initialY: number;
     initialWidth: number;
     initialHeight: number;
+    slotIndex: number;
   }>({
     target: null,
     dragging: false,
@@ -487,6 +572,7 @@ export default function AdminUploadStudioPage() {
     initialY: 45,
     initialWidth: 100,
     initialHeight: 16,
+    slotIndex: -1,
   });
 
   async function loadDashboard(withRefreshState = false) {
@@ -615,6 +701,26 @@ export default function AdminUploadStudioPage() {
             fileMeta,
           );
         });
+      } else if (dragRef.current.target === "politicalProtocolSlot") {
+        setPersonalization((prev) => {
+          const slotIndex = dragRef.current.slotIndex;
+          if (slotIndex < 0 || slotIndex >= 6) return prev;
+          const slots = normalizePoliticalProtocolSlots(
+            prev.politicalProtocolSlots,
+            prev.politicalProtocolScale,
+            prev.politicalProtocolX,
+            prev.politicalProtocolY,
+          );
+          slots[slotIndex] = {
+            ...slots[slotIndex]!,
+            x: nextX,
+            y: nextY,
+          };
+          return clampPhotoSafeArea(
+            { ...prev, politicalProtocolSlots: slots },
+            fileMeta,
+          );
+        });
       } else if (
         dragRef.current.target === "strip-left" ||
         dragRef.current.target === "strip-right"
@@ -705,6 +811,7 @@ export default function AdminUploadStudioPage() {
       initialY: personalization.photoY,
       initialWidth: personalization.photoScale,
       initialHeight: personalization.photoScale,
+      slotIndex: -1,
     };
     setIsPhotoDragging(true);
     setIsVideoExtraPhotoDragging(false);
@@ -722,6 +829,7 @@ export default function AdminUploadStudioPage() {
       initialY: personalization.nameY,
       initialWidth: personalization.stripWidth,
       initialHeight: personalization.stripHeight,
+      slotIndex: -1,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(false);
@@ -744,6 +852,7 @@ export default function AdminUploadStudioPage() {
       initialY: personalization.nameY,
       initialWidth: personalization.stripWidth,
       initialHeight: personalization.stripHeight,
+      slotIndex: -1,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(false);
@@ -763,9 +872,42 @@ export default function AdminUploadStudioPage() {
       initialY: personalization.videoExtraPhotoY,
       initialWidth: personalization.videoExtraPhotoScale,
       initialHeight: personalization.videoExtraPhotoScale,
+      slotIndex: -1,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(true);
+  }
+
+  function startPoliticalProtocolDrag(
+    event: React.PointerEvent<HTMLDivElement>,
+    slotIndex: number,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const slots = normalizePoliticalProtocolSlots(
+      personalization.politicalProtocolSlots,
+      personalization.politicalProtocolScale,
+      personalization.politicalProtocolX,
+      personalization.politicalProtocolY,
+    );
+    const slot =
+      slots[slotIndex] ??
+      defaultPersonalization.politicalProtocolSlots[slotIndex]!;
+    dragRef.current = {
+      target: "politicalProtocolSlot",
+      dragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: slot.x,
+      initialY: slot.y,
+      initialWidth: slot.scale,
+      initialHeight: slot.scale,
+      slotIndex,
+    };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(false);
+    setIsNameDragging(false);
   }
 
   function onPhotoWheel(event: React.WheelEvent<HTMLDivElement>) {
@@ -1985,6 +2127,77 @@ export default function AdminUploadStudioPage() {
                     <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
                   </span>
                 </label>
+
+                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/90">
+                  <label className="flex items-center justify-between">
+                    <span className="font-medium">
+                      Political protocol photos
+                    </span>
+                    <span className="relative inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={personalization.showPoliticalProtocol}
+                        onChange={(event) =>
+                          setPersonalization((prev) =>
+                            clampPhotoSafeArea(
+                              {
+                                ...prev,
+                                showPoliticalProtocol: event.target.checked,
+                              },
+                              fileMeta,
+                            ),
+                          )
+                        }
+                        className="peer sr-only"
+                      />
+                      <span className="h-7 w-12 rounded-full bg-white/18 transition peer-checked:bg-emerald-500/90" />
+                      <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                    </span>
+                  </label>
+                  {personalization.showPoliticalProtocol ? (
+                    <div className="mt-4 grid gap-3">
+                      <label className="block">
+                        <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                          Protocol size (
+                          {Math.round(personalization.politicalProtocolScale)}%)
+                        </span>
+                        <input
+                          type="range"
+                          min={45}
+                          max={135}
+                          value={safePersonalization.politicalProtocolScale}
+                          onChange={(event) =>
+                            setPersonalization((prev) => {
+                              const nextScale = Number(event.target.value);
+                              return clampPhotoSafeArea(
+                                {
+                                  ...prev,
+                                  politicalProtocolScale: nextScale,
+                                  politicalProtocolSlots:
+                                    normalizePoliticalProtocolSlots(
+                                      prev.politicalProtocolSlots,
+                                      nextScale,
+                                      prev.politicalProtocolX,
+                                      prev.politicalProtocolY,
+                                    ).map((slot) => ({
+                                      ...slot,
+                                      scale: nextScale,
+                                    })),
+                                },
+                                fileMeta,
+                              );
+                            })
+                          }
+                          className="mt-3 w-full accent-[var(--portal-green)]"
+                        />
+                      </label>
+                      <p className="text-xs leading-5 text-slate-400">
+                        Drag each round icon separately inside the poster safe
+                        area.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </section>
 
@@ -2020,6 +2233,35 @@ export default function AdminUploadStudioPage() {
                             />
                           </>
                         )}
+
+                        {personalization.showPoliticalProtocol
+                          ? safePersonalization.politicalProtocolSlots.map(
+                              (slot, index) => {
+                                const side = protocolSlotSidePercent(
+                                  slot.scale,
+                                );
+                                return (
+                                  <div
+                                    key={index}
+                                    onPointerDown={(event) =>
+                                      startPoliticalProtocolDrag(event, index)
+                                    }
+                                    className="absolute z-[2] flex touch-none items-center justify-center rounded-full border border-white bg-emerald-500 text-xl font-bold text-white"
+                                    style={{
+                                      left: `${protocolSlotCenterPercent(slot.x, side)}%`,
+                                      top: `${protocolSlotCenterPercent(slot.y, side)}%`,
+                                      width: `${side}%`,
+                                      aspectRatio: "1 / 1",
+                                      transform: "translate(-50%, -50%)",
+                                      cursor: "grab",
+                                    }}
+                                  >
+                                    {index + 1}
+                                  </div>
+                                );
+                              },
+                            )
+                          : null}
 
                         <div
                           key={`main-photo-${personalization.photoAnimation}-${videoPreviewCycle}`}

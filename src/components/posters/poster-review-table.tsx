@@ -44,9 +44,17 @@ interface PosterPersonalization {
   stripWidth?: number;
   stripX?: number;
   stripBottom?: number;
+  showPoliticalProtocol?: boolean;
+  politicalProtocolSlots?: PoliticalProtocolSlot[];
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation?: string;
+}
+
+interface PoliticalProtocolSlot {
+  x: number;
+  y: number;
+  scale: number;
 }
 
 interface PosterRow {
@@ -126,6 +134,23 @@ const SUPPORTED_UPLOAD_DIMENSIONS = [
 ] as const;
 
 const ASPECT_RATIO_TOLERANCE = 0.01;
+const DEFAULT_POLITICAL_PROTOCOL_SLOTS: PoliticalProtocolSlot[] = [
+  { x: 28, y: 8, scale: 100 },
+  { x: 72, y: 8, scale: 100 },
+];
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function protocolSlotSidePercent(scale: number): number {
+  return 15 * (clampNumber(scale, 45, 135) / 100);
+}
+
+function protocolSlotCenterPercent(value: number, sidePercent: number): number {
+  const half = sidePercent / 2;
+  return clampNumber(value, half, 100 - half);
+}
 
 function gcd(a: number, b: number): number {
   let x = Math.abs(a);
@@ -177,6 +202,40 @@ function dimensionStatus(dimensions?: MediaDimensions) {
     label: `RED unsupported ${ratio}`,
     className: "border-rose-200 bg-rose-50 text-rose-700",
   };
+}
+
+function PoliticalProtocolSlotPreview({
+  config,
+}: {
+  config: PosterPersonalization;
+}) {
+  if (!config.showPoliticalProtocol) return null;
+  const slots =
+    config.politicalProtocolSlots && config.politicalProtocolSlots.length >= 2
+      ? config.politicalProtocolSlots.slice(0, 2)
+      : DEFAULT_POLITICAL_PROTOCOL_SLOTS;
+  return (
+    <>
+      {slots.map((slot, index) => {
+        const side = protocolSlotSidePercent(slot.scale ?? 100);
+        return (
+          <div
+            key={index}
+            className="pointer-events-none absolute z-[2] flex items-center justify-center rounded-full border border-white bg-emerald-500 text-sm font-bold text-white"
+            style={{
+              left: `${protocolSlotCenterPercent(slot.x, side)}%`,
+              top: `${protocolSlotCenterPercent(slot.y, side)}%`,
+              width: `${side}%`,
+              aspectRatio: "1 / 1",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            {index + 1}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 function recommendedDimensionsText(): string {
@@ -706,6 +765,7 @@ export function PosterReviewTable() {
                           </div>
                         </div>
                       ) : null}
+                      <PoliticalProtocolSlotPreview config={config} />
                       {stripOverlapWarning ? (
                         <NameStripOverlapWarning
                           heightPercent={stripSafeZoneHeight}
