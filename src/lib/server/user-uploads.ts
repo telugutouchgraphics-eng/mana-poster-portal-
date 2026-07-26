@@ -35,18 +35,60 @@ export const defaultUserUploadPersonalizationConfig = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  stripWidth: 100,
+  stripX: 50,
+  stripBottom: 0,
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
 
+function clampNumber(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, numeric));
+}
+
 export function sanitizeUserUploadPersonalizationConfig(raw: unknown) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return defaultUserUploadPersonalizationConfig;
   }
+  const source = raw as Record<string, unknown>;
+  const stripWidth = clampNumber(
+    source.stripWidth,
+    defaultUserUploadPersonalizationConfig.stripWidth,
+    35,
+    100,
+  );
   return {
     ...defaultUserUploadPersonalizationConfig,
-    ...(raw as Record<string, unknown>),
+    ...source,
+    stripHeight: clampNumber(
+      source.stripHeight,
+      defaultUserUploadPersonalizationConfig.stripHeight,
+      1,
+      40,
+    ),
+    stripWidth,
+    stripX: clampNumber(
+      source.stripX,
+      defaultUserUploadPersonalizationConfig.stripX,
+      stripWidth / 2,
+      100 - stripWidth / 2,
+    ),
+    stripBottom: clampNumber(
+      source.stripBottom,
+      defaultUserUploadPersonalizationConfig.stripBottom,
+      0,
+      20,
+    ),
   };
 }
 
@@ -183,7 +225,8 @@ export async function promoteUserUploadAssetToPublicPosterAsset(params: {
     sourceFile.download().then((parts) => parts[0]),
     sourceFile.getMetadata().then((parts) => parts[0]),
   ]);
-  const contentType = String(metadata.contentType ?? "image/jpeg").trim() || "image/jpeg";
+  const contentType =
+    String(metadata.contentType ?? "image/jpeg").trim() || "image/jpeg";
   const extension = inferImageExtension(contentType);
   const destinationPath = `creator-posters/community_user/${params.posterId}/poster${extension}`;
   const uploaded = await uploadAdminAsset(buffer, contentType, destinationPath);

@@ -29,10 +29,21 @@ interface PosterPersonalization {
   photoX: number;
   photoY: number;
   photoScale: number;
+  showVideoExtraPhoto: boolean;
+  videoExtraPhotoShape: PhotoShape;
+  videoExtraPhotoRenderMode: "cutout" | "original";
+  videoExtraPhotoEdgeStyle: PhotoEdgeStyle;
+  videoExtraPhotoFrameStyle?: PhotoFrameStyle;
+  videoExtraPhotoX: number;
+  videoExtraPhotoY: number;
+  videoExtraPhotoScale: number;
   nameX: number;
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  stripWidth?: number;
+  stripX?: number;
+  stripBottom?: number;
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation?: string;
@@ -141,7 +152,8 @@ function dimensionStatus(dimensions?: MediaDimensions) {
     };
   }
   const exact = SUPPORTED_UPLOAD_DIMENSIONS.find(
-    (item) => item.width === dimensions.width && item.height === dimensions.height,
+    (item) =>
+      item.width === dimensions.width && item.height === dimensions.height,
   );
   if (exact) {
     return {
@@ -181,16 +193,24 @@ export function PosterReviewTable() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reviewCommentMap, setReviewCommentMap] = useState<Record<string, string>>({});
+  const [reviewCommentMap, setReviewCommentMap] = useState<
+    Record<string, string>
+  >({});
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
-  const [saleAmountMap, setSaleAmountMap] = useState<Record<string, string>>({});
+  const [saleAmountMap, setSaleAmountMap] = useState<Record<string, string>>(
+    {},
+  );
   const [previewPoster, setPreviewPoster] = useState<{
     mediaUrl: string;
     mediaType: string;
     title: string;
   } | null>(null);
-  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
-  const [mediaDimensionsMap, setMediaDimensionsMap] = useState<Record<string, MediaDimensions>>({});
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [mediaDimensionsMap, setMediaDimensionsMap] = useState<
+    Record<string, MediaDimensions>
+  >({});
   const loadRequestIdRef = useRef(0);
 
   const authHeader = useCallback(async () => {
@@ -201,67 +221,72 @@ export function PosterReviewTable() {
     return { authorization: `Bearer ${token}` };
   }, [user]);
 
-  const loadPosters = useCallback(async (options?: { silent?: boolean }) => {
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
-    if (!options?.silent) {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const headers = await authHeader();
-      const response = await fetch(
-        `/api/manager/posters/list?status=${encodeURIComponent(
-          status
-        )}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
-        { headers, cache: "no-store" }
-      );
-      const data = (await response.json()) as {
-        ok: boolean;
-        posters?: PosterRow[];
-        error?: string;
-      };
-      if (!response.ok || !data.ok || !data.posters) {
-        throw new Error(data.error ?? "Unable to load poster review list.");
+  const loadPosters = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
+      if (!options?.silent) {
+        setLoading(true);
       }
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
-      const nextPosters =
-        status === "all"
-          ? data.posters
-          : data.posters.filter((item) => item.status === status);
-      setRows(nextPosters);
-      setSelectedPosterIds((prev) => {
-        const visibleIds = new Set(nextPosters.map((item) => item.id));
-        return new Set([...prev].filter((id) => visibleIds.has(id)));
-      });
-      setReviewCommentMap(
-        Object.fromEntries(
-          nextPosters.map((item) => [item.id, item.reviewComment ?? ""])
-        )
-      );
-      const posterRows = nextPosters;
-      setSaleAmountMap((prev) => {
-        const next = { ...prev };
-        for (const item of posterRows) {
-          if (!next[item.id]) {
-            next[item.id] = "";
-          }
+      setError(null);
+      try {
+        const headers = await authHeader();
+        const response = await fetch(
+          `/api/manager/posters/list?status=${encodeURIComponent(
+            status,
+          )}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
+          { headers, cache: "no-store" },
+        );
+        const data = (await response.json()) as {
+          ok: boolean;
+          posters?: PosterRow[];
+          error?: string;
+        };
+        if (!response.ok || !data.ok || !data.posters) {
+          throw new Error(data.error ?? "Unable to load poster review list.");
         }
-        return next;
-      });
-    } catch (err) {
-      if (requestId !== loadRequestIdRef.current) {
-        return;
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
+        const nextPosters =
+          status === "all"
+            ? data.posters
+            : data.posters.filter((item) => item.status === status);
+        setRows(nextPosters);
+        setSelectedPosterIds((prev) => {
+          const visibleIds = new Set(nextPosters.map((item) => item.id));
+          return new Set([...prev].filter((id) => visibleIds.has(id)));
+        });
+        setReviewCommentMap(
+          Object.fromEntries(
+            nextPosters.map((item) => [item.id, item.reviewComment ?? ""]),
+          ),
+        );
+        const posterRows = nextPosters;
+        setSaleAmountMap((prev) => {
+          const next = { ...prev };
+          for (const item of posterRows) {
+            if (!next[item.id]) {
+              next[item.id] = "";
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
+        setError(
+          err instanceof Error ? err.message : "Unable to load posters.",
+        );
+      } finally {
+        if (requestId === loadRequestIdRef.current && !options?.silent) {
+          setLoading(false);
+        }
       }
-      setError(err instanceof Error ? err.message : "Unable to load posters.");
-    } finally {
-      if (requestId === loadRequestIdRef.current && !options?.silent) {
-        setLoading(false);
-      }
-    }
-  }, [authHeader, status, query, region.id]);
+    },
+    [authHeader, status, query, region.id],
+  );
 
   useEffect(() => {
     if (!user) {
@@ -272,7 +297,8 @@ export function PosterReviewTable() {
 
   const currentListCount = useMemo(() => rows.length, [rows]);
   const selectedCount = selectedPosterIds.size;
-  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedPosterIds.has(row.id));
+  const allVisibleSelected =
+    rows.length > 0 && rows.every((row) => selectedPosterIds.has(row.id));
 
   function togglePosterSelection(posterId: string) {
     setSelectedPosterIds((prev) => {
@@ -292,18 +318,24 @@ export function PosterReviewTable() {
         return new Set();
       }
       if (rows.every((row) => prev.has(row.id))) {
-        return new Set([...prev].filter((id) => !rows.some((row) => row.id === id)));
+        return new Set(
+          [...prev].filter((id) => !rows.some((row) => row.id === id)),
+        );
       }
       return new Set([...prev, ...rows.map((row) => row.id)]);
     });
   }
 
   async function deleteSelectedPosters() {
-    const ids = [...selectedPosterIds].filter((id) => rows.some((row) => row.id === id));
+    const ids = [...selectedPosterIds].filter((id) =>
+      rows.some((row) => row.id === id),
+    );
     if (ids.length === 0) {
       return;
     }
-    const confirmed = window.confirm(`Delete ${ids.length} selected poster(s) permanently?`);
+    const confirmed = window.confirm(
+      `Delete ${ids.length} selected poster(s) permanently?`,
+    );
     if (!confirmed) {
       return;
     }
@@ -335,7 +367,9 @@ export function PosterReviewTable() {
         }
       }
       setRows((prev) => prev.filter((row) => !ids.includes(row.id)));
-      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setSelectedPosterIds(
+        (prev) => new Set([...prev].filter((id) => !ids.includes(id))),
+      );
       setReviewCommentMap((prev) => {
         const next = { ...prev };
         for (const id of ids) delete next[id];
@@ -348,7 +382,11 @@ export function PosterReviewTable() {
       });
       await loadPosters({ silent: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete selected posters.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete selected posters.",
+      );
     } finally {
       setBusyMap((prev) => ({
         ...prev,
@@ -359,7 +397,7 @@ export function PosterReviewTable() {
 
   async function submitReview(
     posterId: string,
-    nextStatus: "approved" | "rejected" | "archived" | "deleted"
+    nextStatus: "approved" | "rejected" | "archived" | "deleted",
   ) {
     setBusyMap((prev) => ({ ...prev, [posterId]: true }));
     setError(null);
@@ -377,7 +415,7 @@ export function PosterReviewTable() {
             status: nextStatus,
             reviewComment: reviewCommentMap[posterId] ?? "",
           }),
-        }
+        },
       );
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) {
@@ -445,7 +483,9 @@ export function PosterReviewTable() {
     <section className="px-1 py-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Poster Review</h2>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Poster Review
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             Review creator photo/name placement before approving or rejecting.
           </p>
@@ -501,7 +541,9 @@ export function PosterReviewTable() {
             />
             Select visible
           </label>
-          <span className="text-xs font-semibold text-slate-500">{selectedCount} selected</span>
+          <span className="text-xs font-semibold text-slate-500">
+            {selectedCount} selected
+          </span>
           <button
             type="button"
             onClick={() => void deleteSelectedPosters()}
@@ -532,7 +574,8 @@ export function PosterReviewTable() {
           rows.map((row) => {
             const config = row.personalizationConfig;
             const approved = row.status === "approved";
-            const isVideo = row.mediaType === "video" && row.videoUrl.trim().length > 0;
+            const isVideo =
+              row.mediaType === "video" && row.videoUrl.trim().length > 0;
             const mediaUrl = isVideo ? row.videoUrl : row.imageUrl;
             const dimensions = mediaDimensionsMap[row.id];
             const dimensionsBadge = dimensionStatus(dimensions);
@@ -632,9 +675,41 @@ export function PosterReviewTable() {
                           src: "/samples/default-avatar-v2.png",
                           alt: "Creator sample",
                         })}
-                     </div>
+                      </div>
+                      {config.showVideoExtraPhoto ? (
+                        <div
+                          className="absolute overflow-hidden"
+                          style={{
+                            left: `${config.videoExtraPhotoX}%`,
+                            top: `${config.videoExtraPhotoY}%`,
+                            width: `${config.videoExtraPhotoScale}%`,
+                            zIndex: 2,
+                            aspectRatio: photoShapeAspectRatio(
+                              config.videoExtraPhotoShape,
+                            ),
+                            ...photoShapeFrameStyle(
+                              config.videoExtraPhotoShape,
+                            ),
+                          }}
+                        >
+                          {renderPosterPhotoPreview({
+                            shape: config.videoExtraPhotoShape,
+                            renderMode: config.videoExtraPhotoRenderMode,
+                            edgeStyle: config.videoExtraPhotoEdgeStyle,
+                            frameStyle:
+                              config.videoExtraPhotoFrameStyle ?? "none",
+                            src: "/samples/default-avatar-v2.png",
+                            alt: "Creator second sample",
+                          })}
+                          <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-950/82 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white shadow-lg">
+                            Add Photo
+                          </div>
+                        </div>
+                      ) : null}
                       {stripOverlapWarning ? (
-                        <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                        <NameStripOverlapWarning
+                          heightPercent={stripSafeZoneHeight}
+                        />
                       ) : null}
                       {!config.showBottomStrip ? (
                         <div
@@ -652,26 +727,46 @@ export function PosterReviewTable() {
                                 "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
                             }}
                           >
-                            {config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
+                            {config.sampleName ||
+                              row.creatorName ||
+                              PERSONALIZATION_SAMPLE.name}
                           </p>
                           <p className="mt-1 truncate text-center text-xs font-semibold leading-tight tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-                            {config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
+                            {config.sampleDesignation ||
+                              PERSONALIZATION_SAMPLE.designation}
                           </p>
                         </div>
                       ) : null}
                       {config.showBottomStrip ? (
-                        <div className="absolute inset-x-0 bottom-0 z-[3]">
+                        <div
+                          className="absolute z-[3]"
+                          style={{
+                            left: `${config.stripX ?? 50}%`,
+                            bottom: `${config.stripBottom ?? 0}%`,
+                            width: `${config.stripWidth ?? 100}%`,
+                            height: `${Math.max(0.5, config.stripHeight * 0.5)}%`,
+                            transform: "translateX(-50%)",
+                          }}
+                        >
                           <AppStyleNameStrip
                             config={config}
                             imageSeed={row.imageUrl || row.videoUrl || row.id}
-                            sampleName={config.sampleName || row.creatorName || PERSONALIZATION_SAMPLE.name}
-                            sampleDesignation={config.sampleDesignation || PERSONALIZATION_SAMPLE.designation}
+                            sampleName={
+                              config.sampleName ||
+                              row.creatorName ||
+                              PERSONALIZATION_SAMPLE.name
+                            }
+                            sampleDesignation={
+                              config.sampleDesignation ||
+                              PERSONALIZATION_SAMPLE.designation
+                            }
                             compact
                           />
                         </div>
                       ) : null}
                     </div>
-                    {config.showWhatsapp && row.creatorPhone.trim().length > 0 ? (
+                    {config.showWhatsapp &&
+                    row.creatorPhone.trim().length > 0 ? (
                       <div className="-mt-px w-full bg-[#25D366] px-3 py-1.5 text-center text-white">
                         <p className="truncate text-xs font-semibold">
                           {row.creatorPhone}
@@ -758,20 +853,24 @@ export function PosterReviewTable() {
                         </p>
                       ) : null}
                       <p className="text-xs text-slate-600">
-                        Sales {row.saleCount} | Gross Rs.{row.grossAmount} | Creator Rs.
-                        {row.creatorEarnings} | Platform Rs.{row.platformEarnings}
+                        Sales {row.saleCount} | Gross Rs.{row.grossAmount} |
+                        Creator Rs.
+                        {row.creatorEarnings} | Platform Rs.
+                        {row.platformEarnings}
                       </p>
                       <p className="text-xs font-semibold text-slate-700">
                         Share/Download Count: {row.engagementCount}
                       </p>
                       <p className="text-xs text-slate-600">
                         Duplicate check:{" "}
-                        {row.duplicateCount > 1 ? `${row.duplicateCount} similar uploads` : "Unique"}
+                        {row.duplicateCount > 1
+                          ? `${row.duplicateCount} similar uploads`
+                          : "Unique"}
                       </p>
                     </div>
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
-                        row.status
+                        row.status,
                       )}`}
                     >
                       {row.status}

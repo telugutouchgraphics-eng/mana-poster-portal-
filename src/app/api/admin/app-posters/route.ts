@@ -137,7 +137,10 @@ const personalizationSchema = z.object({
   nameX: z.number().min(0).max(100).default(50),
   nameY: z.number().min(0).max(100).default(82),
   showBottomStrip: z.boolean().default(true),
-  stripHeight: z.number().min(8).max(40).default(16),
+  stripHeight: z.number().min(1).max(40).default(16),
+  stripWidth: z.number().min(35).max(100).default(100),
+  stripX: z.number().min(0).max(100).default(50),
+  stripBottom: z.number().min(0).max(20).default(0),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
   sampleDesignation: z
     .string()
@@ -174,8 +177,13 @@ function clampPersonalizationSafeArea(
     config.videoExtraPhotoY,
     config.videoExtraPhotoScale,
   );
+  const stripWidth = clampNumber(config.stripWidth, 35, 100);
   return {
     ...config,
+    stripHeight: clampNumber(config.stripHeight, 1, 40),
+    stripWidth,
+    stripX: clampNumber(config.stripX, stripWidth / 2, 100 - stripWidth / 2),
+    stripBottom: clampNumber(config.stripBottom, 0, 20),
     photoScale: mainOverlay.scale,
     photoX: mainOverlay.x,
     photoY: mainOverlay.y,

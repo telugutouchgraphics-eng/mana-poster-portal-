@@ -50,6 +50,9 @@ interface PersonalizationConfig {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  stripWidth: number;
+  stripX: number;
+  stripBottom: number;
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation: string;
@@ -120,6 +123,9 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  stripWidth: 100,
+  stripX: 50,
+  stripBottom: 0,
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
@@ -333,7 +339,7 @@ function clampPhotoSafeArea(
   const margin = 0;
   const bleed = 0;
   const bottomBleed = config.showBottomStrip
-    ? Math.max(8, Math.min(16, config.stripHeight * 0.75))
+    ? Math.max(1, Math.min(16, config.stripHeight * 0.75))
     : bleed;
   const aspect = posterAspect(meta);
   const maxScaleX = 100 - margin * 2;
@@ -352,8 +358,14 @@ function clampPhotoSafeArea(
   const halfY = (photoScale * aspect) / 2;
   const extraHalfX = videoExtraPhotoScale / 2;
   const extraHalfY = (videoExtraPhotoScale * aspect) / 2;
+  const stripWidth = clampNumber(config.stripWidth, 35, 100);
+  const stripHalfWidth = stripWidth / 2;
   return {
     ...config,
+    stripHeight: clampNumber(config.stripHeight, 1, 40),
+    stripWidth,
+    stripX: clampNumber(config.stripX, stripHalfWidth, 100 - stripHalfWidth),
+    stripBottom: clampNumber(config.stripBottom, 0, 20),
     photoScale,
     photoX: clampNumber(config.photoX, margin + halfX, 100 - margin - halfX),
     photoY: clampNumber(
@@ -445,6 +457,7 @@ function CustomizationModal({
   startPhotoDrag,
   startVideoExtraPhotoDrag,
   startNameDrag,
+  startStripResize,
   customizationCopy,
   selectedPhotoTarget,
   setSelectedPhotoTarget,
@@ -463,6 +476,10 @@ function CustomizationModal({
   startPhotoDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
   startVideoExtraPhotoDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
   startNameDrag: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  startStripResize: (
+    event: ReactPointerEvent<HTMLDivElement>,
+    target: "strip-left" | "strip-right" | "strip-top",
+  ) => void;
   selectedPhotoTarget: "photo" | "videoExtraPhoto";
   setSelectedPhotoTarget: (next: "photo" | "videoExtraPhoto") => void;
   customizationCopy: {
@@ -501,7 +518,10 @@ function CustomizationModal({
         photoScale: safePersonalization.videoExtraPhotoScale,
       }));
   return (
-    <div data-no-auto-translate="true" className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4">
+    <div
+      data-no-auto-translate="true"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4"
+    >
       <div className="mx-auto grid min-h-full max-w-7xl gap-3 py-2 sm:gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <section className="max-h-none overflow-y-auto rounded-[22px] border border-white/10 bg-slate-950 p-4 text-white shadow-[0_24px_60px_rgba(15,23,42,0.4)] sm:rounded-[28px] sm:p-5 xl:max-h-[calc(100vh-2rem)]">
           <div className="flex items-center justify-between gap-3">
@@ -528,7 +548,8 @@ function CustomizationModal({
                 Photo Controls
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-300">
-                Select photo slot, adjust shape and size, then drag it inside the preview.
+                Select photo slot, adjust shape and size, then drag it inside
+                the preview.
               </p>
 
               <div className="mt-4 grid gap-3">
@@ -617,7 +638,8 @@ function CustomizationModal({
                         value={option.value}
                         className="bg-white text-slate-950"
                       >
-                        {customizationCopy.shapeLabels[option.value] ?? option.label}
+                        {customizationCopy.shapeLabels[option.value] ??
+                          option.label}
                       </option>
                     ))}
                   </optgroup>
@@ -642,11 +664,11 @@ function CustomizationModal({
                     ...(selectedPhotoTarget === "videoExtraPhoto"
                       ? {
                           videoExtraPhotoRenderMode: e.target.value as
-                            | "cutout"
-                            | "original",
+                            "cutout" | "original",
                         }
                       : {
-                          photoRenderMode: e.target.value as "cutout" | "original",
+                          photoRenderMode: e.target.value as
+                            "cutout" | "original",
                         }),
                   })
                 }
@@ -702,7 +724,9 @@ function CustomizationModal({
             </div>
 
             <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
-              <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+              <span className="font-medium">
+                {customizationCopy.showGradientStrip}
+              </span>
               <span className="relative inline-flex items-center">
                 <input
                   type="checkbox"
@@ -784,7 +808,9 @@ function CustomizationModal({
                       onPointerDown={startVideoExtraPhotoDrag}
                       onWheel={onVideoExtraPhotoWheel}
                       className={`absolute touch-none overflow-hidden ${
-                        isVideoExtraPhotoDragging ? "cursor-grabbing" : "cursor-grab"
+                        isVideoExtraPhotoDragging
+                          ? "cursor-grabbing"
+                          : "cursor-grab"
                       }`}
                       style={{
                         left: `${safePersonalization.videoExtraPhotoX}%`,
@@ -801,9 +827,11 @@ function CustomizationModal({
                     >
                       {renderPosterPhotoPreview({
                         shape: safePersonalization.videoExtraPhotoShape,
-                        renderMode: safePersonalization.videoExtraPhotoRenderMode,
+                        renderMode:
+                          safePersonalization.videoExtraPhotoRenderMode,
                         edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
-                        frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
+                        frameStyle:
+                          safePersonalization.videoExtraPhotoFrameStyle,
                         src: PERSONALIZATION_SAMPLE.photoUrl,
                         alt: "Add photo sample user",
                       })}
@@ -814,7 +842,9 @@ function CustomizationModal({
                   ) : null}
 
                   {stripOverlapWarning ? (
-                    <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                    <NameStripOverlapWarning
+                      heightPercent={stripSafeZoneHeight}
+                    />
                   ) : null}
                   {!value.showBottomStrip ? (
                     <div
@@ -824,11 +854,11 @@ function CustomizationModal({
                       }`}
                       style={{
                         left: `${value.nameX}%`,
-                      top: `${value.nameY}%`,
-                      touchAction: "none",
-                      zIndex: 3,
-                    }}
-                  >
+                        top: `${value.nameY}%`,
+                        touchAction: "none",
+                        zIndex: 3,
+                      }}
+                    >
                       <p
                         className="truncate text-center text-2xl font-semibold leading-tight tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]"
                         style={{
@@ -844,12 +874,42 @@ function CustomizationModal({
                     </div>
                   ) : null}
                   {value.showBottomStrip ? (
-                    <div className="absolute inset-x-0 bottom-0 z-[3]">
+                    <div
+                      className="absolute z-[3] touch-none"
+                      style={{
+                        left: `${safePersonalization.stripX}%`,
+                        bottom: `${safePersonalization.stripBottom}%`,
+                        width: `${safePersonalization.stripWidth}%`,
+                        height: `${Math.max(0.5, safePersonalization.stripHeight * 0.5)}%`,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
                       <AppStyleNameStrip
                         config={value}
                         imageSeed={row.imageUrl || "user-upload-review"}
                         sampleName={PERMANENT_SAMPLE_NAME}
                         sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                      />
+                      <div
+                        onPointerDown={(event) =>
+                          startStripResize(event, "strip-left")
+                        }
+                        className="absolute -left-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                        aria-label="Resize name strip left"
+                      />
+                      <div
+                        onPointerDown={(event) =>
+                          startStripResize(event, "strip-right")
+                        }
+                        className="absolute -right-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                        aria-label="Resize name strip right"
+                      />
+                      <div
+                        onPointerDown={(event) =>
+                          startStripResize(event, "strip-top")
+                        }
+                        className="absolute left-1/2 top-0 h-4 w-12 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize rounded-full border border-white/80 bg-emerald-500/90 shadow-lg"
+                        aria-label="Resize name strip height"
                       />
                     </div>
                   ) : null}
@@ -904,19 +964,29 @@ export function UserUploadReviewTable() {
     null,
   );
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
-  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] = useState(false);
+  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] =
+    useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [selectedPhotoTarget, setSelectedPhotoTarget] = useState<
     "photo" | "videoExtraPhoto"
   >("photo");
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
-    target: "photo" | "videoExtraPhoto" | "name" | null;
+    target:
+      | "photo"
+      | "videoExtraPhoto"
+      | "name"
+      | "strip-left"
+      | "strip-right"
+      | "strip-top"
+      | null;
     dragging: boolean;
     startX: number;
     startY: number;
     initialX: number;
     initialY: number;
+    initialWidth: number;
+    initialHeight: number;
   }>({
     target: null,
     dragging: false,
@@ -924,6 +994,8 @@ export function UserUploadReviewTable() {
     startY: 0,
     initialX: 50,
     initialY: 45,
+    initialWidth: 100,
+    initialHeight: 16,
   });
 
   const authHeader = useCallback(async () => {
@@ -932,72 +1004,75 @@ export function UserUploadReviewTable() {
     return { authorization: `Bearer ${token}` };
   }, [user]);
 
-  const loadUploads = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent ?? false;
-    if (!silent) {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const headers = await authHeader();
-      const response = await fetch(
-        `/api/manager/user-uploads/list?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
-        { headers, cache: "no-store" },
-      );
-      const data = (await response.json()) as {
-        ok: boolean;
-        uploads?: UserUploadRow[];
-        error?: string;
-      };
-      if (!response.ok || !data.ok || !data.uploads) {
-        throw new Error(data.error ?? "Unable to load user uploads.");
-      }
-      const uploads = data.uploads;
-      setRows(uploads);
-      const visibleIds = new Set(uploads.map((item) => item.id));
-      setSelectedUploadIds((prev) => {
-        const next = new Set<string>();
-        prev.forEach((id) => {
-          if (visibleIds.has(id)) next.add(id);
-        });
-        return next;
-      });
-      setRejectionReasonMap((prev) => {
-        const next: Record<string, string> = {};
-        uploads.forEach((item) => {
-          if (Object.prototype.hasOwnProperty.call(prev, item.id)) {
-            // Keep in-progress local typing during auto-refresh.
-            next[item.id] = prev[item.id] ?? "";
-            return;
-          }
-          next[item.id] = item.rejectionReason ?? "";
-        });
-        return next;
-      });
-      setPersonalizationMap((prev) => {
-        const next = { ...prev };
-        uploads.forEach((item) => {
-          next[item.id] = next[item.id] ?? normalizePersonalization();
-        });
-        return next;
-      });
-      setSelectedCategoryMap((prev) => {
-        const next = { ...prev };
-        uploads.forEach((item) => {
-          next[item.id] = next[item.id] ?? item.categoryId;
-        });
-        return next;
-      });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to load user uploads.",
-      );
-    } finally {
+  const loadUploads = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
       if (!silent) {
-        setLoading(false);
+        setLoading(true);
       }
-    }
-  }, [authHeader, query, region.id, status]);
+      setError(null);
+      try {
+        const headers = await authHeader();
+        const response = await fetch(
+          `/api/manager/user-uploads/list?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&regionId=${encodeURIComponent(region.id)}`,
+          { headers, cache: "no-store" },
+        );
+        const data = (await response.json()) as {
+          ok: boolean;
+          uploads?: UserUploadRow[];
+          error?: string;
+        };
+        if (!response.ok || !data.ok || !data.uploads) {
+          throw new Error(data.error ?? "Unable to load user uploads.");
+        }
+        const uploads = data.uploads;
+        setRows(uploads);
+        const visibleIds = new Set(uploads.map((item) => item.id));
+        setSelectedUploadIds((prev) => {
+          const next = new Set<string>();
+          prev.forEach((id) => {
+            if (visibleIds.has(id)) next.add(id);
+          });
+          return next;
+        });
+        setRejectionReasonMap((prev) => {
+          const next: Record<string, string> = {};
+          uploads.forEach((item) => {
+            if (Object.prototype.hasOwnProperty.call(prev, item.id)) {
+              // Keep in-progress local typing during auto-refresh.
+              next[item.id] = prev[item.id] ?? "";
+              return;
+            }
+            next[item.id] = item.rejectionReason ?? "";
+          });
+          return next;
+        });
+        setPersonalizationMap((prev) => {
+          const next = { ...prev };
+          uploads.forEach((item) => {
+            next[item.id] = next[item.id] ?? normalizePersonalization();
+          });
+          return next;
+        });
+        setSelectedCategoryMap((prev) => {
+          const next = { ...prev };
+          uploads.forEach((item) => {
+            next[item.id] = next[item.id] ?? item.categoryId;
+          });
+          return next;
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Unable to load user uploads.",
+        );
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [authHeader, query, region.id, status],
+  );
 
   const loadCategories = useCallback(async () => {
     try {
@@ -1016,7 +1091,9 @@ export function UserUploadReviewTable() {
       }
       setCategoryOptions(data.categories.filter((item) => item.id !== "all"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load categories.");
+      setError(
+        err instanceof Error ? err.message : "Unable to load categories.",
+      );
     }
   }, [authHeader, region.id]);
 
@@ -1110,29 +1187,53 @@ export function UserUploadReviewTable() {
       );
       setPersonalizationMap((prev) => {
         const current = normalizePersonalization(prev[customizeRow.id]);
-        const next = dragRef.current.target === "photo"
-          ? clampPhotoSafeArea(
-              {
-                ...current,
-                photoX: nextX,
-                photoY: nextY,
-              },
-              customizeFileMeta,
-            )
-          : dragRef.current.target === "videoExtraPhoto"
-            ? clampPhotoSafeArea(
-                {
-                  ...current,
-                  videoExtraPhotoX: nextX,
-                  videoExtraPhotoY: nextY,
-                },
-                customizeFileMeta,
-              )
-            : {
-                ...current,
-                nameX: nextX,
-                nameY: nextY,
-              };
+        let next: PersonalizationConfig;
+        if (dragRef.current.target === "photo") {
+          next = clampPhotoSafeArea(
+            { ...current, photoX: nextX, photoY: nextY },
+            customizeFileMeta,
+          );
+        } else if (dragRef.current.target === "videoExtraPhoto") {
+          next = clampPhotoSafeArea(
+            { ...current, videoExtraPhotoX: nextX, videoExtraPhotoY: nextY },
+            customizeFileMeta,
+          );
+        } else if (
+          dragRef.current.target === "strip-left" ||
+          dragRef.current.target === "strip-right"
+        ) {
+          const startLeft =
+            dragRef.current.initialX - dragRef.current.initialWidth / 2;
+          const startRight =
+            dragRef.current.initialX + dragRef.current.initialWidth / 2;
+          const nextLeft =
+            dragRef.current.target === "strip-left"
+              ? clampNumber(startLeft + deltaXPercent, 0, startRight - 35)
+              : startLeft;
+          const nextRight =
+            dragRef.current.target === "strip-right"
+              ? clampNumber(startRight + deltaXPercent, nextLeft + 35, 100)
+              : startRight;
+          const stripWidth = clampNumber(nextRight - nextLeft, 35, 100);
+          next = clampPhotoSafeArea(
+            { ...current, stripWidth, stripX: nextLeft + stripWidth / 2 },
+            customizeFileMeta,
+          );
+        } else if (dragRef.current.target === "strip-top") {
+          next = clampPhotoSafeArea(
+            {
+              ...current,
+              stripHeight: clampNumber(
+                dragRef.current.initialHeight - deltaYPercent,
+                1,
+                40,
+              ),
+            },
+            customizeFileMeta,
+          );
+        } else {
+          next = { ...current, nameX: nextX, nameY: nextY };
+        }
         return {
           ...prev,
           [customizeRow.id]: next,
@@ -1171,15 +1272,22 @@ export function UserUploadReviewTable() {
 
   useEffect(() => {
     if (!customizeRow) return;
-    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
-    if (!current.showVideoExtraPhoto && selectedPhotoTarget === "videoExtraPhoto") {
+    const current = normalizePersonalization(
+      personalizationMap[customizeRow.id],
+    );
+    if (
+      !current.showVideoExtraPhoto &&
+      selectedPhotoTarget === "videoExtraPhoto"
+    ) {
       setSelectedPhotoTarget("photo");
     }
   }, [customizeRow, personalizationMap, selectedPhotoTarget]);
 
   function startPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (!customizeRow) return;
-    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
+    const current = normalizePersonalization(
+      personalizationMap[customizeRow.id],
+    );
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = {
@@ -1189,6 +1297,8 @@ export function UserUploadReviewTable() {
       startY: event.clientY,
       initialX: current.photoX,
       initialY: current.photoY,
+      initialWidth: current.photoScale,
+      initialHeight: current.photoScale,
     };
     setIsPhotoDragging(true);
     setIsVideoExtraPhotoDragging(false);
@@ -1196,7 +1306,9 @@ export function UserUploadReviewTable() {
 
   function startVideoExtraPhotoDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (!customizeRow) return;
-    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
+    const current = normalizePersonalization(
+      personalizationMap[customizeRow.id],
+    );
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedPhotoTarget("videoExtraPhoto");
@@ -1207,6 +1319,8 @@ export function UserUploadReviewTable() {
       startY: event.clientY,
       initialX: current.videoExtraPhotoX,
       initialY: current.videoExtraPhotoY,
+      initialWidth: current.videoExtraPhotoScale,
+      initialHeight: current.videoExtraPhotoScale,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(true);
@@ -1215,7 +1329,9 @@ export function UserUploadReviewTable() {
 
   function startNameDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (!customizeRow) return;
-    const current = normalizePersonalization(personalizationMap[customizeRow.id]);
+    const current = normalizePersonalization(
+      personalizationMap[customizeRow.id],
+    );
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragRef.current = {
@@ -1225,6 +1341,34 @@ export function UserUploadReviewTable() {
       startY: event.clientY,
       initialX: current.nameX,
       initialY: current.nameY,
+      initialWidth: current.stripWidth,
+      initialHeight: current.stripHeight,
+    };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(false);
+    setIsNameDragging(true);
+  }
+
+  function startStripResize(
+    event: ReactPointerEvent<HTMLDivElement>,
+    target: "strip-left" | "strip-right" | "strip-top",
+  ) {
+    if (!customizeRow) return;
+    const current = normalizePersonalization(
+      personalizationMap[customizeRow.id],
+    );
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      target,
+      dragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: current.stripX,
+      initialY: current.nameY,
+      initialWidth: current.stripWidth,
+      initialHeight: current.stripHeight,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(false);
@@ -1275,7 +1419,8 @@ export function UserUploadReviewTable() {
   ) {
     const row = rows.find((item) => item.id === uploadId);
     const managerImage = managerImageMap[uploadId];
-    const selectedCategoryId = selectedCategoryMap[uploadId] ?? row?.categoryId ?? "";
+    const selectedCategoryId =
+      selectedCategoryMap[uploadId] ?? row?.categoryId ?? "";
     const selectedCategory = categoryOptions.find(
       (item) => item.id === selectedCategoryId,
     );
@@ -1284,7 +1429,10 @@ export function UserUploadReviewTable() {
       setError("Rejection reason is required.");
       return;
     }
-    if (nextStatus === "approved" && !((row?.imageUrl ?? "") || managerImage?.imageUrl)) {
+    if (
+      nextStatus === "approved" &&
+      !((row?.imageUrl ?? "") || managerImage?.imageUrl)
+    ) {
       setError("Please pick poster image before upload.");
       return;
     }
@@ -1307,10 +1455,13 @@ export function UserUploadReviewTable() {
           body: JSON.stringify({
             status: nextStatus,
             rejectionReason: reason,
-            categoryId: nextStatus === "approved" ? selectedCategoryId : undefined,
+            categoryId:
+              nextStatus === "approved" ? selectedCategoryId : undefined,
             categoryLabel:
               nextStatus === "approved"
-                ? (selectedCategory?.label ?? row?.categoryLabel ?? selectedCategoryId)
+                ? (selectedCategory?.label ??
+                  row?.categoryLabel ??
+                  selectedCategoryId)
                 : undefined,
             imageUrl:
               nextStatus === "approved"
@@ -1437,7 +1588,9 @@ export function UserUploadReviewTable() {
       selectableUploadIds.includes(id),
     );
     if (ids.length === 0) return;
-    const confirmed = window.confirm(`Delete ${ids.length} selected upload(s) permanently?`);
+    const confirmed = window.confirm(
+      `Delete ${ids.length} selected upload(s) permanently?`,
+    );
     if (!confirmed) return;
     setError(null);
     setBusyMap((prev) => ({
@@ -1475,7 +1628,11 @@ export function UserUploadReviewTable() {
       setNotice(`${ids.length} upload(s) deleted.`);
       await loadUploads({ silent: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete selected uploads.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete selected uploads.",
+      );
     } finally {
       setBusyMap((prev) => {
         const next = { ...prev };
@@ -1493,7 +1650,9 @@ export function UserUploadReviewTable() {
     try {
       await navigator.clipboard.writeText(quote);
       setError(null);
-      setNotice("Quote copied. Create poster image and upload it in the related category.");
+      setNotice(
+        "Quote copied. Create poster image and upload it in the related category.",
+      );
     } catch {
       setNotice(null);
       setError("Unable to copy quote. Please select and copy manually.");
@@ -1520,15 +1679,16 @@ export function UserUploadReviewTable() {
         { headers, cache: "no-store" },
       );
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         throw new Error(data?.error ?? "Image download failed.");
       }
       const blob = await response.blob();
       const contentDisposition =
         response.headers.get("content-disposition") ?? "";
-      const headerFileName = contentDisposition.match(/filename="([^"]+)"/)?.[1];
+      const headerFileName =
+        contentDisposition.match(/filename="([^"]+)"/)?.[1];
       const objectUrl = URL.createObjectURL(blob);
       try {
         triggerBrowserDownload(objectUrl, headerFileName ?? fileName);
@@ -1538,7 +1698,9 @@ export function UserUploadReviewTable() {
       setNotice("User image download started.");
     } catch (err) {
       setNotice(null);
-      setError(err instanceof Error ? err.message : "Unable to download image.");
+      setError(
+        err instanceof Error ? err.message : "Unable to download image.",
+      );
     }
   }
 
@@ -1557,7 +1719,9 @@ export function UserUploadReviewTable() {
     close: isTelugu ? "క్లోజ్" : "Close",
     photoShape: isTelugu ? "ఫోటో షేప్" : "Photo Shape",
     premiumShapes: isTelugu ? "ప్రీమియం షేప్స్" : "Premium Shapes",
-    transparentCutouts: isTelugu ? "ట్రాన్స్‌పరెంట్ కటౌట్స్" : "Transparent Cutouts",
+    transparentCutouts: isTelugu
+      ? "ట్రాన్స్‌పరెంట్ కటౌట్స్"
+      : "Transparent Cutouts",
     photoMode: isTelugu ? "ఫోటో మోడ్" : "Photo Mode",
     bgRemoved: isTelugu ? "బ్యాక్‌గ్రౌండ్ తొలగించినది" : "BG Removed",
     originalPhoto: isTelugu ? "ఒరిజినల్ ఫోటో" : "Original Photo",
@@ -1565,7 +1729,9 @@ export function UserUploadReviewTable() {
     dragHelp: isTelugu
       ? "ఫోటో, నేమ్‌ని డైరెక్ట్‌గా డ్రాగ్ చేయండి. ఫోటో సైజ్ మార్చడానికి మౌస్ వీల్ వాడండి."
       : "Drag the photo and name directly. Use the mouse wheel to adjust photo size.",
-    showGradientStrip: isTelugu ? "షో గ్రాడియెంట్ స్ట్రిప్" : "Show gradient strip",
+    showGradientStrip: isTelugu
+      ? "షో గ్రాడియెంట్ స్ట్రిప్"
+      : "Show gradient strip",
     apply: isTelugu ? "అప్లై" : "Apply",
     shapeLabels: {
       circle: isTelugu ? "సర్కిల్" : "Circle",
@@ -1573,7 +1739,9 @@ export function UserUploadReviewTable() {
       soft_burst: isTelugu ? "సాఫ్ట్ బర్స్్ట్" : "Soft Burst",
       badge: isTelugu ? "బ్యాడ్జ్" : "Badge",
       rounded_square: isTelugu ? "రౌండెడ్ స్క్వేర్" : "Rounded Square",
-      vertical_rectangle: isTelugu ? "వెర్టికల్ రెక్టాంగిల్" : "Vertical Rectangle",
+      vertical_rectangle: isTelugu
+        ? "వెర్టికల్ రెక్టాంగిల్"
+        : "Vertical Rectangle",
       square: isTelugu ? "క్లాసిక్ స్క్వేర్" : "Classic Square",
       transparent_bottom_fade: isTelugu ? "బాటమ్ బ్లెండ్" : "Bottom Blend",
       transparent_clean: isTelugu ? "క్లీన్ కటౌట్" : "Clean Cutout",
@@ -1603,10 +1771,19 @@ export function UserUploadReviewTable() {
       rounded_square: t("creator.upload.shape.rounded_square", lang),
       vertical_rectangle: t("creator.upload.shape.vertical_rectangle", lang),
       square: t("creator.upload.shape.square", lang),
-      transparent_bottom_fade: t("creator.upload.shape.transparent_bottom_fade", lang),
+      transparent_bottom_fade: t(
+        "creator.upload.shape.transparent_bottom_fade",
+        lang,
+      ),
       transparent_clean: t("creator.upload.shape.transparent_clean", lang),
-      transparent_soft_round: t("creator.upload.shape.transparent_soft_round", lang),
-      transparent_sharp_round: t("creator.upload.shape.transparent_sharp_round", lang),
+      transparent_soft_round: t(
+        "creator.upload.shape.transparent_soft_round",
+        lang,
+      ),
+      transparent_sharp_round: t(
+        "creator.upload.shape.transparent_sharp_round",
+        lang,
+      ),
     } as Record<string, string>,
   });
 
@@ -1715,243 +1892,252 @@ export function UserUploadReviewTable() {
               const displayRow = effectiveRow(row);
               const hasPosterImage = Boolean(displayRow.imageUrl);
               return (
-              <article
-                key={row.id}
-                className="grid gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
-              >
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 lg:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedUploadIds.has(row.id)}
-                    disabled={
-                      busyMap[row.id] ||
-                      (row.status !== "approved" && row.status !== "rejected")
-                    }
-                    onChange={() => toggleUploadSelection(row.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
-                  />
-                  Select upload
-                </label>
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
-                  {displayRow.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={displayRow.imageUrl}
-                      alt={displayRow.categoryLabel || "User upload"}
-                      className="mx-auto h-auto max-h-[56vh] w-full object-contain"
+                <article
+                  key={row.id}
+                  className="grid gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+                >
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 lg:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedUploadIds.has(row.id)}
+                      disabled={
+                        busyMap[row.id] ||
+                        (row.status !== "approved" && row.status !== "rejected")
+                      }
+                      onChange={() => toggleUploadSelection(row.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
                     />
-                  ) : (
-                    <div className="flex min-h-56 items-center justify-center rounded-lg bg-amber-50 p-4 text-center text-sm font-semibold text-amber-900">
-                      Quote-only submission
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase ${statusClass(row.status)}`}
-                    >
-                      {row.status}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {formatDate(row.createdAt)}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      Expires: {formatDate(row.expiresAt)}
-                    </span>
+                    Select upload
+                  </label>
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    {displayRow.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={displayRow.imageUrl}
+                        alt={displayRow.categoryLabel || "User upload"}
+                        className="mx-auto h-auto max-h-[56vh] w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex min-h-56 items-center justify-center rounded-lg bg-amber-50 p-4 text-center text-sm font-semibold text-amber-900">
+                        Quote-only submission
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-slate-700">
-                    <p className="font-semibold text-slate-900">
-                      {row.userName || "Unknown user"}
-                    </p>
-                    <p>{row.userEmail || row.userMobile || "-"}</p>
-                    <p className="mt-1 inline-flex items-center gap-2">
-                      <span>User selected category:</span>
-                      {row.categoryLabel || row.categoryId ? (
-                        <CategoryLabelWithLogo
-                          id={row.categoryId}
-                          label={row.categoryLabel || row.categoryId}
-                        />
-                      ) : (
-                        "-"
-                      )}
-                    </p>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase ${statusClass(row.status)}`}
+                      >
+                        {row.status}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {formatDate(row.createdAt)}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        Expires: {formatDate(row.expiresAt)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-700">
+                      <p className="font-semibold text-slate-900">
+                        {row.userName || "Unknown user"}
+                      </p>
+                      <p>{row.userEmail || row.userMobile || "-"}</p>
+                      <p className="mt-1 inline-flex items-center gap-2">
+                        <span>User selected category:</span>
+                        {row.categoryLabel || row.categoryId ? (
+                          <CategoryLabelWithLogo
+                            id={row.categoryId}
+                            label={row.categoryLabel || row.categoryId}
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </p>
+                      {row.status !== "approved" ? (
+                        <label className="mt-3 block">
+                          <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                            Publish category
+                          </span>
+                          <select
+                            value={
+                              selectedCategoryMap[row.id] ?? row.categoryId
+                            }
+                            onChange={(event) =>
+                              setSelectedCategoryMap((prev) => ({
+                                ...prev,
+                                [row.id]: event.target.value,
+                              }))
+                            }
+                            className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--portal-purple)]"
+                          >
+                            {categoryOptions.length === 0 ? (
+                              <option value={row.categoryId}>
+                                {row.categoryLabel ||
+                                  row.categoryId ||
+                                  "Category"}
+                              </option>
+                            ) : (
+                              categoryOptions.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.label}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </label>
+                      ) : null}
+                      {row.quoteText ? (
+                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+                            User quote
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm font-semibold leading-6">
+                            {row.quoteText}
+                          </p>
+                        </div>
+                      ) : null}
+                      {row.status === "rejected" && row.rejectionReason ? (
+                        <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">
+                          Reason: {row.rejectionReason}
+                        </p>
+                      ) : null}
+                      {row.status === "approved" ? (
+                        <p className="mt-1 text-slate-600">
+                          Downloads: {row.downloadCount} | Shares:{" "}
+                          {row.shareCount}
+                        </p>
+                      ) : null}
+                    </div>
+
                     {row.status !== "approved" ? (
-                      <label className="mt-3 block">
-                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Publish category
-                        </span>
+                      <div className="grid gap-2">
                         <select
-                          value={selectedCategoryMap[row.id] ?? row.categoryId}
-                          onChange={(event) =>
-                            setSelectedCategoryMap((prev) => ({
+                          value={
+                            rejectionReasonOptions.includes(
+                              rejectionReasonMap[row.id] ?? "",
+                            )
+                              ? (rejectionReasonMap[row.id] ?? "")
+                              : ""
+                          }
+                          onChange={(event) => {
+                            const reason = event.target.value;
+                            if (!reason) return;
+                            setRejectionReasonMap((prev) => ({
                               ...prev,
-                              [row.id]: event.target.value,
+                              [row.id]: reason,
+                            }));
+                          }}
+                          className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[var(--portal-purple)]"
+                        >
+                          <option value="">
+                            Select reject reason ({region.primaryLanguage})
+                          </option>
+                          {rejectionReasonOptions.map((reason) => (
+                            <option key={reason} value={reason}>
+                              {reason}
+                            </option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={rejectionReasonMap[row.id] ?? ""}
+                          onChange={(e) =>
+                            setRejectionReasonMap((prev) => ({
+                              ...prev,
+                              [row.id]: e.target.value,
                             }))
                           }
-                          className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--portal-purple)]"
-                        >
-                          {categoryOptions.length === 0 ? (
-                            <option value={row.categoryId}>
-                              {row.categoryLabel || row.categoryId || "Category"}
-                            </option>
-                          ) : (
-                            categoryOptions.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.label}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </label>
-                    ) : null}
-                    {row.quoteText ? (
-                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
-                        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-                          User quote
-                        </p>
-                        <p className="whitespace-pre-wrap text-sm font-semibold leading-6">
-                          {row.quoteText}
-                        </p>
+                          rows={2}
+                          placeholder="Rejection reason (required for reject)"
+                          className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[var(--portal-purple)]"
+                        />
                       </div>
                     ) : null}
-                    {row.status === "rejected" && row.rejectionReason ? (
-                      <p className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">
-                        Reason: {row.rejectionReason}
-                      </p>
-                    ) : null}
-                    {row.status === "approved" ? (
-                      <p className="mt-1 text-slate-600">
-                        Downloads: {row.downloadCount} | Shares:{" "}
-                        {row.shareCount}
-                      </p>
-                    ) : null}
-                  </div>
 
-                  {row.status !== "approved" ? (
-                    <div className="grid gap-2">
-                      <select
-                        value={
-                          rejectionReasonOptions.includes(
-                            rejectionReasonMap[row.id] ?? "",
-                          )
-                            ? (rejectionReasonMap[row.id] ?? "")
-                            : ""
-                        }
-                        onChange={(event) => {
-                          const reason = event.target.value;
-                          if (!reason) return;
-                          setRejectionReasonMap((prev) => ({
-                            ...prev,
-                            [row.id]: reason,
-                          }));
-                        }}
-                        className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[var(--portal-purple)]"
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewRow(displayRow)}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
-                        <option value="">
-                          Select reject reason ({region.primaryLanguage})
-                        </option>
-                        {rejectionReasonOptions.map((reason) => (
-                          <option key={reason} value={reason}>
-                            {reason}
-                          </option>
-                        ))}
-                      </select>
-                      <textarea
-                        value={rejectionReasonMap[row.id] ?? ""}
-                        onChange={(e) =>
-                          setRejectionReasonMap((prev) => ({
-                            ...prev,
-                            [row.id]: e.target.value,
-                          }))
-                        }
-                        rows={2}
-                        placeholder="Rejection reason (required for reject)"
-                        className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[var(--portal-purple)]"
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewRow(displayRow)}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!row.imageUrl}
-                      onClick={() => void downloadUserImage(row)}
-                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Download
-                    </button>
-                    {row.status !== "approved" ? (
-                      <>
-                        <label className="cursor-pointer rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100">
-                          Pick image
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            disabled={busyMap[row.id]}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0] ?? null;
-                              event.target.value = "";
-                              void uploadManagerImage(row, file);
-                            }}
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          disabled={!hasPosterImage}
-                          onClick={() => setCustomizeRow(displayRow)}
-                          className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
-                        >
-                          Customization
-                        </button>
-                        {row.quoteText ? (
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!row.imageUrl}
+                        onClick={() => void downloadUserImage(row)}
+                        className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Download
+                      </button>
+                      {row.status !== "approved" ? (
+                        <>
+                          <label className="cursor-pointer rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100">
+                            Pick image
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              disabled={busyMap[row.id]}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] ?? null;
+                                event.target.value = "";
+                                void uploadManagerImage(row, file);
+                              }}
+                              className="hidden"
+                            />
+                          </label>
                           <button
                             type="button"
-                            onClick={() => void copyQuote(row)}
-                            className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+                            disabled={!hasPosterImage}
+                            onClick={() => setCustomizeRow(displayRow)}
+                            className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
                           >
-                            Copy quote
+                            Customization
                           </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={busyMap[row.id] || !hasPosterImage}
-                          onClick={() => void reviewUpload(row.id, "approved")}
-                          className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                        >
-                          Upload
-                        </button>
+                          {row.quoteText ? (
+                            <button
+                              type="button"
+                              onClick={() => void copyQuote(row)}
+                              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+                            >
+                              Copy quote
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={busyMap[row.id] || !hasPosterImage}
+                            onClick={() =>
+                              void reviewUpload(row.id, "approved")
+                            }
+                            className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            Upload
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyMap[row.id]}
+                            onClick={() =>
+                              void reviewUpload(row.id, "rejected")
+                            }
+                            className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      ) : null}
+                      {row.status === "approved" ||
+                      row.status === "rejected" ? (
                         <button
                           type="button"
                           disabled={busyMap[row.id]}
-                          onClick={() => void reviewUpload(row.id, "rejected")}
-                          className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                          onClick={() => void reviewUpload(row.id, "deleted")}
+                          className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
                         >
-                          Reject
+                          Delete
                         </button>
-                      </>
-                    ) : null}
-                    {row.status === "approved" || row.status === "rejected" ? (
-                      <button
-                        type="button"
-                        disabled={busyMap[row.id]}
-                        onClick={() => void reviewUpload(row.id, "deleted")}
-                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
-                      >
-                        Delete
-                      </button>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              </article>
+                </article>
               );
             })
           )}
@@ -1981,6 +2167,7 @@ export function UserUploadReviewTable() {
         startPhotoDrag={startPhotoDrag}
         startVideoExtraPhotoDrag={startVideoExtraPhotoDrag}
         startNameDrag={startNameDrag}
+        startStripResize={startStripResize}
         selectedPhotoTarget={selectedPhotoTarget}
         setSelectedPhotoTarget={setSelectedPhotoTarget}
         customizationCopy={customizationCopy}

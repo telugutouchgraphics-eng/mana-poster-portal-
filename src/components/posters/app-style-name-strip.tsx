@@ -9,6 +9,9 @@ interface NameStripConfig {
   nameY?: number;
   sampleName?: string;
   sampleDesignation?: string;
+  stripWidth?: number;
+  stripX?: number;
+  stripBottom?: number;
 }
 
 interface PhotoOverlapInput {
@@ -52,19 +55,31 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function stripModel(config: NameStripConfig, seedName: string, imageSeed: string): number {
-  const seed = `${imageSeed}|${config.nameX ?? 50}|${config.nameY ?? 50}|${config.stripHeight}|model|${seedName}`;
+function stripModel(
+  config: NameStripConfig,
+  seedName: string,
+  imageSeed: string,
+): number {
+  const seed = `${imageSeed}|model|${seedName}`;
   return hashString(seed, 29, 43) % APP_STRIP_GRADIENTS.length;
 }
 
-function stripGradient(config: NameStripConfig, seedName: string, imageSeed: string) {
-  const seed = `${imageSeed}|${config.stripHeight}|${seedName}`;
-  return APP_STRIP_GRADIENTS[hashString(seed, 23, 41) % APP_STRIP_GRADIENTS.length]!;
+function stripGradient(
+  config: NameStripConfig,
+  seedName: string,
+  imageSeed: string,
+) {
+  const seed = `${imageSeed}|${seedName}`;
+  return APP_STRIP_GRADIENTS[
+    hashString(seed, 23, 41) % APP_STRIP_GRADIENTS.length
+  ]!;
 }
 
-export function nameStripSafeZoneHeightPercent(config: NameStripConfig): number {
+export function nameStripSafeZoneHeightPercent(
+  config: NameStripConfig,
+): number {
   if (!config.showBottomStrip) return 0;
-  return Math.max(8, Math.min(16, config.stripHeight * 0.75));
+  return Math.max(1, Math.min(16, config.stripHeight * 0.75));
 }
 
 export function isPhotoInNameStripSafeZone({
@@ -80,7 +95,11 @@ export function isPhotoInNameStripSafeZone({
   return photoY + photoHeightPercent > safeZoneTop;
 }
 
-export function NameStripOverlapWarning({ heightPercent }: { heightPercent: number }) {
+export function NameStripOverlapWarning({
+  heightPercent,
+}: {
+  heightPercent: number;
+}) {
   return (
     <div
       className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] animate-pulse border-t-2 border-red-500/95 bg-red-500/20"
@@ -95,33 +114,51 @@ export function NameStripOverlapWarning({ heightPercent }: { heightPercent: numb
 
 function AccentLayer({ model }: { model: number }) {
   if (model === 0) {
-    return <div className="absolute inset-x-0 top-0 h-1 bg-white/55" />;
+    return <div className="absolute inset-x-0 top-0 h-[8cqh] bg-white/55" />;
   }
   if (model === 1) {
-    return <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.18)_0,rgba(255,255,255,0.18)_3px,transparent_3px,transparent_16px)]" />;
+    return (
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.18)_0,rgba(255,255,255,0.18)_3px,transparent_3px,transparent_16px)]" />
+    );
   }
   if (model === 2) {
-    return <div className="absolute inset-x-0 bottom-0 h-1.5 bg-black/20 shadow-[0_-10px_22px_rgba(255,255,255,0.18)]" />;
+    return (
+      <div className="absolute inset-x-0 bottom-0 h-[12cqh] bg-black/20 shadow-[0_-10px_22px_rgba(255,255,255,0.18)]" />
+    );
   }
   if (model === 3) {
-    return <div className="absolute inset-x-5 inset-y-1 rounded-full border border-white/45 bg-white/10" />;
+    return (
+      <div className="absolute inset-x-[8%] inset-y-[10%] rounded-full border border-white/45 bg-white/10" />
+    );
   }
   if (model === 4) {
-    return <div className="absolute -right-8 top-1/2 h-14 w-36 -translate-y-1/2 rounded-full bg-white/18" />;
+    return (
+      <div className="absolute -right-[8%] top-1/2 h-full w-[35%] -translate-y-1/2 rounded-full bg-white/18" />
+    );
   }
   if (model === 5) {
-    return <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_50%,rgba(255,255,255,0.34)_0_2px,transparent_3px),radial-gradient(circle_at_88%_50%,rgba(255,255,255,0.28)_0_2px,transparent_3px)]" />;
+    return (
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_50%,rgba(255,255,255,0.34)_0_2px,transparent_3px),radial-gradient(circle_at_88%_50%,rgba(255,255,255,0.28)_0_2px,transparent_3px)]" />
+    );
   }
   if (model === 6) {
-    return <div className="absolute inset-x-0 bottom-0 h-2 bg-white/25" />;
+    return (
+      <div className="absolute inset-x-0 bottom-0 h-[14cqh] bg-white/25" />
+    );
   }
   if (model === 7) {
-    return <div className="absolute -left-8 top-1/2 h-14 w-36 -translate-y-1/2 rounded-full bg-black/20" />;
+    return (
+      <div className="absolute -left-[8%] top-1/2 h-full w-[35%] -translate-y-1/2 rounded-full bg-black/20" />
+    );
   }
   if (model === 8) {
-    return <div className="absolute inset-y-0 left-1/2 w-20 -translate-x-1/2 bg-white/16 blur-sm" />;
+    return (
+      <div className="absolute inset-y-0 left-1/2 w-[22%] -translate-x-1/2 bg-white/16 blur-sm" />
+    );
   }
-  return <div className="absolute inset-1 rounded-md border border-white/35" />;
+  return (
+    <div className="absolute inset-[8%] rounded-md border border-white/35" />
+  );
 }
 
 export function AppStyleNameStrip({
@@ -134,28 +171,41 @@ export function AppStyleNameStrip({
   const resolvedName =
     (sampleName ?? config.sampleName ?? PERSONALIZATION_SAMPLE.name).trim() ||
     PERSONALIZATION_SAMPLE.name;
-  const resolvedDesignation =
-    (sampleDesignation ?? config.sampleDesignation ?? PERSONALIZATION_SAMPLE.designation).trim();
+  const resolvedDesignation = (
+    sampleDesignation ??
+    config.sampleDesignation ??
+    PERSONALIZATION_SAMPLE.designation
+  ).trim();
   const gradient = stripGradient(config, resolvedName, imageSeed || "poster");
   const model = stripModel(config, resolvedName, imageSeed || "poster");
-  const verticalPadding = clamp(config.stripHeight * 0.3, compact ? 3 : 4, compact ? 6 : 8);
-  const horizontalPadding = model === 3 ? (compact ? 14 : 24) : compact ? 10 : 14;
-  const nameSize = compact ? "clamp(13px, 3.6vw, 20px)" : "clamp(18px, 5.2vw, 26px)";
-  const designationSize = compact ? "clamp(10px, 2.4vw, 13px)" : "clamp(12px, 3.2vw, 15px)";
+  const verticalPadding = clamp(
+    config.stripHeight * 0.18,
+    compact ? 0 : 1,
+    compact ? 5 : 7,
+  );
+  const horizontalPadding =
+    model === 3 ? (compact ? 14 : 24) : compact ? 10 : 14;
+  const nameSize = compact
+    ? "clamp(4px, 45cqh, 20px)"
+    : "clamp(4px, 45cqh, 26px)";
+  const designationSize = compact
+    ? "clamp(3px, 31cqh, 13px)"
+    : "clamp(3px, 31cqh, 15px)";
 
   return (
     <div
-      className="relative w-full overflow-hidden text-white shadow-[0_-8px_18px_rgba(0,0,0,0.22)]"
+      className="relative h-full w-full overflow-hidden text-white shadow-[0_-8px_18px_rgba(0,0,0,0.22)] [container-type:size]"
       style={{
         backgroundImage: `linear-gradient(90deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
       }}
     >
       <AccentLayer model={model} />
       <div
-        className="relative z-[1] flex min-w-0 items-center justify-center gap-2 text-center"
+        className="relative z-[1] flex h-full min-w-0 items-center justify-center gap-2 text-center"
         style={{
           padding: `${verticalPadding}px ${horizontalPadding}px`,
-          fontFamily: "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
+          fontFamily:
+            "'Anek Telugu Condensed Bold','Noto Sans Telugu Condensed Bold',sans-serif",
         }}
       >
         <span

@@ -81,6 +81,9 @@ interface PersonalizationConfig {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  stripWidth: number;
+  stripX: number;
+  stripBottom: number;
   sampleName: string;
   sampleDesignation: string;
 }
@@ -123,6 +126,9 @@ const defaultPersonalization: PersonalizationConfig = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  stripWidth: 100,
+  stripX: 50,
+  stripBottom: 0,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
@@ -143,7 +149,9 @@ function isImageFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("image/"));
 }
 
-function isVideoPoster(poster: Pick<AdminPoster, "mediaType" | "videoUrl">): boolean {
+function isVideoPoster(
+  poster: Pick<AdminPoster, "mediaType" | "videoUrl">,
+): boolean {
   return poster.mediaType === "video" && Boolean(poster.videoUrl);
 }
 
@@ -210,15 +218,23 @@ function getIstDateKey(epochMs: number): string {
 
 function getIstStartOfDay(epochMs: number): number {
   const date = shiftedIstDate(epochMs);
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - IST_OFFSET_MINUTES * MINUTE_MS;
+  return (
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
+    IST_OFFSET_MINUTES * MINUTE_MS
+  );
 }
 
-function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
+function getIstStartOfDayOffset(
+  epochMs: number,
+  daysFromInputDay: number,
+): number {
   return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
 }
 
-
-function getNextIstWeekdayStart(epochMs: number, weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7): number {
+function getNextIstWeekdayStart(
+  epochMs: number,
+  weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+): number {
   const startOfDay = getIstStartOfDay(epochMs);
   const shifted = shiftedIstDate(startOfDay);
   const todayWeekday = ((shifted.getUTCDay() + 6) % 7) + 1;
@@ -255,14 +271,20 @@ function supportsManualPublishDate(category: AdminCategory | null): boolean {
   return !category.isDynamic || categoryWeekday(category.id) != null;
 }
 
-function resolveDefaultPublishDateKey(category: AdminCategory | null, now: number): string {
+function resolveDefaultPublishDateKey(
+  category: AdminCategory | null,
+  now: number,
+): string {
   if (!category) return "";
   const weekday = categoryWeekday(category.id);
   if (weekday) {
     return getIstDateKey(getNextIstWeekdayStart(now, weekday));
   }
   if (category.isDynamic && (category.eventStartAt ?? 0) > 0) {
-    const earliestVisible = Math.max((category.eventStartAt ?? 0) - 3 * DAY_MS, now);
+    const earliestVisible = Math.max(
+      (category.eventStartAt ?? 0) - 3 * DAY_MS,
+      now,
+    );
     return getIstDateKey(earliestVisible);
   }
   return getIstDateKey(getIstStartOfDayOffset(now, 1));
@@ -314,7 +336,7 @@ function clampPhotoSafeArea(
   const bleed = 0;
   const edgeTravelBleed = 18;
   const bottomBleed = config.showBottomStrip
-    ? Math.max(8, Math.min(16, config.stripHeight * 0.75))
+    ? Math.max(1, Math.min(16, config.stripHeight * 0.75))
     : bleed;
   const aspect = posterAspect(meta);
   const maxScaleX = 100 - margin * 2;
@@ -333,10 +355,20 @@ function clampPhotoSafeArea(
   const halfY = (photoScale * aspect) / 2;
   const extraHalfX = videoExtraPhotoScale / 2;
   const extraHalfY = (videoExtraPhotoScale * aspect) / 2;
+  const stripWidth = clampNumber(config.stripWidth, 35, 100);
+  const stripHalfWidth = stripWidth / 2;
   return {
     ...config,
+    stripHeight: clampNumber(config.stripHeight, 1, 40),
+    stripWidth,
+    stripX: clampNumber(config.stripX, stripHalfWidth, 100 - stripHalfWidth),
+    stripBottom: clampNumber(config.stripBottom, 0, 20),
     photoScale,
-    photoX: clampNumber(config.photoX, margin + halfX - edgeTravelBleed, 100 - margin - halfX + edgeTravelBleed),
+    photoX: clampNumber(
+      config.photoX,
+      margin + halfX - edgeTravelBleed,
+      100 - margin - halfX + edgeTravelBleed,
+    ),
     photoY: clampNumber(
       config.photoY,
       margin + halfY - bleed - edgeTravelBleed,
@@ -398,7 +430,9 @@ export default function AdminUploadStudioPage() {
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<AdminAppPostersResponse | null>(null);
+  const [dashboard, setDashboard] = useState<AdminAppPostersResponse | null>(
+    null,
+  );
   const [pageNow] = useState(() => Date.now());
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -408,28 +442,42 @@ export default function AdminUploadStudioPage() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [videoPreviewStarted, setVideoPreviewStarted] = useState(false);
   const [videoPreviewCycle, setVideoPreviewCycle] = useState(0);
-  const [personalization, setPersonalization] =
-    useState<PersonalizationConfig>(defaultPersonalization);
-  const [selectedPhotoTarget, setSelectedPhotoTarget] =
-    useState<"photo" | "videoExtraPhoto">("photo");
+  const [personalization, setPersonalization] = useState<PersonalizationConfig>(
+    defaultPersonalization,
+  );
+  const [selectedPhotoTarget, setSelectedPhotoTarget] = useState<
+    "photo" | "videoExtraPhoto"
+  >("photo");
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
-  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] = useState(false);
+  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] =
+    useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [requestedPublishDate, setRequestedPublishDate] = useState("");
-  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const dragRef = useRef<{
-    target: "photo" | "videoExtraPhoto" | "name" | null;
+    target:
+      | "photo"
+      | "videoExtraPhoto"
+      | "name"
+      | "strip-left"
+      | "strip-right"
+      | "strip-top"
+      | null;
     dragging: boolean;
     startX: number;
     startY: number;
     initialX: number;
     initialY: number;
+    initialWidth: number;
+    initialHeight: number;
   }>({
     target: null,
     dragging: false,
@@ -437,6 +485,8 @@ export default function AdminUploadStudioPage() {
     startY: 0,
     initialX: 50,
     initialY: 45,
+    initialWidth: 100,
+    initialHeight: 16,
   });
 
   async function loadDashboard(withRefreshState = false) {
@@ -453,9 +503,12 @@ export default function AdminUploadStudioPage() {
         source: isAdminAppPostersPage ? "app_posters" : "upload_posters",
         regionId: region.id,
       });
-      const response = await fetch(`/api/admin/app-posters?${params.toString()}`, {
-        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-      });
+      const response = await fetch(
+        `/api/admin/app-posters?${params.toString()}`,
+        {
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        },
+      );
       const next = (await response.json()) as AdminAppPostersResponse;
       if (!response.ok || !next.ok) {
         throw new Error(next.error ?? "Unable to load app posters.");
@@ -465,7 +518,9 @@ export default function AdminUploadStudioPage() {
         setCategoryId(next.categories[0]!.id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load app posters.");
+      setError(
+        err instanceof Error ? err.message : "Unable to load app posters.",
+      );
     } finally {
       if (withRefreshState) {
         setRefreshing(false);
@@ -534,13 +589,24 @@ export default function AdminUploadStudioPage() {
       if (!frame) return;
       const bounds = frame.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
-      const deltaXPercent = ((event.clientX - dragRef.current.startX) / bounds.width) * 100;
-      const deltaYPercent = ((event.clientY - dragRef.current.startY) / bounds.height) * 100;
-      const nextX = Math.max(0, Math.min(100, dragRef.current.initialX + deltaXPercent));
-      const nextY = Math.max(0, Math.min(100, dragRef.current.initialY + deltaYPercent));
+      const deltaXPercent =
+        ((event.clientX - dragRef.current.startX) / bounds.width) * 100;
+      const deltaYPercent =
+        ((event.clientY - dragRef.current.startY) / bounds.height) * 100;
+      const nextX = Math.max(
+        0,
+        Math.min(100, dragRef.current.initialX + deltaXPercent),
+      );
+      const nextY = Math.max(
+        0,
+        Math.min(100, dragRef.current.initialY + deltaYPercent),
+      );
       if (dragRef.current.target === "photo") {
         setPersonalization((prev) => {
-          return clampPhotoSafeArea({ ...prev, photoX: nextX, photoY: nextY }, fileMeta);
+          return clampPhotoSafeArea(
+            { ...prev, photoX: nextX, photoY: nextY },
+            fileMeta,
+          );
         });
       } else if (dragRef.current.target === "videoExtraPhoto") {
         setPersonalization((prev) => {
@@ -549,6 +615,47 @@ export default function AdminUploadStudioPage() {
             fileMeta,
           );
         });
+      } else if (
+        dragRef.current.target === "strip-left" ||
+        dragRef.current.target === "strip-right"
+      ) {
+        setPersonalization((prev) => {
+          const startLeft =
+            dragRef.current.initialX - dragRef.current.initialWidth / 2;
+          const startRight =
+            dragRef.current.initialX + dragRef.current.initialWidth / 2;
+          const nextLeft =
+            dragRef.current.target === "strip-left"
+              ? clampNumber(startLeft + deltaXPercent, 0, startRight - 35)
+              : startLeft;
+          const nextRight =
+            dragRef.current.target === "strip-right"
+              ? clampNumber(startRight + deltaXPercent, nextLeft + 35, 100)
+              : startRight;
+          const stripWidth = clampNumber(nextRight - nextLeft, 35, 100);
+          return clampPhotoSafeArea(
+            {
+              ...prev,
+              stripWidth,
+              stripX: nextLeft + stripWidth / 2,
+            },
+            fileMeta,
+          );
+        });
+      } else if (dragRef.current.target === "strip-top") {
+        setPersonalization((prev) =>
+          clampPhotoSafeArea(
+            {
+              ...prev,
+              stripHeight: clampNumber(
+                dragRef.current.initialHeight - deltaYPercent,
+                1,
+                40,
+              ),
+            },
+            fileMeta,
+          ),
+        );
       } else if (dragRef.current.target === "name") {
         setPersonalization((prev) => ({ ...prev, nameX: nextX, nameY: nextY }));
       }
@@ -577,7 +684,10 @@ export default function AdminUploadStudioPage() {
   }, [fileMeta]);
 
   useEffect(() => {
-    if (!personalization.showVideoExtraPhoto && selectedPhotoTarget === "videoExtraPhoto") {
+    if (
+      !personalization.showVideoExtraPhoto &&
+      selectedPhotoTarget === "videoExtraPhoto"
+    ) {
       setSelectedPhotoTarget("photo");
     }
   }, [personalization.showVideoExtraPhoto, selectedPhotoTarget]);
@@ -593,6 +703,8 @@ export default function AdminUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.photoX,
       initialY: personalization.photoY,
+      initialWidth: personalization.photoScale,
+      initialHeight: personalization.photoScale,
     };
     setIsPhotoDragging(true);
     setIsVideoExtraPhotoDragging(false);
@@ -608,6 +720,30 @@ export default function AdminUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.nameX,
       initialY: personalization.nameY,
+      initialWidth: personalization.stripWidth,
+      initialHeight: personalization.stripHeight,
+    };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(false);
+    setIsNameDragging(true);
+  }
+
+  function startStripResize(
+    event: React.PointerEvent<HTMLDivElement>,
+    target: "strip-left" | "strip-right" | "strip-top",
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      target,
+      dragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: personalization.stripX,
+      initialY: personalization.nameY,
+      initialWidth: personalization.stripWidth,
+      initialHeight: personalization.stripHeight,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(false);
@@ -625,6 +761,8 @@ export default function AdminUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.videoExtraPhotoX,
       initialY: personalization.videoExtraPhotoY,
+      initialWidth: personalization.videoExtraPhotoScale,
+      initialHeight: personalization.videoExtraPhotoScale,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(true);
@@ -634,7 +772,10 @@ export default function AdminUploadStudioPage() {
     event.preventDefault();
     const direction = event.deltaY < 0 ? 1 : -1;
     setPersonalization((prev) =>
-      clampPhotoSafeArea({ ...prev, photoScale: prev.photoScale + direction * 2 }, fileMeta),
+      clampPhotoSafeArea(
+        { ...prev, photoScale: prev.photoScale + direction * 2 },
+        fileMeta,
+      ),
     );
   }
 
@@ -643,7 +784,10 @@ export default function AdminUploadStudioPage() {
     const direction = event.deltaY < 0 ? 1 : -1;
     setPersonalization((prev) =>
       clampPhotoSafeArea(
-        { ...prev, videoExtraPhotoScale: prev.videoExtraPhotoScale + direction * 2 },
+        {
+          ...prev,
+          videoExtraPhotoScale: prev.videoExtraPhotoScale + direction * 2,
+        },
         fileMeta,
       ),
     );
@@ -651,7 +795,9 @@ export default function AdminUploadStudioPage() {
 
   async function performUpload() {
     if (!file) {
-      setUploadMessage(t("creator.upload.selectPoster", portalLanguage(language)));
+      setUploadMessage(
+        t("creator.upload.selectPoster", portalLanguage(language)),
+      );
       return;
     }
     const fileError = validatePosterFile(file);
@@ -661,19 +807,27 @@ export default function AdminUploadStudioPage() {
       return;
     }
     if (!categoryId) {
-      setUploadMessage(t("creator.upload.selectAssignedCategory", portalLanguage(language)));
+      setUploadMessage(
+        t("creator.upload.selectAssignedCategory", portalLanguage(language)),
+      );
       return;
     }
     setUploadBusy(true);
-    setUploadMessage(t("creator.upload.preparingUpload", portalLanguage(language)));
+    setUploadMessage(
+      t("creator.upload.preparingUpload", portalLanguage(language)),
+    );
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
       const uploadFile = await preparePosterFileForUpload(file);
       const body = new FormData();
-      const safeConfig = JSON.stringify(clampPhotoSafeArea(personalization, fileMeta));
+      const safeConfig = JSON.stringify(
+        clampPhotoSafeArea(personalization, fileMeta),
+      );
       let response: Response;
       if (editingPosterId) {
         const title = `Admin ${activeCategory?.label ?? categoryId}`;
@@ -681,7 +835,10 @@ export default function AdminUploadStudioPage() {
         body.set("categoryId", categoryId);
         body.set("regionId", region.id);
         if (manualPublishDateEnabled) {
-          body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+          body.set(
+            "requestedPublishDate",
+            requestedPublishDate || defaultPublishDate,
+          );
         }
         body.set("media", uploadFile);
         body.set("personalizationConfig", safeConfig);
@@ -698,7 +855,10 @@ export default function AdminUploadStudioPage() {
           isAdminAppPostersPage ? "app_posters" : "upload_posters",
         );
         if (manualPublishDateEnabled) {
-          body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+          body.set(
+            "requestedPublishDate",
+            requestedPublishDate || defaultPublishDate,
+          );
         }
         body.set("media", uploadFile);
         body.set("personalizationConfig", safeConfig);
@@ -710,7 +870,10 @@ export default function AdminUploadStudioPage() {
       }
       const data = await readUploadResponse(response);
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? t("creator.upload.uploadFailed", portalLanguage(language)));
+        throw new Error(
+          data.error ??
+            t("creator.upload.uploadFailed", portalLanguage(language)),
+        );
       }
       setUploadMessage(
         editingPosterId
@@ -727,7 +890,9 @@ export default function AdminUploadStudioPage() {
       await loadDashboard(true);
     } catch (err) {
       setUploadMessage(
-        err instanceof Error ? err.message : t("creator.upload.uploadFailed", portalLanguage(language)),
+        err instanceof Error
+          ? err.message
+          : t("creator.upload.uploadFailed", portalLanguage(language)),
       );
     } finally {
       setUploadBusy(false);
@@ -741,25 +906,40 @@ export default function AdminUploadStudioPage() {
 
   const assignedCategories = dashboard?.categories ?? [];
   const uploadsByCategory = useMemo(() => {
-    return (dashboard?.posters ?? []).reduce<Record<string, AdminPoster[]>>((acc, item) => {
-      const key = normalizeCategoryKey(item.categoryId || item.categoryLabel || "");
-      const current = acc[key] ?? [];
-      current.push(item);
-      current.sort((left, right) => right.createdAt - left.createdAt);
-      acc[key] = current;
-      return acc;
-    }, {});
+    return (dashboard?.posters ?? []).reduce<Record<string, AdminPoster[]>>(
+      (acc, item) => {
+        const key = normalizeCategoryKey(
+          item.categoryId || item.categoryLabel || "",
+        );
+        const current = acc[key] ?? [];
+        current.push(item);
+        current.sort((left, right) => right.createdAt - left.createdAt);
+        acc[key] = current;
+        return acc;
+      },
+      {},
+    );
   }, [dashboard?.posters]);
-  const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
+  const activeCategory =
+    assignedCategories.find((item) => item.id === categoryId) ?? null;
   const activeCategoryKey = normalizeCategoryKey(categoryId);
-  const activeCategoryUploads = categoryId ? (uploadsByCategory[activeCategoryKey] ?? []) : [];
+  const activeCategoryUploads = categoryId
+    ? (uploadsByCategory[activeCategoryKey] ?? [])
+    : [];
   const activeCategoryUpload = activeCategoryUploads[0] ?? null;
   const activeEditingPoster =
-    editingPosterId && activeCategoryUploads.some((item) => item.id === editingPosterId)
-      ? (activeCategoryUploads.find((item) => item.id === editingPosterId) ?? null)
+    editingPosterId &&
+    activeCategoryUploads.some((item) => item.id === editingPosterId)
+      ? (activeCategoryUploads.find((item) => item.id === editingPosterId) ??
+        null)
       : null;
-  const visibleRecentUploads = categoryId ? activeCategoryUploads : (dashboard?.posters ?? []);
-  const defaultPublishDate = resolveDefaultPublishDateKey(activeCategory, pageNow);
+  const visibleRecentUploads = categoryId
+    ? activeCategoryUploads
+    : (dashboard?.posters ?? []);
+  const defaultPublishDate = resolveDefaultPublishDateKey(
+    activeCategory,
+    pageNow,
+  );
   const manualPublishDateEnabled = supportsManualPublishDate(activeCategory);
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
@@ -816,9 +996,9 @@ export default function AdminUploadStudioPage() {
         ? isTelugu
           ? "ఇన్‌స్టంట్ యాప్ అప్లోడ్"
           : "Instant App Upload"
-      : isTelugu
-        ? "అప్లోడ్ స్టూడియో"
-        : "Upload Studio",
+        : isTelugu
+          ? "అప్లోడ్ స్టూడియో"
+          : "Upload Studio",
     uploadTitle: isSpotUploadPage
       ? isTelugu
         ? "షెడ్యూల్డ్ యాప్ అప్లోడ్"
@@ -827,9 +1007,9 @@ export default function AdminUploadStudioPage() {
         ? isTelugu
           ? "ఇన్‌స్టంట్ యాప్ అప్లోడ్"
           : "Instant App Upload"
-      : isTelugu
-        ? "అప్లోడ్"
-        : "Upload",
+        : isTelugu
+          ? "అప్లోడ్"
+          : "Upload",
     refresh: isTelugu ? "రిఫ్రెష్" : "Refresh",
     refreshing: isTelugu ? "రిఫ్రెష్ అవుతోంది..." : "Refreshing...",
     imageCustomizationOnly: isTelugu
@@ -837,7 +1017,9 @@ export default function AdminUploadStudioPage() {
       : "Image customization is available only for poster images.",
     selectedCategory: isTelugu ? "సెలెక్ట్ చేసిన కేటగిరీ" : "Selected Category",
     selectCategory: isTelugu ? "కేటగిరీ సెలెక్ట్ చేయండి" : "Select category",
-    noAssignedCategories: isTelugu ? "కేటగిరీలు లేవు." : "No assigned categories.",
+    noAssignedCategories: isTelugu
+      ? "కేటగిరీలు లేవు."
+      : "No assigned categories.",
     accepted: isTelugu ? "యాక్సెప్ట్" : "Accepted",
     rejected: isTelugu ? "రిజెక్ట్" : "Rejected",
     pending: isTelugu ? "పెండింగ్" : "Pending",
@@ -850,7 +1032,9 @@ export default function AdminUploadStudioPage() {
     close: isTelugu ? "క్లోజ్" : "Close",
     photoShape: isTelugu ? "ఫోటో షేప్" : "Photo Shape",
     premiumShapes: isTelugu ? "ప్రీమియం షేప్స్" : "Premium Shapes",
-    transparentCutouts: isTelugu ? "ట్రాన్స్‌పరెంట్ కట్‌అవుట్స్" : "Transparent Cutouts",
+    transparentCutouts: isTelugu
+      ? "ట్రాన్స్‌పరెంట్ కట్‌అవుట్స్"
+      : "Transparent Cutouts",
     photoMode: isTelugu ? "ఫోటో మోడ్" : "Photo Mode",
     bgRemoved: isTelugu ? "బ్యాక్‌గ్రౌండ్ తీసేసినది" : "BG Removed",
     originalPhoto: isTelugu ? "ఒరిజినల్ ఫోటో" : "Original Photo",
@@ -858,7 +1042,9 @@ export default function AdminUploadStudioPage() {
     dragHelp: isTelugu
       ? "ఫోటో, పేరు నేరుగా డ్రాగ్ చేయండి. ఫోటో సైజ్ మార్చడానికి మౌస్ వీల్ వాడండి."
       : "Drag the photo and name directly. Use the mouse wheel to adjust photo size.",
-    showGradientStrip: isTelugu ? "గ్రాడియెంట్ స్ట్రిప్ చూపించు" : "Show gradient strip",
+    showGradientStrip: isTelugu
+      ? "గ్రాడియెంట్ స్ట్రిప్ చూపించు"
+      : "Show gradient strip",
     apply: isTelugu ? "అప్లై" : "Apply",
     appliedMessage: isTelugu
       ? "కస్టమైజేషన్ అప్లై అయింది. అప్లోడ్ చేసినప్పుడు ఇదే ప్లేస్‌మెంట్ సేవ్ అవుతుంది."
@@ -871,10 +1057,19 @@ export default function AdminUploadStudioPage() {
       rounded_square: t("creator.upload.shape.rounded_square", lang),
       vertical_rectangle: t("creator.upload.shape.vertical_rectangle", lang),
       square: t("creator.upload.shape.square", lang),
-      transparent_bottom_fade: t("creator.upload.shape.transparent_bottom_fade", lang),
+      transparent_bottom_fade: t(
+        "creator.upload.shape.transparent_bottom_fade",
+        lang,
+      ),
       transparent_clean: t("creator.upload.shape.transparent_clean", lang),
-      transparent_soft_round: t("creator.upload.shape.transparent_soft_round", lang),
-      transparent_sharp_round: t("creator.upload.shape.transparent_sharp_round", lang),
+      transparent_soft_round: t(
+        "creator.upload.shape.transparent_soft_round",
+        lang,
+      ),
+      transparent_sharp_round: t(
+        "creator.upload.shape.transparent_sharp_round",
+        lang,
+      ),
     } as Record<string, string>,
   };
   Object.assign(customizationCopy, {
@@ -920,12 +1115,22 @@ export default function AdminUploadStudioPage() {
       setRequestedPublishDate("");
       return;
     }
-    if (activeEditingPoster?.requestedPublishAt && activeEditingPoster.requestedPublishAt > 0) {
-      setRequestedPublishDate(getIstDateKey(activeEditingPoster.requestedPublishAt));
+    if (
+      activeEditingPoster?.requestedPublishAt &&
+      activeEditingPoster.requestedPublishAt > 0
+    ) {
+      setRequestedPublishDate(
+        getIstDateKey(activeEditingPoster.requestedPublishAt),
+      );
       return;
     }
     setRequestedPublishDate(defaultPublishDate);
-  }, [activeCategory, activeEditingPoster?.id, activeEditingPoster?.requestedPublishAt, defaultPublishDate]);
+  }, [
+    activeCategory,
+    activeEditingPoster?.id,
+    activeEditingPoster?.requestedPublishAt,
+    defaultPublishDate,
+  ]);
 
   function openFilePicker(nextCategoryId: string) {
     setCategoryId(nextCategoryId);
@@ -950,7 +1155,9 @@ export default function AdminUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
       const response = await fetch(`/api/admin/app-posters/${posterId}`, {
         method: "DELETE",
@@ -972,13 +1179,17 @@ export default function AdminUploadStudioPage() {
         prev
           ? {
               ...prev,
-              posters: (prev.posters ?? []).filter((item) => item.id !== posterId),
+              posters: (prev.posters ?? []).filter(
+                (item) => item.id !== posterId,
+              ),
             }
           : prev,
       );
       await loadDashboard(true);
     } catch (err) {
-      setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
+      setUploadMessage(
+        err instanceof Error ? err.message : "Unable to delete poster.",
+      );
     }
   }
 
@@ -1009,12 +1220,16 @@ export default function AdminUploadStudioPage() {
       .map((poster) => poster.id)
       .filter((id) => selectedPosterIds.has(id));
     if (ids.length === 0) return;
-    const ok = window.confirm(`Delete ${ids.length} selected upload(s) permanently?`);
+    const ok = window.confirm(
+      `Delete ${ids.length} selected upload(s) permanently?`,
+    );
     if (!ok) return;
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
       for (const posterId of ids) {
         const response = await fetch(`/api/admin/app-posters/${posterId}`, {
@@ -1029,18 +1244,26 @@ export default function AdminUploadStudioPage() {
       if (editingPosterId && ids.includes(editingPosterId)) {
         setEditingPosterId(null);
       }
-      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setSelectedPosterIds(
+        (prev) => new Set([...prev].filter((id) => !ids.includes(id))),
+      );
       setDashboard((prev) =>
         prev
           ? {
               ...prev,
-              posters: (prev.posters ?? []).filter((item) => !ids.includes(item.id)),
+              posters: (prev.posters ?? []).filter(
+                (item) => !ids.includes(item.id),
+              ),
             }
           : prev,
       );
       await loadDashboard(true);
     } catch (err) {
-      setUploadMessage(err instanceof Error ? err.message : "Unable to delete selected posters.");
+      setUploadMessage(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete selected posters.",
+      );
     }
   }
 
@@ -1067,7 +1290,9 @@ export default function AdminUploadStudioPage() {
               onClick={() => void loadDashboard(true)}
               className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
             >
-              {refreshing ? customizationCopy.refreshing : customizationCopy.refresh}
+              {refreshing
+                ? customizationCopy.refreshing
+                : customizationCopy.refresh}
             </button>
           </div>
 
@@ -1116,7 +1341,10 @@ export default function AdminUploadStudioPage() {
                         : categoryTone(category)
                     }`}
                   >
-                    <CategoryLabelWithLogo id={category.id} label={category.label} />
+                    <CategoryLabelWithLogo
+                      id={category.id}
+                      label={category.label}
+                    />
                     {formatCategoryDate(category.eventDateLabel) ? (
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -1126,10 +1354,10 @@ export default function AdminUploadStudioPage() {
                               ? "bg-amber-100 text-amber-800"
                               : "bg-sky-100 text-sky-800"
                         }`}
-                    >
-                      {formatCategoryDate(category.eventDateLabel)}
-                    </span>
-                  ) : null}
+                      >
+                        {formatCategoryDate(category.eventDateLabel)}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })
@@ -1147,7 +1375,10 @@ export default function AdminUploadStudioPage() {
                 </p>
                 <h4 className="mt-2 text-lg font-bold text-slate-950">
                   {activeCategory ? (
-                    <CategoryLabelWithLogo id={activeCategory.id} label={activeCategory.label} />
+                    <CategoryLabelWithLogo
+                      id={activeCategory.id}
+                      label={activeCategory.label}
+                    />
                   ) : (
                     customizationCopy.selectCategory
                   )}
@@ -1196,7 +1427,11 @@ export default function AdminUploadStudioPage() {
                 type="button"
                 disabled={!categoryId}
                 onClick={() => openFilePicker(categoryId)}
-                style={{ aspectRatio: filePreviewUrl ? activePreviewAspectRatio : "1 / 1" }}
+                style={{
+                  aspectRatio: filePreviewUrl
+                    ? activePreviewAspectRatio
+                    : "1 / 1",
+                }}
                 className="relative flex w-full overflow-hidden rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] text-center transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {filePreviewUrl ? (
@@ -1256,13 +1491,19 @@ export default function AdminUploadStudioPage() {
                         value={requestedPublishDate}
                         min={defaultPublishDate || undefined}
                         disabled={!manualPublishDateEnabled}
-                        onChange={(event) => setRequestedPublishDate(event.target.value)}
+                        onChange={(event) =>
+                          setRequestedPublishDate(event.target.value)
+                        }
                         className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                       />
                       <span className="text-xs text-slate-600">
                         {manualPublishDateEnabled
-                          ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
-                          : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
+                          ? isTelugu
+                            ? `డిఫాల్ట్: ${defaultPublishDate}`
+                            : `Default: ${defaultPublishDate}`
+                          : isTelugu
+                            ? `ఆటో షెడ్యూల్: ${defaultPublishDate}`
+                            : `Auto schedule: ${defaultPublishDate}`}
                       </span>
                     </div>
                   </div>
@@ -1312,7 +1553,9 @@ export default function AdminUploadStudioPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
                   Recent uploads
                 </p>
-                <h4 className="mt-2 text-lg font-bold text-slate-950">Latest posters</h4>
+                <h4 className="mt-2 text-lg font-bold text-slate-950">
+                  Latest posters
+                </h4>
                 <p className="mt-1 text-xs text-slate-500">
                   {visibleRecentUploads.length} uploads
                 </p>
@@ -1326,14 +1569,18 @@ export default function AdminUploadStudioPage() {
                     type="checkbox"
                     checked={
                       visibleRecentUploads.length > 0 &&
-                      visibleRecentUploads.every((poster) => selectedPosterIds.has(poster.id))
+                      visibleRecentUploads.every((poster) =>
+                        selectedPosterIds.has(poster.id),
+                      )
                     }
                     onChange={toggleAllVisiblePosters}
                     className="h-4 w-4 accent-rose-600"
                   />
                   Select visible
                 </label>
-                <span className="text-xs font-semibold text-slate-500">{selectedPosterIds.size} selected</span>
+                <span className="text-xs font-semibold text-slate-500">
+                  {selectedPosterIds.size} selected
+                </span>
                 <button
                   type="button"
                   onClick={() => void deleteSelectedPosters()}
@@ -1376,7 +1623,11 @@ export default function AdminUploadStudioPage() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={poster.imageUrl}
-                            alt={poster.title ?? poster.categoryLabel ?? poster.categoryId}
+                            alt={
+                              poster.title ??
+                              poster.categoryLabel ??
+                              poster.categoryId
+                            }
                             className="h-full w-full object-cover"
                           />
                         )}
@@ -1388,7 +1639,9 @@ export default function AdminUploadStudioPage() {
                             label={poster.categoryLabel || poster.categoryId}
                           />
                         </p>
-                        <p className="mt-1 text-xs text-slate-600">{formatDate(poster.createdAt)}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {formatDate(poster.createdAt)}
+                        </p>
                         <p className="mt-1 text-xs font-semibold text-slate-700">
                           Share/Download Count: {poster.engagementCount ?? 0}
                         </p>
@@ -1410,7 +1663,11 @@ export default function AdminUploadStudioPage() {
                         onClick={() => {
                           setEditingPosterId(poster.id);
                           setCategoryId(poster.categoryId);
-                          setPersonalization(parsePersonalizationConfig(poster.personalizationConfig));
+                          setPersonalization(
+                            parsePersonalizationConfig(
+                              poster.personalizationConfig,
+                            ),
+                          );
                           setUploadMessage(null);
                           openCustomizationPicker(poster.categoryId);
                         }}
@@ -1464,7 +1721,8 @@ export default function AdminUploadStudioPage() {
                     Photo Controls
                   </p>
                   <p className="mt-2 text-xs leading-5 text-slate-300">
-                    Select photo slot, adjust shape and size, then drag it inside the preview.
+                    Select photo slot, adjust shape and size, then drag it
+                    inside the preview.
                   </p>
 
                   <div className="mt-4 grid gap-3">
@@ -1502,7 +1760,9 @@ export default function AdminUploadStudioPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                          onClick={() =>
+                            setSelectedPhotoTarget("videoExtraPhoto")
+                          }
                           disabled={!personalization.showVideoExtraPhoto}
                           className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                             selectedPhotoTarget === "videoExtraPhoto"
@@ -1532,8 +1792,13 @@ export default function AdminUploadStudioPage() {
                           setPersonalization((prev) => ({
                             ...prev,
                             ...(selectedPhotoTarget === "videoExtraPhoto"
-                              ? { videoExtraPhotoShape: event.target.value as PhotoShape }
-                              : { photoShape: event.target.value as PhotoShape }),
+                              ? {
+                                  videoExtraPhotoShape: event.target
+                                    .value as PhotoShape,
+                                }
+                              : {
+                                  photoShape: event.target.value as PhotoShape,
+                                }),
                           }))
                         }
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
@@ -1553,7 +1818,8 @@ export default function AdminUploadStudioPage() {
                                 value={option.value}
                                 className="bg-white text-slate-950"
                               >
-                                {customizationCopy.shapeLabels[option.value] ?? option.label}
+                                {customizationCopy.shapeLabels[option.value] ??
+                                  option.label}
                               </option>
                             ))}
                           </optgroup>
@@ -1577,21 +1843,27 @@ export default function AdminUploadStudioPage() {
                             ...prev,
                             ...(selectedPhotoTarget === "videoExtraPhoto"
                               ? {
-                                  videoExtraPhotoRenderMode: event.target.value as
-                                    | "cutout"
-                                    | "original",
+                                  videoExtraPhotoRenderMode: event.target
+                                    .value as "cutout" | "original",
                                 }
                               : {
-                                  photoRenderMode: event.target.value as "cutout" | "original",
+                                  photoRenderMode: event.target.value as
+                                    "cutout" | "original",
                                 }),
                           }))
                         }
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
                       >
-                        <option value="cutout" className="bg-white text-slate-950">
+                        <option
+                          value="cutout"
+                          className="bg-white text-slate-950"
+                        >
                           {customizationCopy.bgRemoved}
                         </option>
-                        <option value="original" className="bg-white text-slate-950">
+                        <option
+                          value="original"
+                          className="bg-white text-slate-950"
+                        >
                           {customizationCopy.originalPhoto}
                         </option>
                       </select>
@@ -1614,9 +1886,10 @@ export default function AdminUploadStudioPage() {
                               ...prev,
                               ...(selectedPhotoTarget === "videoExtraPhoto"
                                 ? {
-                                    videoExtraPhotoAnimation: parseVideoPhotoAnimation(
-                                      event.target.value,
-                                    ),
+                                    videoExtraPhotoAnimation:
+                                      parseVideoPhotoAnimation(
+                                        event.target.value,
+                                      ),
                                   }
                                 : {
                                     photoAnimation: parseVideoPhotoAnimation(
@@ -1663,8 +1936,16 @@ export default function AdminUploadStudioPage() {
                           setPersonalization((prev) =>
                             clampPhotoSafeArea(
                               selectedPhotoTarget === "videoExtraPhoto"
-                                ? { ...prev, videoExtraPhotoScale: Number(event.target.value) }
-                                : { ...prev, photoScale: Number(event.target.value) },
+                                ? {
+                                    ...prev,
+                                    videoExtraPhotoScale: Number(
+                                      event.target.value,
+                                    ),
+                                  }
+                                : {
+                                    ...prev,
+                                    photoScale: Number(event.target.value),
+                                  },
                               fileMeta,
                             ),
                           )
@@ -1680,7 +1961,9 @@ export default function AdminUploadStudioPage() {
                 </div>
 
                 <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
-                  <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+                  <span className="font-medium">
+                    {customizationCopy.showGradientStrip}
+                  </span>
                   <span className="relative inline-flex items-center">
                     <input
                       type="checkbox"
@@ -1710,7 +1993,10 @@ export default function AdminUploadStudioPage() {
                 <div className="flex w-full max-w-4xl flex-col items-center gap-4">
                   <div className="w-full overflow-auto p-0 sm:p-1">
                     <div className="mx-auto inline-block max-w-full align-top leading-none">
-                      <div ref={previewFrameRef} className="relative overflow-visible align-top">
+                      <div
+                        ref={previewFrameRef}
+                        className="relative overflow-visible align-top"
+                      >
                         {isVideoPreview ? (
                           <video
                             ref={previewVideoRef}
@@ -1747,8 +2033,12 @@ export default function AdminUploadStudioPage() {
                             top: `${safePersonalization.photoY}%`,
                             width: `${safePersonalization.photoScale}%`,
                             zIndex: 1,
-                            aspectRatio: photoShapeAspectRatio(safePersonalization.photoShape),
-                            ...photoShapeFrameStyle(safePersonalization.photoShape),
+                            aspectRatio: photoShapeAspectRatio(
+                              safePersonalization.photoShape,
+                            ),
+                            ...photoShapeFrameStyle(
+                              safePersonalization.photoShape,
+                            ),
                             ...resolveVideoPhotoAnimationStyle(
                               safePersonalization.photoAnimation,
                               isVideoPreview && videoPreviewStarted,
@@ -1771,7 +2061,9 @@ export default function AdminUploadStudioPage() {
                             onPointerDown={startVideoExtraPhotoDrag}
                             onWheel={onVideoExtraPhotoWheel}
                             className={`absolute touch-none overflow-hidden ${
-                              isVideoExtraPhotoDragging ? "cursor-grabbing" : "cursor-grab"
+                              isVideoExtraPhotoDragging
+                                ? "cursor-grabbing"
+                                : "cursor-grab"
                             }`}
                             style={{
                               left: `${safePersonalization.videoExtraPhotoX}%`,
@@ -1793,9 +2085,12 @@ export default function AdminUploadStudioPage() {
                           >
                             {renderPosterPhotoPreview({
                               shape: safePersonalization.videoExtraPhotoShape,
-                              renderMode: safePersonalization.videoExtraPhotoRenderMode,
-                              edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
-                              frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
+                              renderMode:
+                                safePersonalization.videoExtraPhotoRenderMode,
+                              edgeStyle:
+                                safePersonalization.videoExtraPhotoEdgeStyle,
+                              frameStyle:
+                                safePersonalization.videoExtraPhotoFrameStyle,
                               src: PERSONALIZATION_SAMPLE.photoUrl,
                               alt: "Add photo sample user",
                             })}
@@ -1812,12 +2107,16 @@ export default function AdminUploadStudioPage() {
                             className="absolute left-1/2 top-1/2 z-10 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/78 text-white shadow-2xl ring-1 ring-white/15 transition hover:bg-slate-950/88"
                             aria-label="Play video preview"
                           >
-                            <span className="ml-1 text-3xl leading-none">▶</span>
+                            <span className="ml-1 text-3xl leading-none">
+                              ▶
+                            </span>
                           </button>
                         ) : null}
 
                         {stripOverlapWarning ? (
-                          <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                          <NameStripOverlapWarning
+                            heightPercent={stripSafeZoneHeight}
+                          />
                         ) : null}
                         {!personalization.showBottomStrip ? (
                           <div
@@ -1847,12 +2146,46 @@ export default function AdminUploadStudioPage() {
                           </div>
                         ) : null}
                         {personalization.showBottomStrip ? (
-                          <div className="absolute inset-x-0 bottom-0 z-[3]">
+                          <div
+                            className="absolute z-[3] touch-none"
+                            style={{
+                              left: `${safePersonalization.stripX}%`,
+                              bottom: `${safePersonalization.stripBottom}%`,
+                              width: `${safePersonalization.stripWidth}%`,
+                              height: `${Math.max(0.5, safePersonalization.stripHeight * 0.5)}%`,
+                              transform: "translateX(-50%)",
+                            }}
+                          >
                             <AppStyleNameStrip
                               config={personalization}
-                              imageSeed={file?.name ?? activeEditingPoster?.imageUrl ?? "admin-upload"}
+                              imageSeed={
+                                file?.name ??
+                                activeEditingPoster?.imageUrl ??
+                                "admin-upload"
+                              }
                               sampleName={PERMANENT_SAMPLE_NAME}
                               sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-left")
+                              }
+                              className="absolute -left-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                              aria-label="Resize name strip left"
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-right")
+                              }
+                              className="absolute -right-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                              aria-label="Resize name strip right"
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-top")
+                              }
+                              className="absolute left-1/2 top-0 h-4 w-12 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize rounded-full border border-white/80 bg-emerald-500/90 shadow-lg"
+                              aria-label="Resize name strip height"
                             />
                           </div>
                         ) : null}
@@ -1881,7 +2214,9 @@ export default function AdminUploadStudioPage() {
           </div>
         </div>
       ) : null}
-      <style jsx global>{VIDEO_PHOTO_ANIMATION_GLOBAL_CSS}</style>
+      <style jsx global>
+        {VIDEO_PHOTO_ANIMATION_GLOBAL_CSS}
+      </style>
     </>
   );
 }

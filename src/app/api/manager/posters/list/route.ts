@@ -34,7 +34,8 @@ type PhotoShape =
   | "transparent_sharp_round";
 
 type PhotoEdgeStyle = "soft_fade" | "sharp" | "bottom_fade" | "feather";
-type PhotoFrameStyle = "none" | "inner_shadow" | "white_outline" | "glow_edge" | "double_border";
+type PhotoFrameStyle =
+  "none" | "inner_shadow" | "white_outline" | "glow_edge" | "double_border";
 
 const photoShapes = new Set<string>([
   "circle",
@@ -69,10 +70,21 @@ interface PosterPersonalization {
   photoX: number;
   photoY: number;
   photoScale: number;
+  showVideoExtraPhoto: boolean;
+  videoExtraPhotoShape: PhotoShape;
+  videoExtraPhotoRenderMode: "cutout" | "original";
+  videoExtraPhotoEdgeStyle: PhotoEdgeStyle;
+  videoExtraPhotoFrameStyle: PhotoFrameStyle;
+  videoExtraPhotoX: number;
+  videoExtraPhotoY: number;
+  videoExtraPhotoScale: number;
   nameX: number;
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  stripWidth: number;
+  stripX: number;
+  stripBottom: number;
   showWhatsapp: boolean;
   sampleName: string;
   sampleDesignation: string;
@@ -125,10 +137,13 @@ interface PosterListItem {
 const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function dashboardVisibleUntilForStatus(data: Record<string, unknown>): number {
-  const status = String(data.status ?? "pending").trim().toLowerCase();
+  const status = String(data.status ?? "pending")
+    .trim()
+    .toLowerCase();
   if (status === "approved") {
     const approvedAt = Number(data.approvedAt ?? 0);
-    const reviewVisibleUntil = approvedAt > 0 ? approvedAt + DASHBOARD_RETENTION_MS : 0;
+    const reviewVisibleUntil =
+      approvedAt > 0 ? approvedAt + DASHBOARD_RETENTION_MS : 0;
     const eventEndAt = Number(data.eventEndAt ?? 0);
     return Math.max(reviewVisibleUntil, eventEndAt);
   }
@@ -136,8 +151,13 @@ function dashboardVisibleUntilForStatus(data: Record<string, unknown>): number {
   return createdAt > 0 ? createdAt + DASHBOARD_RETENTION_MS : 0;
 }
 
-function isActiveApprovedEventPoster(data: Record<string, unknown>, now: number): boolean {
-  const status = String(data.status ?? "pending").trim().toLowerCase();
+function isActiveApprovedEventPoster(
+  data: Record<string, unknown>,
+  now: number,
+): boolean {
+  const status = String(data.status ?? "pending")
+    .trim()
+    .toLowerCase();
   if (status !== "approved") {
     return false;
   }
@@ -145,8 +165,14 @@ function isActiveApprovedEventPoster(data: Record<string, unknown>, now: number)
   return eventEndAt > now;
 }
 
-function isDashboardVisible(data: Record<string, unknown>, now: number): boolean {
-  if (Number(data.dashboardHiddenAt ?? 0) > 0 && !isActiveApprovedEventPoster(data, now)) {
+function isDashboardVisible(
+  data: Record<string, unknown>,
+  now: number,
+): boolean {
+  if (
+    Number(data.dashboardHiddenAt ?? 0) > 0 &&
+    !isActiveApprovedEventPoster(data, now)
+  ) {
     return false;
   }
   const visibleUntil = dashboardVisibleUntilForStatus(data);
@@ -162,10 +188,21 @@ const defaultPersonalization: PosterPersonalization = {
   photoX: 78,
   photoY: 42,
   photoScale: 44,
+  showVideoExtraPhoto: false,
+  videoExtraPhotoShape: "circle",
+  videoExtraPhotoRenderMode: "cutout",
+  videoExtraPhotoEdgeStyle: "soft_fade",
+  videoExtraPhotoFrameStyle: "none",
+  videoExtraPhotoX: 24,
+  videoExtraPhotoY: 44,
+  videoExtraPhotoScale: 28,
   nameX: 50,
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  stripWidth: 100,
+  stripX: 50,
+  stripBottom: 0,
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
@@ -178,13 +215,21 @@ function parsePersonalization(input: unknown): PosterPersonalization {
   }
   const raw = input as Record<string, unknown>;
   const shape = String(raw.photoShape ?? defaultPersonalization.photoShape);
-  const photoShape: PosterPersonalization["photoShape"] =
-    photoShapes.has(shape) ? (shape as PhotoShape) : defaultPersonalization.photoShape;
+  const photoShape: PosterPersonalization["photoShape"] = photoShapes.has(shape)
+    ? (shape as PhotoShape)
+    : defaultPersonalization.photoShape;
+  const extraShape = String(
+    raw.videoExtraPhotoShape ?? defaultPersonalization.videoExtraPhotoShape,
+  );
+  const videoExtraPhotoShape: PosterPersonalization["videoExtraPhotoShape"] =
+    photoShapes.has(extraShape)
+      ? (extraShape as PhotoShape)
+      : defaultPersonalization.videoExtraPhotoShape;
   const numberInRange = (
     value: unknown,
     fallback: number,
     min: number,
-    max: number
+    max: number,
   ) => {
     const num = Number(value);
     if (!Number.isFinite(num)) {
@@ -192,9 +237,19 @@ function parsePersonalization(input: unknown): PosterPersonalization {
     }
     return Math.max(min, Math.min(max, num));
   };
+  const stripWidth = numberInRange(
+    raw.stripWidth,
+    defaultPersonalization.stripWidth,
+    35,
+    100,
+  );
+
   return {
     photoShape,
-    photoRenderMode: raw.photoRenderMode === "original" ? "original" : defaultPersonalization.photoRenderMode,
+    photoRenderMode:
+      raw.photoRenderMode === "original"
+        ? "original"
+        : defaultPersonalization.photoRenderMode,
     edgeStyle:
       raw.edgeStyle === "sharp" ||
       raw.edgeStyle === "soft_fade" ||
@@ -215,14 +270,78 @@ function parsePersonalization(input: unknown): PosterPersonalization {
         : defaultPersonalization.showSafeAreas,
     photoX: numberInRange(raw.photoX, defaultPersonalization.photoX, 0, 100),
     photoY: numberInRange(raw.photoY, defaultPersonalization.photoY, 0, 100),
-    photoScale: numberInRange(raw.photoScale, defaultPersonalization.photoScale, 10, 100),
+    photoScale: numberInRange(
+      raw.photoScale,
+      defaultPersonalization.photoScale,
+      10,
+      100,
+    ),
+    showVideoExtraPhoto:
+      typeof raw.showVideoExtraPhoto === "boolean"
+        ? raw.showVideoExtraPhoto
+        : defaultPersonalization.showVideoExtraPhoto,
+    videoExtraPhotoShape,
+    videoExtraPhotoRenderMode:
+      raw.videoExtraPhotoRenderMode === "original"
+        ? "original"
+        : defaultPersonalization.videoExtraPhotoRenderMode,
+    videoExtraPhotoEdgeStyle:
+      raw.videoExtraPhotoEdgeStyle === "sharp" ||
+      raw.videoExtraPhotoEdgeStyle === "soft_fade" ||
+      raw.videoExtraPhotoEdgeStyle === "bottom_fade" ||
+      raw.videoExtraPhotoEdgeStyle === "feather"
+        ? (raw.videoExtraPhotoEdgeStyle as PhotoEdgeStyle)
+        : defaultPersonalization.videoExtraPhotoEdgeStyle,
+    videoExtraPhotoFrameStyle:
+      raw.videoExtraPhotoFrameStyle === "inner_shadow" ||
+      raw.videoExtraPhotoFrameStyle === "white_outline" ||
+      raw.videoExtraPhotoFrameStyle === "glow_edge" ||
+      raw.videoExtraPhotoFrameStyle === "double_border"
+        ? (raw.videoExtraPhotoFrameStyle as PhotoFrameStyle)
+        : defaultPersonalization.videoExtraPhotoFrameStyle,
+    videoExtraPhotoX: numberInRange(
+      raw.videoExtraPhotoX,
+      defaultPersonalization.videoExtraPhotoX,
+      0,
+      100,
+    ),
+    videoExtraPhotoY: numberInRange(
+      raw.videoExtraPhotoY,
+      defaultPersonalization.videoExtraPhotoY,
+      0,
+      100,
+    ),
+    videoExtraPhotoScale: numberInRange(
+      raw.videoExtraPhotoScale,
+      defaultPersonalization.videoExtraPhotoScale,
+      10,
+      100,
+    ),
     nameX: numberInRange(raw.nameX, defaultPersonalization.nameX, 0, 100),
     nameY: numberInRange(raw.nameY, defaultPersonalization.nameY, 0, 100),
     showBottomStrip:
       typeof raw.showBottomStrip === "boolean"
         ? raw.showBottomStrip
         : defaultPersonalization.showBottomStrip,
-    stripHeight: numberInRange(raw.stripHeight, defaultPersonalization.stripHeight, 8, 40),
+    stripHeight: numberInRange(
+      raw.stripHeight,
+      defaultPersonalization.stripHeight,
+      1,
+      40,
+    ),
+    stripWidth,
+    stripX: numberInRange(
+      raw.stripX,
+      defaultPersonalization.stripX,
+      stripWidth / 2,
+      100 - stripWidth / 2,
+    ),
+    stripBottom: numberInRange(
+      raw.stripBottom,
+      defaultPersonalization.stripBottom,
+      0,
+      20,
+    ),
     showWhatsapp:
       typeof raw.showWhatsapp === "boolean"
         ? raw.showWhatsapp
@@ -232,15 +351,34 @@ function parsePersonalization(input: unknown): PosterPersonalization {
         ? raw.sampleName.trim()
         : defaultPersonalization.sampleName,
     sampleDesignation:
-      typeof raw.sampleDesignation === "string" && raw.sampleDesignation.trim().length > 0
+      typeof raw.sampleDesignation === "string" &&
+      raw.sampleDesignation.trim().length > 0
         ? raw.sampleDesignation.trim()
         : defaultPersonalization.sampleDesignation,
     ...clampVideoPosterCustomization({
       ...defaultVideoPosterCustomization,
-      videoFit: raw.videoFit === "cover" ? "cover" : defaultVideoPosterCustomization.videoFit,
-      videoScale: numberInRange(raw.videoScale, defaultVideoPosterCustomization.videoScale, 50, 200),
-      videoOffsetX: numberInRange(raw.videoOffsetX, defaultVideoPosterCustomization.videoOffsetX, 0, 100),
-      videoOffsetY: numberInRange(raw.videoOffsetY, defaultVideoPosterCustomization.videoOffsetY, 0, 100),
+      videoFit:
+        raw.videoFit === "cover"
+          ? "cover"
+          : defaultVideoPosterCustomization.videoFit,
+      videoScale: numberInRange(
+        raw.videoScale,
+        defaultVideoPosterCustomization.videoScale,
+        50,
+        200,
+      ),
+      videoOffsetX: numberInRange(
+        raw.videoOffsetX,
+        defaultVideoPosterCustomization.videoOffsetX,
+        0,
+        100,
+      ),
+      videoOffsetY: numberInRange(
+        raw.videoOffsetY,
+        defaultVideoPosterCustomization.videoOffsetY,
+        0,
+        100,
+      ),
       videoCornerRadius: numberInRange(
         raw.videoCornerRadius,
         defaultVideoPosterCustomization.videoCornerRadius,
@@ -257,10 +395,15 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") ?? "pending").trim();
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
-    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
+    const region = await assertActorCanAccessRegion(
+      actor,
+      url.searchParams.get("regionId"),
+    );
     const now = Date.now();
     const scopedCreatorIds = await loadScopedCreatorIds(actor);
-    const scopedCreatorIdSet = scopedCreatorIds ? new Set(scopedCreatorIds) : null;
+    const scopedCreatorIdSet = scopedCreatorIds
+      ? new Set(scopedCreatorIds)
+      : null;
 
     const baseQuery = adminDb.collection("creatorPosters");
     const posterSnap =
@@ -274,8 +417,7 @@ export async function GET(req: NextRequest) {
       }))
       .filter((item) => String(item.data.regionId ?? "").trim() === region.id)
       .sort(
-        (a, b) =>
-          Number(b.data.createdAt ?? 0) - Number(a.data.createdAt ?? 0)
+        (a, b) => Number(b.data.createdAt ?? 0) - Number(a.data.createdAt ?? 0),
       )
       .slice(0, 250);
 
@@ -290,18 +432,18 @@ export async function GET(req: NextRequest) {
       new Set(
         posterDocs
           .map((item) => String(item.data.creatorPublicId ?? "").trim())
-          .filter((id) => id.length > 0)
-      )
+          .filter((id) => id.length > 0),
+      ),
     );
     const creatorSnaps = await Promise.all(
       creatorIds.map((creatorId) =>
-        adminDb.collection("creatorProfiles").doc(creatorId).get()
-      )
+        adminDb.collection("creatorProfiles").doc(creatorId).get(),
+      ),
     );
     const creatorMap = new Map(
       creatorSnaps
         .filter((snap) => snap.exists)
-        .map((snap) => [snap.id, snap.data() as Record<string, unknown>])
+        .map((snap) => [snap.id, snap.data() as Record<string, unknown>]),
     );
 
     const posters: PosterListItem[] = posterDocs
@@ -329,7 +471,9 @@ export async function GET(req: NextRequest) {
           status: String(item.data.status ?? "pending"),
           reviewComment: String(item.data.reviewComment ?? ""),
           duplicateStatus: String(item.data.duplicateStatus ?? "unique"),
-          duplicateCount: duplicateHashCounts.get(String(item.data.imageHash ?? "").trim()) ?? 0,
+          duplicateCount:
+            duplicateHashCounts.get(String(item.data.imageHash ?? "").trim()) ??
+            0,
           reviewHistory: Array.isArray(item.data.reviewHistory)
             ? item.data.reviewHistory.map((entry) => {
                 const raw = entry as Record<string, unknown>;
@@ -346,14 +490,17 @@ export async function GET(req: NextRequest) {
           saleCount: Number(item.data.saleCount ?? 0),
           engagementCount: Number(
             item.data.engagementCount ??
-              Number(item.data.shareCount ?? 0) + Number(item.data.downloadCount ?? 0),
+              Number(item.data.shareCount ?? 0) +
+                Number(item.data.downloadCount ?? 0),
           ),
           shareCount: Number(item.data.shareCount ?? 0),
           downloadCount: Number(item.data.downloadCount ?? 0),
           grossAmount: Number(item.data.grossAmount ?? 0),
           creatorEarnings: Number(item.data.creatorEarnings ?? 0),
           platformEarnings: Number(item.data.platformEarnings ?? 0),
-          personalizationConfig: parsePersonalization(item.data.personalizationConfig),
+          personalizationConfig: parsePersonalization(
+            item.data.personalizationConfig,
+          ),
           createdAt: Number(item.data.createdAt ?? 0),
           updatedAt: Number(item.data.updatedAt ?? 0),
           approvedAt: Number(item.data.approvedAt ?? 0),
@@ -382,7 +529,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, posters });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load posters.";
+    const message =
+      error instanceof Error ? error.message : "Unable to load posters.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

@@ -82,6 +82,9 @@ interface PersonalizationConfig {
   nameY: number;
   showBottomStrip: boolean;
   stripHeight: number;
+  stripWidth: number;
+  stripX: number;
+  stripBottom: number;
   sampleName: string;
   sampleDesignation: string;
 }
@@ -144,6 +147,9 @@ const defaultPersonalization: PersonalizationConfig = {
   nameY: 82,
   showBottomStrip: true,
   stripHeight: 16,
+  stripWidth: 100,
+  stripX: 50,
+  stripBottom: 0,
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
@@ -164,7 +170,9 @@ function isImageFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("image/"));
 }
 
-function isVideoPoster(poster: Pick<CreatorPoster, "mediaType" | "videoUrl">): boolean {
+function isVideoPoster(
+  poster: Pick<CreatorPoster, "mediaType" | "videoUrl">,
+): boolean {
   return poster.mediaType === "video" && Boolean(poster.videoUrl);
 }
 
@@ -211,15 +219,23 @@ function getIstDateKey(epochMs: number): string {
 
 function getIstStartOfDay(epochMs: number): number {
   const date = shiftedIstDate(epochMs);
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - IST_OFFSET_MINUTES * MINUTE_MS;
+  return (
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
+    IST_OFFSET_MINUTES * MINUTE_MS
+  );
 }
 
-
-function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number): number {
+function getIstStartOfDayOffset(
+  epochMs: number,
+  daysFromInputDay: number,
+): number {
   return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
 }
 
-function getNextIstWeekdayStart(epochMs: number, weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7): number {
+function getNextIstWeekdayStart(
+  epochMs: number,
+  weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+): number {
   const startOfDay = getIstStartOfDay(epochMs);
   const shifted = shiftedIstDate(startOfDay);
   const todayWeekday = ((shifted.getUTCDay() + 6) % 7) + 1;
@@ -256,14 +272,20 @@ function supportsManualPublishDate(category: CreatorCategory | null): boolean {
   return !category.isDynamic || categoryWeekday(category.id) != null;
 }
 
-function resolveDefaultPublishDateKey(category: CreatorCategory | null, now: number): string {
+function resolveDefaultPublishDateKey(
+  category: CreatorCategory | null,
+  now: number,
+): string {
   if (!category) return "";
   const weekday = categoryWeekday(category.id);
   if (weekday) {
     return getIstDateKey(getNextIstWeekdayStart(now, weekday));
   }
   if (category.isDynamic && (category.eventStartAt ?? 0) > 0) {
-    const earliestVisible = Math.max((category.eventStartAt ?? 0) - 3 * DAY_MS, now);
+    const earliestVisible = Math.max(
+      (category.eventStartAt ?? 0) - 3 * DAY_MS,
+      now,
+    );
     return getIstDateKey(earliestVisible);
   }
   return getIstDateKey(getIstStartOfDayOffset(now, 1));
@@ -315,12 +337,16 @@ function clampPhotoSafeArea(
   const bleed = 0;
   const edgeTravelBleed = 18;
   const bottomBleed = config.showBottomStrip
-    ? Math.max(8, Math.min(16, config.stripHeight * 0.75))
+    ? Math.max(1, Math.min(16, config.stripHeight * 0.75))
     : bleed;
   const aspect = posterAspect(meta);
   const maxScaleX = 100 - margin * 2;
   const maxScaleY = (100 - margin * 2) / aspect;
-  const photoScale = clampNumber(config.photoScale, 12, Math.max(12, Math.min(90, maxScaleX, maxScaleY)));
+  const photoScale = clampNumber(
+    config.photoScale,
+    12,
+    Math.max(12, Math.min(90, maxScaleX, maxScaleY)),
+  );
   const videoExtraPhotoScale = clampNumber(
     config.videoExtraPhotoScale,
     12,
@@ -330,10 +356,20 @@ function clampPhotoSafeArea(
   const halfY = (photoScale * aspect) / 2;
   const extraHalfX = videoExtraPhotoScale / 2;
   const extraHalfY = (videoExtraPhotoScale * aspect) / 2;
+  const stripWidth = clampNumber(config.stripWidth, 35, 100);
+  const stripHalfWidth = stripWidth / 2;
   return {
     ...config,
+    stripHeight: clampNumber(config.stripHeight, 1, 40),
+    stripWidth,
+    stripX: clampNumber(config.stripX, stripHalfWidth, 100 - stripHalfWidth),
+    stripBottom: clampNumber(config.stripBottom, 0, 20),
     photoScale,
-    photoX: clampNumber(config.photoX, margin + halfX - edgeTravelBleed, 100 - margin - halfX + edgeTravelBleed),
+    photoX: clampNumber(
+      config.photoX,
+      margin + halfX - edgeTravelBleed,
+      100 - margin - halfX + edgeTravelBleed,
+    ),
     photoY: clampNumber(
       config.photoY,
       margin + halfY - bleed - edgeTravelBleed,
@@ -396,7 +432,9 @@ export default function CreatorUploadStudioPage() {
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<CreatorDashboardResponse | null>(null);
+  const [dashboard, setDashboard] = useState<CreatorDashboardResponse | null>(
+    null,
+  );
   const [pageNow] = useState(() => Date.now());
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -405,31 +443,49 @@ export default function CreatorUploadStudioPage() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [videoPreviewStarted, setVideoPreviewStarted] = useState(false);
   const [videoPreviewCycle, setVideoPreviewCycle] = useState(0);
-  const [personalization, setPersonalization] =
-    useState<PersonalizationConfig>(defaultPersonalization);
-  const [selectedPhotoTarget, setSelectedPhotoTarget] =
-    useState<"photo" | "videoExtraPhoto">("photo");
+  const [personalization, setPersonalization] = useState<PersonalizationConfig>(
+    defaultPersonalization,
+  );
+  const [selectedPhotoTarget, setSelectedPhotoTarget] = useState<
+    "photo" | "videoExtraPhoto"
+  >("photo");
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
-  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] = useState(false);
+  const [isVideoExtraPhotoDragging, setIsVideoExtraPhotoDragging] =
+    useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [requestedPublishDate, setRequestedPublishDate] = useState("");
   const [activeTab, setActiveTab] = useState<"upload" | "review">("upload");
-  const [editingPoster, setEditingPoster] = useState<CreatorPoster | null>(null);
-  const [posterActionBusyMap, setPosterActionBusyMap] = useState<Record<string, boolean>>({});
-  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(() => new Set());
+  const [editingPoster, setEditingPoster] = useState<CreatorPoster | null>(
+    null,
+  );
+  const [posterActionBusyMap, setPosterActionBusyMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [selectedPosterIds, setSelectedPosterIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [openCustomizeAfterPick, setOpenCustomizeAfterPick] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const dragRef = useRef<{
-    target: "photo" | "videoExtraPhoto" | "name" | null;
+    target:
+      | "photo"
+      | "videoExtraPhoto"
+      | "name"
+      | "strip-left"
+      | "strip-right"
+      | "strip-top"
+      | null;
     dragging: boolean;
     startX: number;
     startY: number;
     initialX: number;
     initialY: number;
+    initialWidth: number;
+    initialHeight: number;
   }>({
     target: null,
     dragging: false,
@@ -437,6 +493,8 @@ export default function CreatorUploadStudioPage() {
     startY: 0,
     initialX: 50,
     initialY: 45,
+    initialWidth: 100,
+    initialHeight: 16,
   });
 
   async function loadDashboard(withRefreshState = false) {
@@ -449,17 +507,28 @@ export default function CreatorUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) return;
-      const response = await fetch(withCreatorImpersonationQuery(`/api/creator/dashboard?regionId=${encodeURIComponent(region.id)}`, searchParams), {
-        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-      });
+      const response = await fetch(
+        withCreatorImpersonationQuery(
+          `/api/creator/dashboard?regionId=${encodeURIComponent(region.id)}`,
+          searchParams,
+        ),
+        {
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        },
+      );
       const next = (await response.json()) as CreatorDashboardResponse;
       if (!response.ok || !next.ok) {
-        throw new Error(next.error ?? t("creator.upload.unableLoadWorkspace", portalLanguage(language)));
+        throw new Error(
+          next.error ??
+            t("creator.upload.unableLoadWorkspace", portalLanguage(language)),
+        );
       }
       setDashboard(next);
       if (next.assignedCategories && next.assignedCategories.length > 0) {
         const requestedMatch = requestedCategoryId
-          ? next.assignedCategories.find((item) => item.id === requestedCategoryId)
+          ? next.assignedCategories.find(
+              (item) => item.id === requestedCategoryId,
+            )
           : null;
         if (requestedMatch) {
           setCategoryId(requestedMatch.id);
@@ -468,7 +537,11 @@ export default function CreatorUploadStudioPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("creator.upload.unableLoadWorkspace", portalLanguage(language)));
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("creator.upload.unableLoadWorkspace", portalLanguage(language)),
+      );
     } finally {
       if (withRefreshState) {
         setRefreshing(false);
@@ -537,13 +610,24 @@ export default function CreatorUploadStudioPage() {
       if (!frame) return;
       const bounds = frame.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) return;
-      const deltaXPercent = ((event.clientX - dragRef.current.startX) / bounds.width) * 100;
-      const deltaYPercent = ((event.clientY - dragRef.current.startY) / bounds.height) * 100;
-      const nextX = Math.max(0, Math.min(100, dragRef.current.initialX + deltaXPercent));
-      const nextY = Math.max(0, Math.min(100, dragRef.current.initialY + deltaYPercent));
+      const deltaXPercent =
+        ((event.clientX - dragRef.current.startX) / bounds.width) * 100;
+      const deltaYPercent =
+        ((event.clientY - dragRef.current.startY) / bounds.height) * 100;
+      const nextX = Math.max(
+        0,
+        Math.min(100, dragRef.current.initialX + deltaXPercent),
+      );
+      const nextY = Math.max(
+        0,
+        Math.min(100, dragRef.current.initialY + deltaYPercent),
+      );
       if (dragRef.current.target === "photo") {
         setPersonalization((prev) => {
-          return clampPhotoSafeArea({ ...prev, photoX: nextX, photoY: nextY }, fileMeta);
+          return clampPhotoSafeArea(
+            { ...prev, photoX: nextX, photoY: nextY },
+            fileMeta,
+          );
         });
       } else if (dragRef.current.target === "videoExtraPhoto") {
         setPersonalization((prev) => {
@@ -552,6 +636,47 @@ export default function CreatorUploadStudioPage() {
             fileMeta,
           );
         });
+      } else if (
+        dragRef.current.target === "strip-left" ||
+        dragRef.current.target === "strip-right"
+      ) {
+        setPersonalization((prev) => {
+          const startLeft =
+            dragRef.current.initialX - dragRef.current.initialWidth / 2;
+          const startRight =
+            dragRef.current.initialX + dragRef.current.initialWidth / 2;
+          const nextLeft =
+            dragRef.current.target === "strip-left"
+              ? clampNumber(startLeft + deltaXPercent, 0, startRight - 35)
+              : startLeft;
+          const nextRight =
+            dragRef.current.target === "strip-right"
+              ? clampNumber(startRight + deltaXPercent, nextLeft + 35, 100)
+              : startRight;
+          const stripWidth = clampNumber(nextRight - nextLeft, 35, 100);
+          return clampPhotoSafeArea(
+            {
+              ...prev,
+              stripWidth,
+              stripX: nextLeft + stripWidth / 2,
+            },
+            fileMeta,
+          );
+        });
+      } else if (dragRef.current.target === "strip-top") {
+        setPersonalization((prev) =>
+          clampPhotoSafeArea(
+            {
+              ...prev,
+              stripHeight: clampNumber(
+                dragRef.current.initialHeight - deltaYPercent,
+                1,
+                40,
+              ),
+            },
+            fileMeta,
+          ),
+        );
       } else if (dragRef.current.target === "name") {
         setPersonalization((prev) => ({ ...prev, nameX: nextX, nameY: nextY }));
       }
@@ -580,7 +705,10 @@ export default function CreatorUploadStudioPage() {
   }, [fileMeta]);
 
   useEffect(() => {
-    if (!personalization.showVideoExtraPhoto && selectedPhotoTarget === "videoExtraPhoto") {
+    if (
+      !personalization.showVideoExtraPhoto &&
+      selectedPhotoTarget === "videoExtraPhoto"
+    ) {
       setSelectedPhotoTarget("photo");
     }
   }, [personalization.showVideoExtraPhoto, selectedPhotoTarget]);
@@ -596,6 +724,8 @@ export default function CreatorUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.photoX,
       initialY: personalization.photoY,
+      initialWidth: personalization.photoScale,
+      initialHeight: personalization.photoScale,
     };
     setIsPhotoDragging(true);
     setIsVideoExtraPhotoDragging(false);
@@ -611,6 +741,30 @@ export default function CreatorUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.nameX,
       initialY: personalization.nameY,
+      initialWidth: personalization.stripWidth,
+      initialHeight: personalization.stripHeight,
+    };
+    setIsPhotoDragging(false);
+    setIsVideoExtraPhotoDragging(false);
+    setIsNameDragging(true);
+  }
+
+  function startStripResize(
+    event: React.PointerEvent<HTMLDivElement>,
+    target: "strip-left" | "strip-right" | "strip-top",
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      target,
+      dragging: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: personalization.stripX,
+      initialY: personalization.nameY,
+      initialWidth: personalization.stripWidth,
+      initialHeight: personalization.stripHeight,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(false);
@@ -628,6 +782,8 @@ export default function CreatorUploadStudioPage() {
       startY: event.clientY,
       initialX: personalization.videoExtraPhotoX,
       initialY: personalization.videoExtraPhotoY,
+      initialWidth: personalization.videoExtraPhotoScale,
+      initialHeight: personalization.videoExtraPhotoScale,
     };
     setIsPhotoDragging(false);
     setIsVideoExtraPhotoDragging(true);
@@ -637,7 +793,10 @@ export default function CreatorUploadStudioPage() {
     event.preventDefault();
     const direction = event.deltaY < 0 ? 1 : -1;
     setPersonalization((prev) =>
-      clampPhotoSafeArea({ ...prev, photoScale: prev.photoScale + direction * 2 }, fileMeta),
+      clampPhotoSafeArea(
+        { ...prev, photoScale: prev.photoScale + direction * 2 },
+        fileMeta,
+      ),
     );
   }
 
@@ -646,7 +805,10 @@ export default function CreatorUploadStudioPage() {
     const direction = event.deltaY < 0 ? 1 : -1;
     setPersonalization((prev) =>
       clampPhotoSafeArea(
-        { ...prev, videoExtraPhotoScale: prev.videoExtraPhotoScale + direction * 2 },
+        {
+          ...prev,
+          videoExtraPhotoScale: prev.videoExtraPhotoScale + direction * 2,
+        },
         fileMeta,
       ),
     );
@@ -654,7 +816,9 @@ export default function CreatorUploadStudioPage() {
 
   async function performUpload() {
     if (!file && !editingPoster) {
-      setUploadMessage(t("creator.upload.selectPoster", portalLanguage(language)));
+      setUploadMessage(
+        t("creator.upload.selectPoster", portalLanguage(language)),
+      );
       return;
     }
     const fileError = validatePosterFile(file);
@@ -664,44 +828,61 @@ export default function CreatorUploadStudioPage() {
       return;
     }
     if (!categoryId) {
-      setUploadMessage(t("creator.upload.selectAssignedCategory", portalLanguage(language)));
+      setUploadMessage(
+        t("creator.upload.selectAssignedCategory", portalLanguage(language)),
+      );
       return;
     }
     setUploadBusy(true);
-    setUploadMessage(t("creator.upload.preparingUpload", portalLanguage(language)));
+    setUploadMessage(
+      t("creator.upload.preparingUpload", portalLanguage(language)),
+    );
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
       const uploadFile = file ? await preparePosterFileForUpload(file) : null;
       const body = new FormData();
       body.set("categoryId", categoryId);
       body.set("regionId", region.id);
       if (manualPublishDateEnabled) {
-        body.set("requestedPublishDate", requestedPublishDate || defaultPublishDate);
+        body.set(
+          "requestedPublishDate",
+          requestedPublishDate || defaultPublishDate,
+        );
       }
       if (uploadFile) {
         body.set("media", uploadFile);
       }
-      body.set("personalizationConfig", JSON.stringify(clampPhotoSafeArea(personalization, fileMeta)));
+      body.set(
+        "personalizationConfig",
+        JSON.stringify(clampPhotoSafeArea(personalization, fileMeta)),
+      );
       const response = await fetch(
         editingPoster
           ? `/api/creator/posters/${encodeURIComponent(editingPoster.id)}`
           : "/api/creator/posters",
         {
-        method: editingPoster ? "PATCH" : "POST",
-        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-        body,
+          method: editingPoster ? "PATCH" : "POST",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+          body,
         },
       );
       const data = await readUploadResponse(response);
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? t("creator.upload.uploadFailed", portalLanguage(language)));
+        throw new Error(
+          data.error ??
+            t("creator.upload.uploadFailed", portalLanguage(language)),
+        );
       }
       setUploadMessage(
         editingPoster
-          ? (language === "telugu" ? "పోస్టర్ అప్‌డేట్ అయి మళ్లీ రివ్యూకు వెళ్లింది." : "Poster updated and sent back for review.")
+          ? language === "telugu"
+            ? "పోస్టర్ అప్‌డేట్ అయి మళ్లీ రివ్యూకు వెళ్లింది."
+            : "Poster updated and sent back for review."
           : t("creator.upload.uploadedForReview", portalLanguage(language)),
       );
       setCustomizeOpen(false);
@@ -712,7 +893,11 @@ export default function CreatorUploadStudioPage() {
       }
       await loadDashboard(true);
     } catch (err) {
-      setUploadMessage(err instanceof Error ? err.message : t("creator.upload.uploadFailed", portalLanguage(language)));
+      setUploadMessage(
+        err instanceof Error
+          ? err.message
+          : t("creator.upload.uploadFailed", portalLanguage(language)),
+      );
     } finally {
       setUploadBusy(false);
     }
@@ -727,9 +912,16 @@ export default function CreatorUploadStudioPage() {
   const announcements = dashboard?.announcements ?? [];
   const reviewPosters = dashboard?.posters ?? [];
   const uploadWindow = dashboard?.uploadWindow;
-  const activeCategory = assignedCategories.find((item) => item.id === categoryId) ?? null;
-  const activeEditPoster = editingPoster && editingPoster.categoryId === categoryId ? editingPoster : null;
-  const defaultPublishDate = resolveDefaultPublishDateKey(activeCategory, pageNow);
+  const activeCategory =
+    assignedCategories.find((item) => item.id === categoryId) ?? null;
+  const activeEditPoster =
+    editingPoster && editingPoster.categoryId === categoryId
+      ? editingPoster
+      : null;
+  const defaultPublishDate = resolveDefaultPublishDateKey(
+    activeCategory,
+    pageNow,
+  );
   const manualPublishDateEnabled = supportsManualPublishDate(activeCategory);
   const activePreviewAspectRatio =
     fileMeta && fileMeta.width > 0 && fileMeta.height > 0
@@ -737,7 +929,8 @@ export default function CreatorUploadStudioPage() {
       : "1 / 1";
   const safePersonalization = clampPhotoSafeArea(personalization, fileMeta);
   const isVideoPreview = Boolean(
-    (file && isVideoFile(file)) || (activeEditPoster && isVideoPoster(activeEditPoster)),
+    (file && isVideoFile(file)) ||
+    (activeEditPoster && isVideoPoster(activeEditPoster)),
   );
   const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
   const posterAspectRatio = posterAspect(fileMeta);
@@ -790,7 +983,9 @@ export default function CreatorUploadStudioPage() {
       : "Image customization is available only for poster images.",
     selectedCategory: isTelugu ? "సెలెక్ట్ చేసిన కేటగిరీ" : "Selected Category",
     selectCategory: isTelugu ? "సెలెక్ట్ కేటగిరీ" : "Select category",
-    noAssignedCategories: isTelugu ? "అసైన్డ్ క్యాటగిరీస్ లేవు." : "No assigned categories.",
+    noAssignedCategories: isTelugu
+      ? "అసైన్డ్ క్యాటగిరీస్ లేవు."
+      : "No assigned categories.",
     accepted: isTelugu ? "యాక్సెప్టెడ్" : "Accepted",
     rejected: isTelugu ? "రిజెక్టెడ్" : "Rejected",
     pending: isTelugu ? "పెండింగ్" : "Pending",
@@ -799,12 +994,18 @@ export default function CreatorUploadStudioPage() {
     customization: isTelugu ? "కస్టమైజేషన్" : "Customization",
     uploading: isTelugu ? "అప్లోడింగ్..." : "Uploading...",
     upload: isTelugu ? "అప్లోడ్" : "Upload",
-    updatePoster: isTelugu ? "అప్‌డేట్ చేసి రివ్యూకు పంపండి" : "Update and send for review",
+    updatePoster: isTelugu
+      ? "అప్‌డేట్ చేసి రివ్యూకు పంపండి"
+      : "Update and send for review",
     cancelEdit: isTelugu ? "ఎడిట్ క్యాన్సిల్" : "Cancel edit",
     uploadTab: isTelugu ? "అప్లోడ్" : "Upload",
     reviewTab: isTelugu ? "రివ్యూ స్టేటస్" : "Review Status",
-    submittedPosters: isTelugu ? "సబ్మిట్ చేసిన పోస్టర్లు" : "Submitted Posters",
-    noSubmittedPosters: isTelugu ? "ఇంకా సబ్మిట్ చేసిన పోస్టర్లు లేవు." : "No submitted posters yet.",
+    submittedPosters: isTelugu
+      ? "సబ్మిట్ చేసిన పోస్టర్లు"
+      : "Submitted Posters",
+    noSubmittedPosters: isTelugu
+      ? "ఇంకా సబ్మిట్ చేసిన పోస్టర్లు లేవు."
+      : "No submitted posters yet.",
     edit: isTelugu ? "రీ-ఎడిట్" : "Re-edit",
     reupload: isTelugu ? "రీ-అప్లోడ్" : "Re-upload",
     delete: isTelugu ? "డిలీట్" : "Delete",
@@ -816,7 +1017,9 @@ export default function CreatorUploadStudioPage() {
     close: isTelugu ? "క్లోజ్" : "Close",
     photoShape: isTelugu ? "ఫోటో షేప్" : "Photo Shape",
     premiumShapes: isTelugu ? "ప్రీమియం షేప్స్" : "Premium Shapes",
-    transparentCutouts: isTelugu ? "ట్రాన్స్‌పరెంట్ కటౌట్స్" : "Transparent Cutouts",
+    transparentCutouts: isTelugu
+      ? "ట్రాన్స్‌పరెంట్ కటౌట్స్"
+      : "Transparent Cutouts",
     photoMode: isTelugu ? "ఫోటో మోడ్" : "Photo Mode",
     bgRemoved: isTelugu ? "బ్యాక్‌గ్రౌండ్ తొలగించినది" : "BG Removed",
     originalPhoto: isTelugu ? "ఒరిజినల్ ఫోటో" : "Original Photo",
@@ -824,7 +1027,9 @@ export default function CreatorUploadStudioPage() {
     dragHelp: isTelugu
       ? "ఫోటో, నేమ్‌ని డైరెక్ట్‌గా డ్రాగ్ చేయండి. ఫోటో సైజ్ మార్చడానికి మౌస్ వీల్ వాడండి."
       : "Drag the photo and name directly. Use the mouse wheel to adjust photo size.",
-    showGradientStrip: isTelugu ? "షో గ్రాడియెంట్ స్ట్రిప్" : "Show gradient strip",
+    showGradientStrip: isTelugu
+      ? "షో గ్రాడియెంట్ స్ట్రిప్"
+      : "Show gradient strip",
     apply: isTelugu ? "అప్లై" : "Apply",
     appliedMessage: isTelugu
       ? "కస్టమైజేషన్ అప్లై అయింది. అప్లోడ్ చేసినప్పుడు ఇదే ప్లేస్‌మెంట్ సేవ్ అవుతుంది."
@@ -835,7 +1040,9 @@ export default function CreatorUploadStudioPage() {
       soft_burst: isTelugu ? "సాఫ్ట్ బర్స్్ట్" : "Soft Burst",
       badge: isTelugu ? "బ్యాడ్జ్" : "Badge",
       rounded_square: isTelugu ? "రౌండెడ్ స్క్వేర్" : "Rounded Square",
-      vertical_rectangle: isTelugu ? "వెర్టికల్ రెక్టాంగిల్" : "Vertical Rectangle",
+      vertical_rectangle: isTelugu
+        ? "వెర్టికల్ రెక్టాంగిల్"
+        : "Vertical Rectangle",
       square: isTelugu ? "క్లాసిక్ స్క్వేర్" : "Classic Square",
       transparent_bottom_fade: isTelugu ? "బాటమ్ బ్లెండ్" : "Bottom Blend",
       transparent_clean: isTelugu ? "క్లీన్ కటౌట్" : "Clean Cutout",
@@ -883,10 +1090,19 @@ export default function CreatorUploadStudioPage() {
       rounded_square: t("creator.upload.shape.rounded_square", lang),
       vertical_rectangle: t("creator.upload.shape.vertical_rectangle", lang),
       square: t("creator.upload.shape.square", lang),
-      transparent_bottom_fade: t("creator.upload.shape.transparent_bottom_fade", lang),
+      transparent_bottom_fade: t(
+        "creator.upload.shape.transparent_bottom_fade",
+        lang,
+      ),
       transparent_clean: t("creator.upload.shape.transparent_clean", lang),
-      transparent_soft_round: t("creator.upload.shape.transparent_soft_round", lang),
-      transparent_sharp_round: t("creator.upload.shape.transparent_sharp_round", lang),
+      transparent_soft_round: t(
+        "creator.upload.shape.transparent_soft_round",
+        lang,
+      ),
+      transparent_sharp_round: t(
+        "creator.upload.shape.transparent_sharp_round",
+        lang,
+      ),
     } as Record<string, string>,
   });
 
@@ -895,12 +1111,22 @@ export default function CreatorUploadStudioPage() {
       setRequestedPublishDate("");
       return;
     }
-    if (activeEditPoster?.requestedPublishAt && activeEditPoster.requestedPublishAt > 0) {
-      setRequestedPublishDate(getIstDateKey(activeEditPoster.requestedPublishAt));
+    if (
+      activeEditPoster?.requestedPublishAt &&
+      activeEditPoster.requestedPublishAt > 0
+    ) {
+      setRequestedPublishDate(
+        getIstDateKey(activeEditPoster.requestedPublishAt),
+      );
       return;
     }
     setRequestedPublishDate(defaultPublishDate);
-  }, [activeCategory, activeEditPoster?.id, activeEditPoster?.requestedPublishAt, defaultPublishDate]);
+  }, [
+    activeCategory,
+    activeEditPoster?.id,
+    activeEditPoster?.requestedPublishAt,
+    defaultPublishDate,
+  ]);
 
   function openFilePicker(nextCategoryId: string) {
     setCategoryId(nextCategoryId);
@@ -933,7 +1159,9 @@ export default function CreatorUploadStudioPage() {
     setFile(null);
     setFileMeta(null);
     setFilePreviewUrl(null);
-    setPersonalization(parsePersonalizationConfig(poster.personalizationConfig));
+    setPersonalization(
+      parsePersonalizationConfig(poster.personalizationConfig),
+    );
     setUploadMessage(customizationCopy.chooseReplacement);
     setActiveTab("upload");
     if (fileInputRef.current) {
@@ -954,9 +1182,7 @@ export default function CreatorUploadStudioPage() {
   async function deletePoster(poster: CreatorPoster) {
     if (!canCreatorDeletePoster(poster)) return;
     const confirmed = window.confirm(
-      isTelugu
-        ? "ఈ పోస్టర్‌ని డిలీట్ చేయాలా?"
-        : "Delete this poster?",
+      isTelugu ? "ఈ పోస్టర్‌ని డిలీట్ చేయాలా?" : "Delete this poster?",
     );
     if (!confirmed) return;
     setPosterActionBusyMap((prev) => ({ ...prev, [poster.id]: true }));
@@ -964,12 +1190,17 @@ export default function CreatorUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
-      const response = await fetch(`/api/creator/posters/${encodeURIComponent(poster.id)}`, {
-        method: "DELETE",
-        headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-      });
+      const response = await fetch(
+        `/api/creator/posters/${encodeURIComponent(poster.id)}`,
+        {
+          method: "DELETE",
+          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+        },
+      );
       const data = await readUploadResponse(response);
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to delete poster.");
@@ -986,13 +1217,17 @@ export default function CreatorUploadStudioPage() {
         prev
           ? {
               ...prev,
-              posters: (prev.posters ?? []).filter((item) => item.id !== poster.id),
+              posters: (prev.posters ?? []).filter(
+                (item) => item.id !== poster.id,
+              ),
             }
           : prev,
       );
       await loadDashboard(true);
     } catch (err) {
-      setUploadMessage(err instanceof Error ? err.message : "Unable to delete poster.");
+      setUploadMessage(
+        err instanceof Error ? err.message : "Unable to delete poster.",
+      );
     } finally {
       setPosterActionBusyMap((prev) => ({ ...prev, [poster.id]: false }));
     }
@@ -1012,7 +1247,9 @@ export default function CreatorUploadStudioPage() {
   }
 
   function toggleAllVisiblePosters() {
-    const deletableIds = reviewPosters.filter(canCreatorDeletePoster).map((poster) => poster.id);
+    const deletableIds = reviewPosters
+      .filter(canCreatorDeletePoster)
+      .map((poster) => poster.id);
     setSelectedPosterIds((prev) => {
       if (deletableIds.length > 0 && deletableIds.every((id) => prev.has(id))) {
         return new Set([...prev].filter((id) => !deletableIds.includes(id)));
@@ -1022,7 +1259,10 @@ export default function CreatorUploadStudioPage() {
   }
 
   async function deleteSelectedPosters() {
-    const selected = reviewPosters.filter((poster) => selectedPosterIds.has(poster.id) && canCreatorDeletePoster(poster));
+    const selected = reviewPosters.filter(
+      (poster) =>
+        selectedPosterIds.has(poster.id) && canCreatorDeletePoster(poster),
+    );
     if (selected.length === 0) return;
     const confirmed = window.confirm(
       isTelugu
@@ -1039,13 +1279,18 @@ export default function CreatorUploadStudioPage() {
     try {
       const token = await user?.getIdToken();
       if (!token) {
-        throw new Error(t("creator.upload.loginRequired", portalLanguage(language)));
+        throw new Error(
+          t("creator.upload.loginRequired", portalLanguage(language)),
+        );
       }
       for (const poster of selected) {
-        const response = await fetch(`/api/creator/posters/${encodeURIComponent(poster.id)}`, {
-          method: "DELETE",
-          headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
-        });
+        const response = await fetch(
+          `/api/creator/posters/${encodeURIComponent(poster.id)}`,
+          {
+            method: "DELETE",
+            headers: withDeviceHeader({ authorization: `Bearer ${token}` }),
+          },
+        );
         const data = await readUploadResponse(response);
         if (!response.ok || !data.ok) {
           throw new Error(data.error ?? "Unable to delete selected posters.");
@@ -1054,18 +1299,26 @@ export default function CreatorUploadStudioPage() {
       if (editingPoster && ids.includes(editingPoster.id)) {
         cancelEditPoster();
       }
-      setSelectedPosterIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
+      setSelectedPosterIds(
+        (prev) => new Set([...prev].filter((id) => !ids.includes(id))),
+      );
       setDashboard((prev) =>
         prev
           ? {
               ...prev,
-              posters: (prev.posters ?? []).filter((item) => !ids.includes(item.id)),
+              posters: (prev.posters ?? []).filter(
+                (item) => !ids.includes(item.id),
+              ),
             }
           : prev,
       );
       await loadDashboard(true);
     } catch (err) {
-      setUploadMessage(err instanceof Error ? err.message : "Unable to delete selected posters.");
+      setUploadMessage(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete selected posters.",
+      );
     } finally {
       setPosterActionBusyMap((prev) => ({
         ...prev,
@@ -1091,12 +1344,16 @@ export default function CreatorUploadStudioPage() {
                 className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-4"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {item.title}
+                  </p>
                   <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
                     {item.priority}
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{item.message}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {item.message}
+                </p>
               </article>
             ))}
           </div>
@@ -1129,239 +1386,276 @@ export default function CreatorUploadStudioPage() {
       </div>
 
       {activeTab === "upload" ? (
-      <section className="space-y-6">
-        <article className="px-1 py-2">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
-                {customizationCopy.uploadStudio}
-              </p>
-              <h3 className="mt-2 text-xl font-bold text-slate-950">{customizationCopy.uploadTitle}</h3>
-            </div>
-            <button
-              onClick={() => void loadDashboard(true)}
-              className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
-            >
-              {refreshing ? customizationCopy.refreshing : customizationCopy.refresh}
-            </button>
-          </div>
-
-          {!uploadWindow?.isOpen ? (
-            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-              {customizationCopy.uploadWindowClosed} {formatDate(uploadWindow?.opensAt ?? 0)}.
-            </div>
-          ) : null}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/mp4,video/quicktime,video/webm"
-            onChange={(event) => {
-              const selectedFile = event.target.files?.[0] ?? null;
-              const fileError = validatePosterFile(selectedFile);
-              if (fileError) {
-                const message = fileError;
-                alert(message);
-                setUploadMessage(message);
-                event.target.value = "";
-                setFile(null);
-                setOpenCustomizeAfterPick(false);
-                return;
-              }
-              setFile(selectedFile);
-              if (openCustomizeAfterPick) {
-                if (selectedFile) {
-                  setCustomizeOpen(true);
-                  setUploadMessage(null);
-                }
-                setOpenCustomizeAfterPick(false);
-              }
-            }}
-            className="hidden"
-          />
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            {assignedCategories.length === 0 ? (
-              <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-                {customizationCopy.noAssignedCategories}
-              </div>
-            ) : (
-              assignedCategories.map((category) => {
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => setCategoryId(category.id)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category.id === categoryId
-                        ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
-                        : "border-[var(--portal-border)] bg-white text-slate-700 hover:border-[var(--portal-purple)] hover:text-[var(--portal-purple)]"
-                    }`}
-                  >
-                    <CategoryLabelWithLogo id={category.id} label={category.label} />
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          <form onSubmit={handleUpload} className="mt-5 rounded-[28px] border border-[var(--portal-border)] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <section className="space-y-6">
+          <article className="px-1 py-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
-                  {customizationCopy.selectedCategory}
+                  {customizationCopy.uploadStudio}
                 </p>
-                <h4 className="mt-2 text-lg font-bold text-slate-950">
-                  {activeCategory ? (
-                    <CategoryLabelWithLogo id={activeCategory.id} label={activeCategory.label} />
-                  ) : (
-                    customizationCopy.selectCategory
-                  )}
-                </h4>
-                {editingPoster ? (
-                  <div className="mt-3 space-y-2 text-sm text-slate-600">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(editingPoster.status)}`}>
-                      {editingPoster.status === "approved"
-                        ? customizationCopy.accepted
-                        : editingPoster.status === "rejected"
-                          ? customizationCopy.rejected
-                          : customizationCopy.pending}
-                    </span>
-                    <p>{customizationCopy.chooseReplacement}</p>
-                    <button
-                      type="button"
-                      onClick={cancelEditPoster}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      {customizationCopy.cancelEdit}
-                    </button>
-                  </div>
-                ) : null}
+                <h3 className="mt-2 text-xl font-bold text-slate-950">
+                  {customizationCopy.uploadTitle}
+                </h3>
               </div>
-              {file ? (
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                  {file.name}
-                </span>
-              ) : null}
+              <button
+                onClick={() => void loadDashboard(true)}
+                className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
+              >
+                {refreshing
+                  ? customizationCopy.refreshing
+                  : customizationCopy.refresh}
+              </button>
             </div>
 
-            <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <button
-                type="button"
-                disabled={!uploadWindow?.isOpen || !categoryId}
-                onClick={() => openFilePicker(categoryId)}
-                style={{ aspectRatio: filePreviewUrl || activeEditPoster ? activePreviewAspectRatio : "1 / 1" }}
-                className="relative flex w-full overflow-hidden rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] text-center transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {filePreviewUrl ? (
-                  isVideoFile(file) ? (
-                    <video
-                      src={filePreviewUrl}
-                      className="h-full w-full bg-slate-950 object-contain"
-                      controls
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={filePreviewUrl}
-                        alt={activeCategory?.label ?? "Poster"}
-                        className="h-full w-full object-contain"
-                      />
-                    </>
-                  )
-                ) : activeEditPoster ? (
-                  isVideoPoster(activeEditPoster) ? (
-                    <video
-                      src={activeEditPoster.videoUrl}
-                      className="h-full w-full bg-slate-950 object-contain"
-                      controls
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeEditPoster.imageUrl}
-                        alt={activeEditPoster.categoryLabel || activeEditPoster.categoryId}
-                        className="h-full w-full object-contain"
-                      />
-                    </>
-                  )
-                ) : (
-                  <div className="flex w-full flex-col items-center justify-center p-6">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--portal-purple)] text-xl font-semibold text-white">
-                      +
-                    </span>
-                    <span className="mt-3 text-sm font-semibold text-slate-900">{customizationCopy.choosePoster}</span>
-                  </div>
-                )}
-              </button>
+            {!uploadWindow?.isOpen ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                {customizationCopy.uploadWindowClosed}{" "}
+                {formatDate(uploadWindow?.opensAt ?? 0)}.
+              </div>
+            ) : null}
 
-              <div>
-                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
-                  </p>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      type="date"
-                      value={requestedPublishDate}
-                      min={defaultPublishDate || undefined}
-                      disabled={!manualPublishDateEnabled}
-                      onChange={(event) => setRequestedPublishDate(event.target.value)}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                    />
-                    <span className="text-xs text-slate-600">
-                      {manualPublishDateEnabled
-                        ? (isTelugu ? `డిఫాల్ట్: ${defaultPublishDate}` : `Default: ${defaultPublishDate}`)
-                        : (isTelugu ? `ఆటో షెడ్యూల్: ${defaultPublishDate}` : `Auto schedule: ${defaultPublishDate}`)}
-                    </span>
-                  </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/mp4,video/quicktime,video/webm"
+              onChange={(event) => {
+                const selectedFile = event.target.files?.[0] ?? null;
+                const fileError = validatePosterFile(selectedFile);
+                if (fileError) {
+                  const message = fileError;
+                  alert(message);
+                  setUploadMessage(message);
+                  event.target.value = "";
+                  setFile(null);
+                  setOpenCustomizeAfterPick(false);
+                  return;
+                }
+                setFile(selectedFile);
+                if (openCustomizeAfterPick) {
+                  if (selectedFile) {
+                    setCustomizeOpen(true);
+                    setUploadMessage(null);
+                  }
+                  setOpenCustomizeAfterPick(false);
+                }
+              }}
+              className="hidden"
+            />
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              {assignedCategories.length === 0 ? (
+                <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
+                  {customizationCopy.noAssignedCategories}
                 </div>
+              ) : (
+                assignedCategories.map((category) => {
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setCategoryId(category.id)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        category.id === categoryId
+                          ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
+                          : "border-[var(--portal-border)] bg-white text-slate-700 hover:border-[var(--portal-purple)] hover:text-[var(--portal-purple)]"
+                      }`}
+                    >
+                      <CategoryLabelWithLogo
+                        id={category.id}
+                        label={category.label}
+                      />
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <form
+              onSubmit={handleUpload}
+              className="mt-5 rounded-[28px] border border-[var(--portal-border)] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
+                    {customizationCopy.selectedCategory}
+                  </p>
+                  <h4 className="mt-2 text-lg font-bold text-slate-950">
+                    {activeCategory ? (
+                      <CategoryLabelWithLogo
+                        id={activeCategory.id}
+                        label={activeCategory.label}
+                      />
+                    ) : (
+                      customizationCopy.selectCategory
+                    )}
+                  </h4>
+                  {editingPoster ? (
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(editingPoster.status)}`}
+                      >
+                        {editingPoster.status === "approved"
+                          ? customizationCopy.accepted
+                          : editingPoster.status === "rejected"
+                            ? customizationCopy.rejected
+                            : customizationCopy.pending}
+                      </span>
+                      <p>{customizationCopy.chooseReplacement}</p>
+                      <button
+                        type="button"
+                        onClick={cancelEditPoster}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {customizationCopy.cancelEdit}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                {file ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                    {file.name}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <button
                   type="button"
-                  onClick={() => setCustomizeOpen(true)}
-                  disabled={!filePreviewUrl}
-                  className="rounded-xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!uploadWindow?.isOpen || !categoryId}
+                  onClick={() => openFilePicker(categoryId)}
+                  style={{
+                    aspectRatio:
+                      filePreviewUrl || activeEditPoster
+                        ? activePreviewAspectRatio
+                        : "1 / 1",
+                  }}
+                  className="relative flex w-full overflow-hidden rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] text-center transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {customizationCopy.customize}
+                  {filePreviewUrl ? (
+                    isVideoFile(file) ? (
+                      <video
+                        src={filePreviewUrl}
+                        className="h-full w-full bg-slate-950 object-contain"
+                        controls
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={filePreviewUrl}
+                          alt={activeCategory?.label ?? "Poster"}
+                          className="h-full w-full object-contain"
+                        />
+                      </>
+                    )
+                  ) : activeEditPoster ? (
+                    isVideoPoster(activeEditPoster) ? (
+                      <video
+                        src={activeEditPoster.videoUrl}
+                        className="h-full w-full bg-slate-950 object-contain"
+                        controls
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={activeEditPoster.imageUrl}
+                          alt={
+                            activeEditPoster.categoryLabel ||
+                            activeEditPoster.categoryId
+                          }
+                          className="h-full w-full object-contain"
+                        />
+                      </>
+                    )
+                  ) : (
+                    <div className="flex w-full flex-col items-center justify-center p-6">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--portal-purple)] text-xl font-semibold text-white">
+                        +
+                      </span>
+                      <span className="mt-3 text-sm font-semibold text-slate-900">
+                        {customizationCopy.choosePoster}
+                      </span>
+                    </div>
+                  )}
                 </button>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+
+                <div>
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      {isTelugu ? "యాప్ పబ్లిష్ డేట్" : "App Publish Date"}
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="date"
+                        value={requestedPublishDate}
+                        min={defaultPublishDate || undefined}
+                        disabled={!manualPublishDateEnabled}
+                        onChange={(event) =>
+                          setRequestedPublishDate(event.target.value)
+                        }
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      />
+                      <span className="text-xs text-slate-600">
+                        {manualPublishDateEnabled
+                          ? isTelugu
+                            ? `డిఫాల్ట్: ${defaultPublishDate}`
+                            : `Default: ${defaultPublishDate}`
+                          : isTelugu
+                            ? `ఆటో షెడ్యూల్: ${defaultPublishDate}`
+                            : `Auto schedule: ${defaultPublishDate}`}
+                      </span>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    disabled={!uploadWindow?.isOpen || !categoryId}
-                    onClick={() => openCustomizationPicker(categoryId)}
-                    className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setCustomizeOpen(true)}
+                    disabled={!filePreviewUrl}
+                    className="rounded-xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[var(--portal-purple)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {customizationCopy.customization}
+                    {customizationCopy.customize}
                   </button>
-                  <button
-                    type="submit"
-                    disabled={uploadBusy || (!file && !editingPoster) || !uploadWindow?.isOpen || !categoryId}
-                    className="rounded-xl bg-[var(--portal-green)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {uploadBusy
-                      ? customizationCopy.uploading
-                      : editingPoster
-                        ? customizationCopy.updatePoster
-                        : customizationCopy.upload}
-                  </button>
-                </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      disabled={!uploadWindow?.isOpen || !categoryId}
+                      onClick={() => openCustomizationPicker(categoryId)}
+                      className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {customizationCopy.customization}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        uploadBusy ||
+                        (!file && !editingPoster) ||
+                        !uploadWindow?.isOpen ||
+                        !categoryId
+                      }
+                      className="rounded-xl bg-[var(--portal-green)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--portal-green-dark)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {uploadBusy
+                        ? customizationCopy.uploading
+                        : editingPoster
+                          ? customizationCopy.updatePoster
+                          : customizationCopy.upload}
+                    </button>
+                  </div>
 
-                {uploadMessage ? (
-                  <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
-                    {uploadMessage}
-                  </p>
-                ) : null}
+                  {uploadMessage ? (
+                    <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
+                      {uploadMessage}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </form>
-        </article>
-      </section>
+            </form>
+          </article>
+        </section>
       ) : (
         <section className="space-y-6">
           <article className="px-1 py-2">
@@ -1370,13 +1664,17 @@ export default function CreatorUploadStudioPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
                   {customizationCopy.reviewTab}
                 </p>
-                <h3 className="mt-2 text-xl font-bold text-slate-950">{customizationCopy.submittedPosters}</h3>
+                <h3 className="mt-2 text-xl font-bold text-slate-950">
+                  {customizationCopy.submittedPosters}
+                </h3>
               </div>
               <button
                 onClick={() => void loadDashboard(true)}
                 className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
               >
-                {refreshing ? customizationCopy.refreshing : customizationCopy.refresh}
+                {refreshing
+                  ? customizationCopy.refreshing
+                  : customizationCopy.refresh}
               </button>
             </div>
 
@@ -1393,14 +1691,18 @@ export default function CreatorUploadStudioPage() {
                     type="checkbox"
                     checked={
                       reviewPosters.filter(canCreatorDeletePoster).length > 0 &&
-                      reviewPosters.filter(canCreatorDeletePoster).every((poster) => selectedPosterIds.has(poster.id))
+                      reviewPosters
+                        .filter(canCreatorDeletePoster)
+                        .every((poster) => selectedPosterIds.has(poster.id))
                     }
                     onChange={toggleAllVisiblePosters}
                     className="h-4 w-4 accent-rose-600"
                   />
                   Select visible
                 </label>
-                <span className="text-xs font-semibold text-slate-500">{selectedPosterIds.size} selected</span>
+                <span className="text-xs font-semibold text-slate-500">
+                  {selectedPosterIds.size} selected
+                </span>
                 <button
                   type="button"
                   onClick={() => void deleteSelectedPosters()}
@@ -1464,12 +1766,18 @@ export default function CreatorUploadStudioPage() {
                             <h4 className="text-lg font-bold text-slate-950">
                               <CategoryLabelWithLogo
                                 id={poster.categoryId}
-                                label={poster.categoryLabel || poster.categoryId}
+                                label={
+                                  poster.categoryLabel || poster.categoryId
+                                }
                               />
                             </h4>
-                            <p className="mt-1 text-sm text-slate-500">{formatDate(poster.createdAt)}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {formatDate(poster.createdAt)}
+                            </p>
                           </div>
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}>
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}
+                          >
                             {poster.status === "approved"
                               ? customizationCopy.accepted
                               : poster.status === "rejected"
@@ -1500,7 +1808,9 @@ export default function CreatorUploadStudioPage() {
                             disabled={!deletable || busy}
                             className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {busy ? customizationCopy.refreshing : customizationCopy.delete}
+                            {busy
+                              ? customizationCopy.refreshing
+                              : customizationCopy.delete}
                           </button>
                           {approved ? (
                             <button
@@ -1523,7 +1833,10 @@ export default function CreatorUploadStudioPage() {
       )}
 
       {customizeOpen ? (
-        <div data-no-auto-translate="true" className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4">
+        <div
+          data-no-auto-translate="true"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/82 p-2 backdrop-blur-sm sm:p-4"
+        >
           <div className="mx-auto grid min-h-full max-w-7xl gap-3 py-2 sm:gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
             <section className="max-h-none overflow-y-auto rounded-[22px] border border-white/10 bg-slate-950 p-4 text-white shadow-[0_24px_60px_rgba(15,23,42,0.4)] sm:rounded-[28px] sm:p-5 xl:max-h-[calc(100vh-2rem)]">
               <div className="flex items-center justify-between gap-3">
@@ -1531,7 +1844,9 @@ export default function CreatorUploadStudioPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200">
                     {customizationCopy.customize}
                   </p>
-                  <h4 className="mt-2 text-lg font-bold">{customizationCopy.previewPlacement}</h4>
+                  <h4 className="mt-2 text-lg font-bold">
+                    {customizationCopy.previewPlacement}
+                  </h4>
                 </div>
                 <button
                   onClick={() => setCustomizeOpen(false)}
@@ -1547,7 +1862,8 @@ export default function CreatorUploadStudioPage() {
                     Photo Controls
                   </p>
                   <p className="mt-2 text-xs leading-5 text-slate-300">
-                    Select photo slot, adjust shape and size, then drag it inside the preview.
+                    Select photo slot, adjust shape and size, then drag it
+                    inside the preview.
                   </p>
 
                   <div className="mt-4 grid gap-3">
@@ -1585,7 +1901,9 @@ export default function CreatorUploadStudioPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSelectedPhotoTarget("videoExtraPhoto")}
+                          onClick={() =>
+                            setSelectedPhotoTarget("videoExtraPhoto")
+                          }
                           disabled={!personalization.showVideoExtraPhoto}
                           className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                             selectedPhotoTarget === "videoExtraPhoto"
@@ -1601,7 +1919,9 @@ export default function CreatorUploadStudioPage() {
 
                   <div className="mt-4 grid gap-4">
                     <label className="block">
-                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoShape}</span>
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {customizationCopy.photoShape}
+                      </span>
                       <select
                         data-no-auto-translate="true"
                         value={
@@ -1613,8 +1933,13 @@ export default function CreatorUploadStudioPage() {
                           setPersonalization((prev) => ({
                             ...prev,
                             ...(selectedPhotoTarget === "videoExtraPhoto"
-                              ? { videoExtraPhotoShape: event.target.value as PhotoShape }
-                              : { photoShape: event.target.value as PhotoShape }),
+                              ? {
+                                  videoExtraPhotoShape: event.target
+                                    .value as PhotoShape,
+                                }
+                              : {
+                                  photoShape: event.target.value as PhotoShape,
+                                }),
                           }))
                         }
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
@@ -1629,8 +1954,13 @@ export default function CreatorUploadStudioPage() {
                             }
                           >
                             {group.options.map((option) => (
-                              <option key={option.value} value={option.value} className="bg-white text-slate-950">
-                                {customizationCopy.shapeLabels[option.value] ?? option.label}
+                              <option
+                                key={option.value}
+                                value={option.value}
+                                className="bg-white text-slate-950"
+                              >
+                                {customizationCopy.shapeLabels[option.value] ??
+                                  option.label}
                               </option>
                             ))}
                           </optgroup>
@@ -1639,7 +1969,9 @@ export default function CreatorUploadStudioPage() {
                     </label>
 
                     <label className="block">
-                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{customizationCopy.photoMode}</span>
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {customizationCopy.photoMode}
+                      </span>
                       <select
                         data-no-auto-translate="true"
                         value={
@@ -1652,19 +1984,29 @@ export default function CreatorUploadStudioPage() {
                             ...prev,
                             ...(selectedPhotoTarget === "videoExtraPhoto"
                               ? {
-                                  videoExtraPhotoRenderMode: event.target.value as
-                                    | "cutout"
-                                    | "original",
+                                  videoExtraPhotoRenderMode: event.target
+                                    .value as "cutout" | "original",
                                 }
                               : {
-                                  photoRenderMode: event.target.value as "cutout" | "original",
+                                  photoRenderMode: event.target.value as
+                                    "cutout" | "original",
                                 }),
                           }))
                         }
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
                       >
-                        <option value="cutout" className="bg-white text-slate-950">{customizationCopy.bgRemoved}</option>
-                        <option value="original" className="bg-white text-slate-950">{customizationCopy.originalPhoto}</option>
+                        <option
+                          value="cutout"
+                          className="bg-white text-slate-950"
+                        >
+                          {customizationCopy.bgRemoved}
+                        </option>
+                        <option
+                          value="original"
+                          className="bg-white text-slate-950"
+                        >
+                          {customizationCopy.originalPhoto}
+                        </option>
                       </select>
                     </label>
 
@@ -1685,9 +2027,10 @@ export default function CreatorUploadStudioPage() {
                               ...prev,
                               ...(selectedPhotoTarget === "videoExtraPhoto"
                                 ? {
-                                    videoExtraPhotoAnimation: parseVideoPhotoAnimation(
-                                      event.target.value,
-                                    ),
+                                    videoExtraPhotoAnimation:
+                                      parseVideoPhotoAnimation(
+                                        event.target.value,
+                                      ),
                                   }
                                 : {
                                     photoAnimation: parseVideoPhotoAnimation(
@@ -1734,8 +2077,16 @@ export default function CreatorUploadStudioPage() {
                           setPersonalization((prev) =>
                             clampPhotoSafeArea(
                               selectedPhotoTarget === "videoExtraPhoto"
-                                ? { ...prev, videoExtraPhotoScale: Number(event.target.value) }
-                                : { ...prev, photoScale: Number(event.target.value) },
+                                ? {
+                                    ...prev,
+                                    videoExtraPhotoScale: Number(
+                                      event.target.value,
+                                    ),
+                                  }
+                                : {
+                                    ...prev,
+                                    photoScale: Number(event.target.value),
+                                  },
                               fileMeta,
                             ),
                           )
@@ -1751,7 +2102,9 @@ export default function CreatorUploadStudioPage() {
                 </div>
 
                 <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
-                  <span className="font-medium">{customizationCopy.showGradientStrip}</span>
+                  <span className="font-medium">
+                    {customizationCopy.showGradientStrip}
+                  </span>
                   <span className="relative inline-flex items-center">
                     <input
                       type="checkbox"
@@ -1773,7 +2126,6 @@ export default function CreatorUploadStudioPage() {
                     <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
                   </span>
                 </label>
-
               </div>
             </section>
 
@@ -1822,8 +2174,12 @@ export default function CreatorUploadStudioPage() {
                             top: `${safePersonalization.photoY}%`,
                             width: `${safePersonalization.photoScale}%`,
                             zIndex: 1,
-                            aspectRatio: photoShapeAspectRatio(safePersonalization.photoShape),
-                            ...photoShapeFrameStyle(safePersonalization.photoShape),
+                            aspectRatio: photoShapeAspectRatio(
+                              safePersonalization.photoShape,
+                            ),
+                            ...photoShapeFrameStyle(
+                              safePersonalization.photoShape,
+                            ),
                             ...resolveVideoPhotoAnimationStyle(
                               safePersonalization.photoAnimation,
                               isVideoPreview && videoPreviewStarted,
@@ -1846,7 +2202,9 @@ export default function CreatorUploadStudioPage() {
                             onPointerDown={startVideoExtraPhotoDrag}
                             onWheel={onVideoExtraPhotoWheel}
                             className={`absolute touch-none overflow-hidden ${
-                              isVideoExtraPhotoDragging ? "cursor-grabbing" : "cursor-grab"
+                              isVideoExtraPhotoDragging
+                                ? "cursor-grabbing"
+                                : "cursor-grab"
                             }`}
                             style={{
                               left: `${safePersonalization.videoExtraPhotoX}%`,
@@ -1868,9 +2226,12 @@ export default function CreatorUploadStudioPage() {
                           >
                             {renderPosterPhotoPreview({
                               shape: safePersonalization.videoExtraPhotoShape,
-                              renderMode: safePersonalization.videoExtraPhotoRenderMode,
-                              edgeStyle: safePersonalization.videoExtraPhotoEdgeStyle,
-                              frameStyle: safePersonalization.videoExtraPhotoFrameStyle,
+                              renderMode:
+                                safePersonalization.videoExtraPhotoRenderMode,
+                              edgeStyle:
+                                safePersonalization.videoExtraPhotoEdgeStyle,
+                              frameStyle:
+                                safePersonalization.videoExtraPhotoFrameStyle,
                               src: PERSONALIZATION_SAMPLE.photoUrl,
                               alt: "Add photo sample user",
                             })}
@@ -1887,12 +2248,16 @@ export default function CreatorUploadStudioPage() {
                             className="absolute left-1/2 top-1/2 z-10 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/78 text-white shadow-2xl ring-1 ring-white/15 transition hover:bg-slate-950/88"
                             aria-label="Play video preview"
                           >
-                            <span className="ml-1 text-3xl leading-none">▶</span>
+                            <span className="ml-1 text-3xl leading-none">
+                              ▶
+                            </span>
                           </button>
                         ) : null}
 
                         {stripOverlapWarning ? (
-                          <NameStripOverlapWarning heightPercent={stripSafeZoneHeight} />
+                          <NameStripOverlapWarning
+                            heightPercent={stripSafeZoneHeight}
+                          />
                         ) : null}
                         {!personalization.showBottomStrip ? (
                           <div
@@ -1922,17 +2287,50 @@ export default function CreatorUploadStudioPage() {
                           </div>
                         ) : null}
                         {personalization.showBottomStrip ? (
-                          <div className="absolute inset-x-0 bottom-0 z-[3]">
+                          <div
+                            className="absolute z-[3] touch-none"
+                            style={{
+                              left: `${safePersonalization.stripX}%`,
+                              bottom: `${safePersonalization.stripBottom}%`,
+                              width: `${safePersonalization.stripWidth}%`,
+                              height: `${Math.max(0.5, safePersonalization.stripHeight * 0.5)}%`,
+                              transform: "translateX(-50%)",
+                            }}
+                          >
                             <AppStyleNameStrip
                               config={personalization}
-                              imageSeed={file?.name ?? activeEditPoster?.imageUrl ?? "creator-upload"}
+                              imageSeed={
+                                file?.name ??
+                                activeEditPoster?.imageUrl ??
+                                "creator-upload"
+                              }
                               sampleName={PERMANENT_SAMPLE_NAME}
                               sampleDesignation={PERMANENT_SAMPLE_DESIGNATION}
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-left")
+                              }
+                              className="absolute -left-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                              aria-label="Resize name strip left"
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-right")
+                              }
+                              className="absolute -right-2 top-1/2 h-8 w-4 -translate-y-1/2 cursor-ew-resize rounded-full border border-white/80 bg-sky-500/90 shadow-lg"
+                              aria-label="Resize name strip right"
+                            />
+                            <div
+                              onPointerDown={(event) =>
+                                startStripResize(event, "strip-top")
+                              }
+                              className="absolute left-1/2 top-0 h-4 w-12 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize rounded-full border border-white/80 bg-emerald-500/90 shadow-lg"
+                              aria-label="Resize name strip height"
                             />
                           </div>
                         ) : null}
                       </div>
-
                     </div>
                   </div>
 
@@ -1957,7 +2355,9 @@ export default function CreatorUploadStudioPage() {
           </div>
         </div>
       ) : null}
-      <style jsx global>{VIDEO_PHOTO_ANIMATION_GLOBAL_CSS}</style>
+      <style jsx global>
+        {VIDEO_PHOTO_ANIMATION_GLOBAL_CSS}
+      </style>
     </>
   );
 }
