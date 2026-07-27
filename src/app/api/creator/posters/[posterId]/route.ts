@@ -127,7 +127,7 @@ const personalizationSchema = z.object({
   politicalProtocolEnabledAtMillis: z.number().int().nonnegative().default(0),
   politicalProtocolX: z.number().min(4).max(96).default(50),
   politicalProtocolY: z.number().min(4).max(96).default(7),
-  politicalProtocolScale: z.number().min(45).max(135).default(100),
+  politicalProtocolScale: z.number().min(45).max(135).default(85),
   politicalProtocolSlots: z
     .array(
       z.object({

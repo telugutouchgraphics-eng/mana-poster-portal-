@@ -136,8 +136,8 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
   stripBottom: 0,
   showPoliticalProtocol: false,
   politicalProtocolSlots: [
-    { x: 28, y: 8, scale: 100 },
-    { x: 72, y: 8, scale: 100 },
+    { x: 28, y: 8, scale: 85 },
+    { x: 72, y: 8, scale: 85 },
   ],
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,

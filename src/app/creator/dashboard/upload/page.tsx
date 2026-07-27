@@ -164,10 +164,10 @@ const defaultPersonalization: PersonalizationConfig = {
   showPoliticalProtocol: false,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
-  politicalProtocolScale: 100,
+  politicalProtocolScale: 85,
   politicalProtocolSlots: [
-    { x: 28, y: 8, scale: 100 },
-    { x: 72, y: 8, scale: 100 },
+    { x: 28, y: 8, scale: 85 },
+    { x: 72, y: 8, scale: 85 },
   ],
   sampleName: PERSONALIZATION_SAMPLE.name,
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,

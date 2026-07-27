@@ -42,10 +42,10 @@ export const defaultUserUploadPersonalizationConfig = {
   politicalProtocolEnabledAtMillis: 0,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
-  politicalProtocolScale: 100,
+  politicalProtocolScale: 85,
   politicalProtocolSlots: [
-    { x: 28, y: 8, scale: 100 },
-    { x: 72, y: 8, scale: 100 },
+    { x: 28, y: 8, scale: 85 },
+    { x: 72, y: 8, scale: 85 },
   ],
   showWhatsapp: false,
   sampleName: PERSONALIZATION_SAMPLE.name,

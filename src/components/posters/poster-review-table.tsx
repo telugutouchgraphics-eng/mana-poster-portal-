@@ -135,8 +135,8 @@ const SUPPORTED_UPLOAD_DIMENSIONS = [
 
 const ASPECT_RATIO_TOLERANCE = 0.01;
 const DEFAULT_POLITICAL_PROTOCOL_SLOTS: PoliticalProtocolSlot[] = [
-  { x: 28, y: 8, scale: 100 },
-  { x: 72, y: 8, scale: 100 },
+  { x: 28, y: 8, scale: 85 },
+  { x: 72, y: 8, scale: 85 },
 ];
 
 function clampNumber(value: number, min: number, max: number): number {
