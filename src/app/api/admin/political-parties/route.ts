@@ -6,6 +6,7 @@ import {
   normalizeManagedPoliticalPartyId,
   POLITICAL_PARTIES_COLLECTION,
 } from "@/lib/server/political-parties";
+import { buildCategoryLabelsByLanguage } from "@/lib/server/category-label-translations";
 import {
   deleteAdminAsset,
   uploadAdminAsset,
@@ -50,6 +51,20 @@ function parseSortOrder(value: FormDataEntryValue | null) {
   return Number.isFinite(parsed) ? parsed : 10000;
 }
 
+function parseLabelsByLanguage(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
@@ -73,6 +88,9 @@ export async function POST(req: NextRequest) {
     const shortName = String(formData.get("shortName") ?? "").trim();
     const regionIds = parseRegionIds(formData.get("regionIds"));
     const sortOrder = parseSortOrder(formData.get("sortOrder"));
+    const labelsOverride = parseLabelsByLanguage(
+      formData.get("labelsByLanguage"),
+    );
     const logo = formData.get("logo");
 
     if (!partyId || !label || !shortName) {
@@ -87,6 +105,11 @@ export async function POST(req: NextRequest) {
     const existing = await ref.get();
     const existingData = existing.data() ?? {};
     const now = Date.now();
+    const labelsByLanguage = await buildCategoryLabelsByLanguage(
+      label,
+      existingData.labelsByLanguage,
+      labelsOverride,
+    );
     let logoUrl = String(existingData.logoUrl ?? "").trim();
     let logoPath = String(existingData.logoPath ?? "").trim();
     let deletePreviousPath = "";
@@ -115,6 +138,7 @@ export async function POST(req: NextRequest) {
         partyId,
         label,
         name: label,
+        labelsByLanguage,
         shortName,
         regionIds,
         sortOrder,

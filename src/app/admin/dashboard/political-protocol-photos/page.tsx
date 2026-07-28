@@ -27,6 +27,7 @@ interface PoliticalPartyOption {
   id: string;
   partyId: string;
   label: string;
+  labelsByLanguage?: PartyLabelsByLanguage;
   shortName: string;
   regionIds: string[];
   logoUrl?: string;
@@ -35,6 +36,34 @@ interface PoliticalPartyOption {
 }
 
 const MAX_IMAGE_UPLOAD_BYTES = 700 * 1024;
+
+const PARTY_LABEL_LANGUAGES = [
+  ["telugu", "Telugu"],
+  ["hindi", "Hindi"],
+  ["english", "English"],
+  ["tamil", "Tamil"],
+  ["kannada", "Kannada"],
+  ["malayalam", "Malayalam"],
+  ["assamese", "Assamese"],
+  ["konkani", "Konkani"],
+  ["gujarati", "Gujarati"],
+  ["marathi", "Marathi"],
+  ["meitei", "Meitei"],
+  ["mizo", "Mizo"],
+  ["odia", "Odia"],
+  ["punjabi", "Punjabi"],
+  ["nepali", "Nepali"],
+  ["bengali", "Bengali"],
+  ["kashmiri", "Kashmiri"],
+  ["ladakhi", "Ladakhi"],
+] as const;
+
+type PartyLabelLanguage = (typeof PARTY_LABEL_LANGUAGES)[number][0];
+type PartyLabelsByLanguage = Partial<Record<PartyLabelLanguage, string>>;
+
+function emptyPartyLabels(): PartyLabelsByLanguage {
+  return {};
+}
 
 function partyIdFromName(value: string) {
   return value
@@ -59,6 +88,8 @@ export default function PoliticalProtocolPhotosPage() {
   const [newPartyId, setNewPartyId] = useState("");
   const [newPartyName, setNewPartyName] = useState("");
   const [newPartyShortName, setNewPartyShortName] = useState("");
+  const [newPartyLabelsByLanguage, setNewPartyLabelsByLanguage] =
+    useState<PartyLabelsByLanguage>(() => emptyPartyLabels());
   const [newPartyRegionIds, setNewPartyRegionIds] = useState<string[]>([
     region.id,
   ]);
@@ -228,6 +259,7 @@ export default function PoliticalProtocolPhotosPage() {
       body.set("label", newPartyName);
       body.set("shortName", newPartyShortName);
       body.set("regionIds", newPartyRegionIds.join(","));
+      body.set("labelsByLanguage", JSON.stringify(newPartyLabelsByLanguage));
       if (newPartyLogoFile) body.set("logo", newPartyLogoFile);
       const response = await fetch("/api/admin/political-parties", {
         method: "POST",
@@ -242,6 +274,7 @@ export default function PoliticalProtocolPhotosPage() {
       setNewPartyId("");
       setNewPartyName("");
       setNewPartyShortName("");
+      setNewPartyLabelsByLanguage(emptyPartyLabels());
       setNewPartyRegionIds([region.id]);
       setNewPartyLogoFile(null);
       await loadManagedParties();
@@ -259,6 +292,9 @@ export default function PoliticalProtocolPhotosPage() {
     if (!selectedParty) return;
     setNewPartyName(selectedParty.label);
     setNewPartyShortName(selectedParty.shortName);
+    setNewPartyLabelsByLanguage(
+      selectedParty.labelsByLanguage ?? emptyPartyLabels(),
+    );
     setNewPartyRegionIds(
       selectedParty.regionIds.length > 0
         ? selectedParty.regionIds
@@ -538,6 +574,48 @@ export default function PoliticalProtocolPhotosPage() {
               >
                 Current state only
               </button>
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 lg:col-span-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">
+                  App language labels
+                </p>
+                <p className="text-xs text-slate-500">
+                  Blank fields are auto-translated after save; filled fields are
+                  used as manual overrides.
+                </p>
+              </div>
+              <button
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                onClick={() => setNewPartyLabelsByLanguage(emptyPartyLabels())}
+                type="button"
+              >
+                Clear overrides
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {PARTY_LABEL_LANGUAGES.map(([key, name]) => (
+                <label
+                  className="space-y-1 text-xs font-semibold text-slate-600"
+                  key={key}
+                >
+                  <span>{name}</span>
+                  <input
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setNewPartyLabelsByLanguage((previous) => ({
+                        ...previous,
+                        [key]: value,
+                      }));
+                    }}
+                    placeholder={`${name} party name`}
+                    value={newPartyLabelsByLanguage[key] ?? ""}
+                  />
+                </label>
+              ))}
             </div>
           </div>
           <label className="space-y-2 text-sm font-semibold text-slate-700 lg:col-span-3">

@@ -3,11 +3,16 @@ import {
   POLITICAL_PARTY_CATEGORIES,
   PoliticalPartyCategory,
 } from "@/lib/political-party-categories";
+import {
+  CategoryLabelsByLanguage,
+  readCategoryLabelsByLanguage,
+} from "@/lib/server/category-label-translations";
 
 export const POLITICAL_PARTIES_COLLECTION = "politicalParties";
 
 export interface ManagedPoliticalParty extends PoliticalPartyCategory {
   active: boolean;
+  labelsByLanguage?: CategoryLabelsByLanguage;
   logoUrl?: string;
   logoPath?: string;
   source?: "default" | "dashboard";
@@ -63,6 +68,7 @@ function fromDoc(
     shortName: String(data.shortName ?? partyId).trim(),
     regionIds: normalizeRegionIds(data.regionIds),
     active: data.active !== false,
+    labelsByLanguage: readCategoryLabelsByLanguage(data.labelsByLanguage),
     logoUrl: String(data.logoUrl ?? "").trim() || undefined,
     logoPath: String(data.logoPath ?? "").trim() || undefined,
     source: "dashboard",
