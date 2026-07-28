@@ -8,6 +8,7 @@ import {
 import { resolveCreatorReadContext } from "@/lib/server/creator-dashboard";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import {
   loadAppBanners,
   loadCreatorAnnouncements,
@@ -193,6 +194,9 @@ export async function GET(req: NextRequest) {
 
     const manualCategories = await listManualEventCategories(region.id);
     const permanentCategories = await listActivePermanentCategories(region.id);
+    const politicalCategories = await politicalPartyCategoriesForRegionManaged(
+      region.id,
+    );
     const weekdayCategories = getUpcomingWeekdayAssignableCategories(
       new Date(now),
     );
@@ -214,6 +218,10 @@ export async function GET(req: NextRequest) {
         ...CREATOR_ASSIGNABLE_CATEGORIES,
         ...manualCategories.map((item) => ({ id: item.id, label: item.label })),
         ...permanentCategories.map((item) => ({
+          id: item.id,
+          label: item.label,
+        })),
+        ...politicalCategories.map((item) => ({
           id: item.id,
           label: item.label,
         })),

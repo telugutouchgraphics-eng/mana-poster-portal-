@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
   canonicalCategoryId,
+  categoryAllowsPoliticalProtocol,
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
 import {
@@ -27,6 +28,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
@@ -354,20 +356,34 @@ export async function PATCH(
     const permanentCategory = await getPermanentCategoryById(categoryId, {
       regionId: region.id,
     });
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
+    const politicalCategories = categoryId.startsWith("party_")
+      ? await politicalPartyCategoriesForRegionManaged(region.id)
+      : [];
+    const isPoliticalCategory =
+      POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) ||
+      politicalCategories.some((item) => item.id === categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find(
+        ? (politicalCategories.find((item) => item.id === categoryId) ??
+          politicalPartyCategoriesForRegion(region.id).find(
             (item) => item.id === categoryId,
-          )
+          ))
         : CREATOR_ASSIGNABLE_CATEGORIES.find(
             (item) => item.id === categoryId,
           )) ??
       (permanentCategory
-        ? { id: permanentCategory.id, label: permanentCategory.label }
+        ? {
+            id: permanentCategory.id,
+            label: permanentCategory.label,
+            allowPoliticalProtocol: permanentCategory.allowPoliticalProtocol,
+          }
         : undefined) ??
       (manualCategory?.active
-        ? { id: manualCategory.id, label: manualCategory.label }
+        ? {
+            id: manualCategory.id,
+            label: manualCategory.label,
+            allowPoliticalProtocol: manualCategory.allowPoliticalProtocol,
+          }
         : undefined);
     if (!category) {
       return NextResponse.json(
@@ -396,14 +412,29 @@ export async function PATCH(
     const heightPxRaw = Number(formData.get("heightPx") ?? 0);
 
     const now = Date.now();
+    const media = formData.get("media") ?? formData.get("image");
+    const existingMediaType =
+      String(poster.mediaType ?? "").toLowerCase() === "video"
+        ? "video"
+        : "image";
+    const submittedMediaKind =
+      media instanceof File && media.size > 0 ? getMediaKind(media) : undefined;
+    const effectiveMediaKind = submittedMediaKind ?? existingMediaType;
+    const canUsePoliticalProtocol =
+      effectiveMediaKind === "image" &&
+      categoryAllowsPoliticalProtocol(category);
     const existingPoliticalProtocolEnabledAt = Number(
       (poster.personalizationConfig as Record<string, unknown> | undefined)
         ?.politicalProtocolEnabledAtMillis ?? 0,
     );
+    const showPoliticalProtocol =
+      canUsePoliticalProtocol &&
+      personalizationConfig.showPoliticalProtocol === true;
     personalizationConfig = {
       ...personalizationConfig,
+      showPoliticalProtocol,
       politicalProtocolEnabledAtMillis:
-        personalizationConfig.showPoliticalProtocol &&
+        showPoliticalProtocol &&
         Number.isFinite(existingPoliticalProtocolEnabledAt) &&
         existingPoliticalProtocolEnabledAt > 0
           ? existingPoliticalProtocolEnabledAt
@@ -495,9 +526,8 @@ export async function PATCH(
       ],
     };
 
-    const media = formData.get("media") ?? formData.get("image");
     if (media instanceof File && media.size > 0) {
-      const mediaKind = getMediaKind(media);
+      const mediaKind = submittedMediaKind;
       if (!mediaKind) {
         return NextResponse.json(
           {

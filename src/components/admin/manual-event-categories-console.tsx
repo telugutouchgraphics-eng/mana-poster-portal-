@@ -22,6 +22,7 @@ type ManualEventCategory = {
   startAt: number;
   endAt: number;
   active: boolean;
+  allowPoliticalProtocol?: boolean;
   regionId?: string;
   regionIds?: string[];
   regionName?: string;

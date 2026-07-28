@@ -18,6 +18,7 @@ type PermanentCategory = {
   labelsByLanguage?: CategoryLabelsByLanguage;
   iconAssetPath?: string;
   regionIds?: string[];
+  allowPoliticalProtocol?: boolean;
   active: boolean;
   sortOrder: number;
 };

@@ -39,6 +39,7 @@ const requestSchema = z.object({
     )
     .optional(),
   active: z.boolean().optional(),
+  allowPoliticalProtocol: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(10000).optional(),
   regionIds: z.array(z.string().trim().min(1)).optional(),
 });
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
       labelsByLanguage,
       iconAssetPath: payload.iconAssetPath ?? "",
       regionIds,
+      allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
       active: payload.active ?? true,
       sortOrder: payload.sortOrder ?? 0,
       createdAt: now,
@@ -106,7 +108,12 @@ export async function POST(req: NextRequest) {
       targetType: "permanent_category",
       targetId: id,
       message: `Permanent category created: ${payload.label}`,
-      metadata: { categoryId: id, label: payload.label, regionIds },
+      metadata: {
+        categoryId: id,
+        label: payload.label,
+        regionIds,
+        allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
+      },
     });
     return NextResponse.json({ ok: true, category: record });
   } catch (error) {

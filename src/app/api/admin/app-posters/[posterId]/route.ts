@@ -11,6 +11,7 @@ import {
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
   canonicalCategoryId,
+  categoryAllowsPoliticalProtocol,
   getVisibleDynamicCategoryById,
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
@@ -32,6 +33,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
@@ -299,7 +301,10 @@ function resolvePosterTargetRegionIds(regionId: string, categoryId: string) {
   if (!regionId) {
     return [];
   }
-  if (POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) {
+  if (
+    categoryId.startsWith("party_") ||
+    POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)
+  ) {
     return [regionId];
   }
   return sharedContentRegionIdsFor(regionId);
@@ -404,6 +409,7 @@ export async function PATCH(
       createdByRole?: string;
       storageFolderKey?: string;
       createdBySurface?: string;
+      mediaType?: string;
       title?: string;
       regionId?: string;
       personalizationConfig?: Record<string, unknown>;
@@ -457,12 +463,18 @@ export async function PATCH(
     const permanentCategory = await getPermanentCategoryById(categoryId, {
       regionId: region.id,
     });
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
+    const politicalCategories = categoryId.startsWith("party_")
+      ? await politicalPartyCategoriesForRegionManaged(region.id)
+      : [];
+    const isPoliticalCategory =
+      POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) ||
+      politicalCategories.some((item) => item.id === categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find(
+        ? (politicalCategories.find((item) => item.id === categoryId) ??
+          politicalPartyCategoriesForRegion(region.id).find(
             (item) => item.id === categoryId,
-          )
+          ))
         : CREATOR_ASSIGNABLE_CATEGORIES.find(
             (item) => item.id === categoryId && item.id !== "all",
           )) ??
@@ -470,12 +482,14 @@ export async function PATCH(
         ? {
             id: permanentCategory.id,
             label: permanentCategory.label,
+            allowPoliticalProtocol: permanentCategory.allowPoliticalProtocol,
           }
         : undefined) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
             label: manualCategory.label,
+            allowPoliticalProtocol: manualCategory.allowPoliticalProtocol,
           }
         : undefined);
     if (!category) {
@@ -487,6 +501,17 @@ export async function PATCH(
     const categoryLabel = localizeCategoryLabel(category, region);
     const targetRegionIds = resolvePosterTargetRegionIds(region.id, categoryId);
     const updatedAt = Date.now();
+    const media = formData.get("media") ?? formData.get("image");
+    const existingMediaType =
+      String(existing.mediaType ?? "").toLowerCase() === "video"
+        ? "video"
+        : "image";
+    const submittedMediaKind =
+      media instanceof File && media.size > 0 ? getMediaKind(media) : undefined;
+    const effectiveMediaKind = submittedMediaKind ?? existingMediaType;
+    const canUsePoliticalProtocol =
+      effectiveMediaKind === "image" &&
+      categoryAllowsPoliticalProtocol(category);
     if (
       personalizationConfig != null &&
       typeof personalizationConfig === "object" &&
@@ -500,14 +525,25 @@ export async function PATCH(
         string,
         unknown
       >;
+      const showPoliticalProtocol =
+        canUsePoliticalProtocol &&
+        parsedPersonalization.showPoliticalProtocol === true;
       personalizationConfig = {
         ...parsedPersonalization,
+        showPoliticalProtocol,
         politicalProtocolEnabledAtMillis:
-          parsedPersonalization.showPoliticalProtocol === true &&
+          showPoliticalProtocol &&
           Number.isFinite(existingPoliticalProtocolEnabledAt) &&
           existingPoliticalProtocolEnabledAt > 0
             ? existingPoliticalProtocolEnabledAt
             : 0,
+      };
+    } else if (!canUsePoliticalProtocol) {
+      personalizationConfig = {
+        ...((existing.personalizationConfig as
+          Record<string, unknown> | undefined) ?? {}),
+        showPoliticalProtocol: false,
+        politicalProtocolEnabledAtMillis: 0,
       };
     }
     const uploadSource = resolveAdminPosterUploadSource(
@@ -580,9 +616,8 @@ export async function PATCH(
     let videoUrl: string | undefined;
     let videoPath: string | undefined;
     let imageHash: string | undefined;
-    const media = formData.get("media") ?? formData.get("image");
     if (media instanceof File && media.size > 0) {
-      const mediaKind = getMediaKind(media);
+      const mediaKind = submittedMediaKind;
       if (!mediaKind) {
         return NextResponse.json(
           {

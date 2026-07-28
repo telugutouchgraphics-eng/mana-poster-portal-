@@ -14,8 +14,8 @@ import {
   isValidPermanentCategoryId,
   listActivePermanentCategories,
 } from "@/lib/server/permanent-categories";
-import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 
 interface Params {
   params: Promise<{ creatorPublicId: string }>;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const uniqueIds = Array.from(new Set(payload.categoryIds));
     const visibleRegionCategories = [
       ...getVisibleAssignableCategories(new Date(), 2, 7, 2, region.id),
-      ...politicalPartyCategoriesForRegion(region.id),
+      ...(await politicalPartyCategoriesForRegionManaged(region.id)),
       ...getUpcomingWeekdayAssignableCategories(),
       ...(await listVisibleManualEventCategories(Date.now(), region.id)),
       ...(await listActivePermanentCategories(region.id)),
@@ -61,6 +61,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       uniqueIds.map(async (id) => ({
         id,
         valid:
+          visibleRegionCategoryIds.has(id) ||
           isValidCategoryId(id) ||
           (await isValidManualEventCategoryId(id, region.id)) ||
           (await isValidPermanentCategoryId(id)),

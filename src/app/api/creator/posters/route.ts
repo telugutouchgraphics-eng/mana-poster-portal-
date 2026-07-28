@@ -6,6 +6,7 @@ import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
   canonicalCategoryId,
+  categoryAllowsPoliticalProtocol,
   getWeekdayForCategoryId,
 } from "@/lib/server/categories";
 import { requireCreatorAccessContext } from "@/lib/server/creator-dashboard";
@@ -24,6 +25,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
@@ -340,12 +342,18 @@ export async function POST(req: NextRequest) {
     const permanentCategory = await getPermanentCategoryById(categoryId, {
       regionId: region.id,
     });
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
+    const politicalCategories = categoryId.startsWith("party_")
+      ? await politicalPartyCategoriesForRegionManaged(region.id)
+      : [];
+    const isPoliticalCategory =
+      POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) ||
+      politicalCategories.some((item) => item.id === categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find(
+        ? (politicalCategories.find((item) => item.id === categoryId) ??
+          politicalPartyCategoriesForRegion(region.id).find(
             (item) => item.id === categoryId,
-          )
+          ))
         : CREATOR_ASSIGNABLE_CATEGORIES.find(
             (item) => item.id === categoryId,
           )) ??
@@ -353,12 +361,14 @@ export async function POST(req: NextRequest) {
         ? {
             id: permanentCategory.id,
             label: permanentCategory.label,
+            allowPoliticalProtocol: permanentCategory.allowPoliticalProtocol,
           }
         : undefined) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
             label: manualCategory.label,
+            allowPoliticalProtocol: manualCategory.allowPoliticalProtocol,
           }
         : undefined);
     if (!category) {
@@ -406,10 +416,18 @@ export async function POST(req: NextRequest) {
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);
     const title = creator.creatorPublicId;
     const now = Date.now();
+    const canUsePoliticalProtocol =
+      mediaKind === "image" && categoryAllowsPoliticalProtocol(category);
     personalizationConfig = {
       ...personalizationConfig,
+      showPoliticalProtocol:
+        canUsePoliticalProtocol &&
+        personalizationConfig.showPoliticalProtocol === true,
       politicalProtocolEnabledAtMillis:
-        personalizationConfig.showPoliticalProtocol ? now : 0,
+        canUsePoliticalProtocol &&
+        personalizationConfig.showPoliticalProtocol === true
+          ? now
+          : 0,
     };
     const uploadWindow = buildCreatorUploadWindow(now);
     if (!uploadWindow.isOpen) {

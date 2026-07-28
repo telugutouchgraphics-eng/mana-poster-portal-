@@ -7,6 +7,7 @@ import { writeAuditLog } from "@/lib/server/audit-log";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
   canonicalCategoryId,
+  categoryAllowsPoliticalProtocol,
   getWeekdayForCategoryId,
   getVisibleDynamicCategoryById,
   getVisibleAssignableCategories,
@@ -39,6 +40,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
@@ -339,7 +341,10 @@ function resolvePosterTargetRegionIds(regionId: string, categoryId: string) {
   if (!regionId) {
     return [];
   }
-  if (POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) {
+  if (
+    categoryId.startsWith("party_") ||
+    POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)
+  ) {
     return [regionId];
   }
   return sharedContentRegionIdsFor(regionId);
@@ -353,7 +358,8 @@ async function buildAdminAppPosterCategories(regionId?: string | null) {
     2,
     regionId,
   ).filter((item) => item.id !== "all");
-  const politicalCategories = politicalPartyCategoriesForRegion(regionId);
+  const politicalCategories =
+    await politicalPartyCategoriesForRegionManaged(regionId);
   const manualCategories = await listVisibleManualEventCategories(
     Date.now(),
     regionId,
@@ -537,12 +543,18 @@ export async function POST(req: NextRequest) {
     const permanentCategory = await getPermanentCategoryById(categoryId, {
       regionId: region.id,
     });
-    const isPoliticalCategory = POLITICAL_PARTY_CATEGORY_IDS.has(categoryId);
+    const politicalCategories = categoryId.startsWith("party_")
+      ? await politicalPartyCategoriesForRegionManaged(region.id)
+      : [];
+    const isPoliticalCategory =
+      POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) ||
+      politicalCategories.some((item) => item.id === categoryId);
     const category =
       (isPoliticalCategory
-        ? politicalPartyCategoriesForRegion(region.id).find(
+        ? (politicalCategories.find((item) => item.id === categoryId) ??
+          politicalPartyCategoriesForRegion(region.id).find(
             (item) => item.id === categoryId,
-          )
+          ))
         : CREATOR_ASSIGNABLE_CATEGORIES.find(
             (item) => item.id === categoryId && item.id !== "all",
           )) ??
@@ -550,12 +562,14 @@ export async function POST(req: NextRequest) {
         ? {
             id: permanentCategory.id,
             label: permanentCategory.label,
+            allowPoliticalProtocol: permanentCategory.allowPoliticalProtocol,
           }
         : undefined) ??
       (manualCategory?.active
         ? {
             id: manualCategory.id,
             label: manualCategory.label,
+            allowPoliticalProtocol: manualCategory.allowPoliticalProtocol,
           }
         : undefined);
     if (!category) {
@@ -636,10 +650,18 @@ export async function POST(req: NextRequest) {
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const now = Date.now();
+    const canUsePoliticalProtocol =
+      mediaKind === "image" && categoryAllowsPoliticalProtocol(category);
     personalizationConfig = {
       ...personalizationConfig,
+      showPoliticalProtocol:
+        canUsePoliticalProtocol &&
+        personalizationConfig.showPoliticalProtocol === true,
       politicalProtocolEnabledAtMillis:
-        personalizationConfig.showPoliticalProtocol ? now : 0,
+        canUsePoliticalProtocol &&
+        personalizationConfig.showPoliticalProtocol === true
+          ? now
+          : 0,
     };
     const requestedPublishAtRaw = parsed.requestedPublishDate
       ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)

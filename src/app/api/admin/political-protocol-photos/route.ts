@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { POLITICAL_PARTY_CATEGORIES } from "@/lib/political-party-categories";
 import { requireRole } from "@/lib/server/auth";
 import { uploadAdminAsset } from "@/lib/server/content-management";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import { findManagedPoliticalParty } from "@/lib/server/political-parties";
 
 const COLLECTION = "politicalProtocolPhotos";
 const MAX_IMAGE_UPLOAD_BYTES = 700 * 1024;
@@ -22,10 +22,6 @@ function extensionFor(file: File) {
   if (type.includes("jpeg") || type.includes("jpg")) return "jpg";
   if (type.includes("webp")) return "webp";
   return "png";
-}
-
-function partyForId(partyId: string) {
-  return POLITICAL_PARTY_CATEGORIES.find((item) => item.partyId === partyId);
 }
 
 export async function GET(req: NextRequest) {
@@ -73,7 +69,7 @@ export async function POST(req: NextRequest) {
     const image = formData.get("image");
 
     const region = await assertActorCanAccessRegion(actor, regionId);
-    const party = partyForId(partyId);
+    const party = await findManagedPoliticalParty(partyId);
     if (!party) {
       return NextResponse.json(
         { ok: false, error: "Valid political party is required." },
@@ -155,14 +151,17 @@ export async function PATCH(req: NextRequest) {
       : [];
 
     const region = await assertActorCanAccessRegion(actor, regionId);
-    const party = partyForId(partyId);
+    const party = await findManagedPoliticalParty(partyId);
     if (!party) {
       return NextResponse.json(
         { ok: false, error: "Valid political party is required." },
         { status: 400 },
       );
     }
-    if (orderedIds.length === 0 || orderedIds.length > MAX_PHOTOS_PER_PARTY_REGION) {
+    if (
+      orderedIds.length === 0 ||
+      orderedIds.length > MAX_PHOTOS_PER_PARTY_REGION
+    ) {
       return NextResponse.json(
         { ok: false, error: "Photo order is required." },
         { status: 400 },

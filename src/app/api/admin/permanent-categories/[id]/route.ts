@@ -37,6 +37,7 @@ const patchSchema = z.object({
     )
     .optional(),
   active: z.boolean().optional(),
+  allowPoliticalProtocol: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(10000).optional(),
   regionIds: z.array(z.string().trim().min(1)).optional(),
 });
@@ -79,6 +80,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (payload.iconAssetPath != null)
       update.iconAssetPath = payload.iconAssetPath;
     if (payload.active != null) update.active = payload.active;
+    if (payload.allowPoliticalProtocol != null)
+      update.allowPoliticalProtocol = payload.allowPoliticalProtocol;
     if (payload.sortOrder != null) update.sortOrder = payload.sortOrder;
     if (payload.regionIds != null) {
       const regionIds = cleanRegionIds(payload.regionIds);

@@ -32,6 +32,7 @@ const payloadSchema = z.object({
   startDate: z.string().trim().min(10).max(10),
   endDate: z.string().trim().min(10).max(10).optional(),
   active: z.boolean().optional(),
+  allowPoliticalProtocol: z.boolean().optional(),
   regionId: z.string().trim().min(1),
   regionIds: z.array(z.string().trim().min(1)).optional(),
 });
@@ -115,6 +116,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         regionName: currentRegionId
           ? String(currentData.regionName ?? "")
           : requestedRegion.name,
+        allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
         startAt,
         endAt,
         active: payload.active ?? true,

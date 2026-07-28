@@ -23,6 +23,7 @@ export interface ManualEventCategoryRecord {
   regionId: string;
   regionIds: string[];
   regionName: string;
+  allowPoliticalProtocol: boolean;
   startAt: number;
   endAt: number;
   active: boolean;
@@ -105,6 +106,7 @@ function mapRecord(
           ? [regionId]
           : [],
     regionName: String(data.regionName ?? "").trim(),
+    allowPoliticalProtocol: Boolean(data.allowPoliticalProtocol ?? false),
     startAt: normalized.startAt,
     endAt: normalized.endAt,
     active: Boolean(data.active ?? true),
@@ -234,6 +236,7 @@ export function toVisibleManualEventCategory(
     labelsByLanguage: item.labelsByLanguage,
     iconAssetPath: item.iconAssetPath,
     regionIds: item.regionIds,
+    allowPoliticalProtocol: item.allowPoliticalProtocol,
     isDynamic: true,
     isBlinking: now >= getManualAppPublishAt(item.startAt) && now <= item.endAt,
     eventDateLabel: formatEventDateLabel(item.endAt),
@@ -269,5 +272,6 @@ export function toAssignableManualCategory(
     labelsByLanguage: item.labelsByLanguage,
     iconAssetPath: item.iconAssetPath,
     regionIds: item.regionIds,
+    allowPoliticalProtocol: item.allowPoliticalProtocol,
   };
 }

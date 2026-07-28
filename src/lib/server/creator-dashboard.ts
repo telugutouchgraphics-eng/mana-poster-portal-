@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { filterKnownAssignedCategories } from "@/lib/server/categories";
 import { listManualEventCategories } from "@/lib/server/manual-event-categories";
 import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
+import { listManagedPoliticalParties } from "@/lib/server/political-parties";
 import { assertRecordOverlapsActorRegions } from "@/lib/server/region-scope";
 
 export interface CreatorAccessContext {
@@ -21,7 +22,10 @@ async function buildContextFromProfile(
   userData: Record<string, unknown> | undefined,
   actor?: RequestUser,
 ): Promise<CreatorAccessContext> {
-  const profileSnap = await adminDb.collection("creatorProfiles").doc(creatorPublicId).get();
+  const profileSnap = await adminDb
+    .collection("creatorProfiles")
+    .doc(creatorPublicId)
+    .get();
   if (!profileSnap.exists) {
     throw new Error("Creator profile not found.");
   }
@@ -37,12 +41,21 @@ async function buildContextFromProfile(
   const assignedCategories = Array.isArray(profile.assignedCategories)
     ? profile.assignedCategories.map(String)
     : [];
-  const manualCategoryIds = (await listManualEventCategories()).map((item) => item.id);
-  const permanentCategoryIds = (await listActivePermanentCategories()).map((item) => item.id);
-  const { assignedCategories: sanitizedAssignedCategories } = filterKnownAssignedCategories(
-    assignedCategories,
-    [...manualCategoryIds, ...permanentCategoryIds],
+  const manualCategoryIds = (await listManualEventCategories()).map(
+    (item) => item.id,
   );
+  const permanentCategoryIds = (await listActivePermanentCategories()).map(
+    (item) => item.id,
+  );
+  const politicalCategoryIds = (await listManagedPoliticalParties()).map(
+    (item) => item.id,
+  );
+  const { assignedCategories: sanitizedAssignedCategories } =
+    filterKnownAssignedCategories(assignedCategories, [
+      ...manualCategoryIds,
+      ...permanentCategoryIds,
+      ...politicalCategoryIds,
+    ]);
 
   return {
     uid: actorUid,
@@ -53,7 +66,9 @@ async function buildContextFromProfile(
   };
 }
 
-async function loadLinkedCreatorContext(actor: RequestUser): Promise<CreatorAccessContext> {
+async function loadLinkedCreatorContext(
+  actor: RequestUser,
+): Promise<CreatorAccessContext> {
   const userSnap = await adminDb.collection("users").doc(actor.uid).get();
   const userData = userSnap.data();
   const creatorPublicId = String(userData?.creatorPublicId ?? "").trim();
@@ -64,7 +79,10 @@ async function loadLinkedCreatorContext(actor: RequestUser): Promise<CreatorAcce
   return buildContextFromProfile(actor.uid, creatorPublicId, userData, actor);
 }
 
-async function loadCreatorContextByPublicId(actor: RequestUser, creatorPublicId: string) {
+async function loadCreatorContextByPublicId(
+  actor: RequestUser,
+  creatorPublicId: string,
+) {
   return buildContextFromProfile(actor.uid, creatorPublicId, undefined, actor);
 }
 
@@ -95,12 +113,14 @@ export async function resolveCreatorReadContext(
 }
 
 export async function requireCreatorAccessContext(
-  req: NextRequest
+  req: NextRequest,
 ): Promise<CreatorAccessContext> {
   const actor = await requireRole(req, ["creator", "admin"]);
   const url = new URL(req.url);
   if (url.searchParams.get("asCreator")?.trim()) {
-    throw new Error("Remove ?asCreator from the URL for uploads and account changes.");
+    throw new Error(
+      "Remove ?asCreator from the URL for uploads and account changes.",
+    );
   }
   return loadLinkedCreatorContext(actor);
 }

@@ -7,7 +7,7 @@ import {
 import { listVisibleManualEventCategories } from "@/lib/server/manual-event-categories";
 import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
 import { localizeCategoryList } from "@/lib/dashboard-category-localization";
-import { politicalPartyCategoriesForRegion } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 export async function GET(req: NextRequest) {
@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
       2,
       region.id,
     );
-    const politicalCategories = politicalPartyCategoriesForRegion(region.id);
+    const politicalCategories = await politicalPartyCategoriesForRegionManaged(
+      region.id,
+    );
     const weekdayCategories = getUpcomingWeekdayAssignableCategories();
     const manualCategories = await listVisibleManualEventCategories(
       Date.now(),

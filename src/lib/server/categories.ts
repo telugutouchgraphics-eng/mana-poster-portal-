@@ -16,6 +16,7 @@ export interface CategoryDef {
   labelsByLanguage?: CategoryLabelsByLanguage;
   iconAssetPath?: string;
   regionIds?: string[];
+  allowPoliticalProtocol?: boolean;
 }
 
 export interface VisibleCategoryDef extends CategoryDef {
@@ -129,6 +130,28 @@ const LEGACY_DYNAMIC_CATEGORY_ID_MAP: Record<string, string> = {
 export function canonicalCategoryId(categoryId: string): string {
   const normalized = categoryId.trim();
   return LEGACY_DYNAMIC_CATEGORY_ID_MAP[normalized] ?? normalized;
+}
+
+export function categoryAllowsPoliticalProtocol(
+  category:
+    | (Pick<CategoryDef, "id" | "allowPoliticalProtocol"> & {
+        isDynamic?: boolean;
+      })
+    | null
+    | undefined,
+): boolean {
+  if (!category) {
+    return false;
+  }
+  const normalized = canonicalCategoryId(category.id);
+  return (
+    normalized.startsWith("party_") ||
+    category.allowPoliticalProtocol === true ||
+    category.isDynamic === true ||
+    EVENT_DYNAMIC_CATEGORY_IDS.has(normalized) ||
+    DYNAMIC_META_CATEGORIES.some((item) => item.id === normalized) ||
+    WEEKDAY_DYNAMIC_CATEGORIES.some((item) => item.id === normalized)
+  );
 }
 
 function startOfDay(date: Date): Date {

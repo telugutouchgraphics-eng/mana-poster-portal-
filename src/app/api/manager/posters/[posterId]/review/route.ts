@@ -28,6 +28,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 
 const APPROVAL_REWARD_AMOUNT = 10;
 const TELUGU_SHARED_CONTENT_REGION_IDS = ["andhra_pradesh", "telangana"];
@@ -64,7 +65,10 @@ function resolvePosterTargetRegionIds(regionId: string, categoryId: string) {
   if (!regionId) {
     return [];
   }
-  if (POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) {
+  if (
+    categoryId.startsWith("party_") ||
+    POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)
+  ) {
     return [regionId];
   }
   return sharedContentRegionIdsFor(regionId);
@@ -103,7 +107,10 @@ async function resolveCreatorPosterPublishSchedule(
     const item = await getManualEventCategoryById(categoryId, regionId);
     if (!item) {
       return {
-        publishAt: Math.max(getPosterPublishAt(uploadedAt, approvedAt), approvedAt),
+        publishAt: Math.max(
+          getPosterPublishAt(uploadedAt, approvedAt),
+          approvedAt,
+        ),
         eventStartAt: 0,
         eventEndAt: 0,
       };
@@ -125,7 +132,9 @@ async function resolveCreatorPosterPublishSchedule(
   }
 
   const creatorPublishAt = Math.max(
-    requestedPublishAt > 0 ? requestedPublishAt : getCreatorPosterPublishAt(uploadedAt),
+    requestedPublishAt > 0
+      ? requestedPublishAt
+      : getCreatorPosterPublishAt(uploadedAt),
     approvedAt,
   );
   return {
@@ -137,7 +146,7 @@ async function resolveCreatorPosterPublishSchedule(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ posterId: string }> }
+  { params }: { params: Promise<{ posterId: string }> },
 ) {
   try {
     const actor = await requireRole(req, ["admin", "manager"]);
@@ -149,7 +158,7 @@ export async function POST(
     if (!snap.exists) {
       return NextResponse.json(
         { ok: false, error: "Poster not found." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -188,31 +197,60 @@ export async function POST(
         throw new Error("Poster not found.");
       }
       const current = currentSnap.data() as Record<string, unknown>;
-      const history = Array.isArray(current.reviewHistory) ? current.reviewHistory : [];
+      const history = Array.isArray(current.reviewHistory)
+        ? current.reviewHistory
+        : [];
       const wasApproved = String(current.status ?? "pending") === "approved";
-      const rewardAlreadyGranted = Number(current.approvalRewardAmount ?? 0) > 0;
+      const rewardAlreadyGranted =
+        Number(current.approvalRewardAmount ?? 0) > 0;
       const creatorPublicId = String(current.creatorPublicId ?? "");
       const categoryId = canonicalCategoryId(String(current.categoryId ?? ""));
       const categoryLabel =
-        CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)?.label ??
-        String(current.categoryLabel ?? "");
+        CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)
+          ?.label ?? String(current.categoryLabel ?? "");
       const title = String(current.title ?? "Poster");
       const uploadedAt = Number(current.createdAt ?? now);
       const requestedPublishAt = Number(current.requestedPublishAt ?? 0);
-      const createdByRole = String(current.createdByRole ?? "").trim().toLowerCase();
-      const createdBySurface = String(current.createdBySurface ?? "").trim().toLowerCase();
-      const isCreatorUpload = createdByRole === "creator" || createdBySurface === "creator_upload";
+      const createdByRole = String(current.createdByRole ?? "")
+        .trim()
+        .toLowerCase();
+      const createdBySurface = String(current.createdBySurface ?? "")
+        .trim()
+        .toLowerCase();
+      const isCreatorUpload =
+        createdByRole === "creator" || createdBySurface === "creator_upload";
       const regionId = String(current.regionId ?? "").trim();
+      const managedPoliticalCategories = categoryId.startsWith("party_")
+        ? await politicalPartyCategoriesForRegionManaged(regionId)
+        : [];
+      const isManagedPoliticalCategory = managedPoliticalCategories.some(
+        (item) => item.id === categoryId,
+      );
+      const isFallbackPoliticalCategory =
+        POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) &&
+        politicalPartyCategoriesForRegion(regionId).some(
+          (item) => item.id === categoryId,
+        );
       if (
         payload.status === "approved" &&
-        POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) &&
-        !politicalPartyCategoriesForRegion(regionId).some((item) => item.id === categoryId)
+        (categoryId.startsWith("party_") ||
+          POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) &&
+        !isManagedPoliticalCategory &&
+        !isFallbackPoliticalCategory
       ) {
-        throw new Error("This political party category is not available for the poster State / UT.");
+        throw new Error(
+          "This political party category is not available for the poster State / UT.",
+        );
       }
       const creatorSchedule =
         payload.status === "approved" && isCreatorUpload
-          ? await resolveCreatorPosterPublishSchedule(categoryId, uploadedAt, now, requestedPublishAt, regionId)
+          ? await resolveCreatorPosterPublishSchedule(
+              categoryId,
+              uploadedAt,
+              now,
+              requestedPublishAt,
+              regionId,
+            )
           : null;
       const publishAt =
         payload.status === "approved"
@@ -226,7 +264,8 @@ export async function POST(
         updatedAt: now,
         archivedAt: payload.status === "archived" ? now : null,
         deletedAt: null,
-        approvedAt: payload.status === "approved" ? now : Number(current.approvedAt ?? 0),
+        approvedAt:
+          payload.status === "approved" ? now : Number(current.approvedAt ?? 0),
         publishAt,
         eventStartAt:
           payload.status === "approved" && creatorSchedule
@@ -236,15 +275,25 @@ export async function POST(
           payload.status === "approved" && creatorSchedule
             ? creatorSchedule.eventEndAt
             : Number(current.eventEndAt ?? 0),
-        performanceWindowStartAt: payload.status === "approved" ? publishAt : Number(current.performanceWindowStartAt ?? 0),
+        performanceWindowStartAt:
+          payload.status === "approved"
+            ? publishAt
+            : Number(current.performanceWindowStartAt ?? 0),
         performanceWindowEndAt:
           payload.status === "approved"
-            ? (creatorSchedule?.eventEndAt && creatorSchedule.eventEndAt >= publishAt
-                ? creatorSchedule.eventEndAt
-                : publishAt + 24 * 60 * 60 * 1000)
+            ? creatorSchedule?.eventEndAt &&
+              creatorSchedule.eventEndAt >= publishAt
+              ? creatorSchedule.eventEndAt
+              : publishAt + 24 * 60 * 60 * 1000
             : Number(current.performanceWindowEndAt ?? 0),
-        dashboardHiddenAt: payload.status === "approved" ? 0 : Number(current.dashboardHiddenAt ?? 0),
-        dashboardHiddenReason: payload.status === "approved" ? "" : String(current.dashboardHiddenReason ?? ""),
+        dashboardHiddenAt:
+          payload.status === "approved"
+            ? 0
+            : Number(current.dashboardHiddenAt ?? 0),
+        dashboardHiddenReason:
+          payload.status === "approved"
+            ? ""
+            : String(current.dashboardHiddenReason ?? ""),
         dashboardVisibleUntil:
           payload.status === "approved"
             ? now + 24 * 60 * 60 * 1000
@@ -273,9 +322,15 @@ export async function POST(
         ],
       };
 
-      if (payload.status === "approved" && !wasApproved && !rewardAlreadyGranted && creatorPublicId) {
+      if (
+        payload.status === "approved" &&
+        !wasApproved &&
+        !rewardAlreadyGranted &&
+        creatorPublicId
+      ) {
         const ledgerRef = adminDb.collection("creatorEarningLedger").doc();
-        nextUpdate.creatorEarnings = Number(current.creatorEarnings ?? 0) + APPROVAL_REWARD_AMOUNT;
+        nextUpdate.creatorEarnings =
+          Number(current.creatorEarnings ?? 0) + APPROVAL_REWARD_AMOUNT;
         nextUpdate.approvalRewardAmount = APPROVAL_REWARD_AMOUNT;
         nextUpdate.approvalRewardGrantedAt = now;
         tx.set(ledgerRef, {
@@ -315,7 +370,8 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to update poster.";
+    const message =
+      error instanceof Error ? error.message : "Unable to update poster.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

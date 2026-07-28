@@ -38,6 +38,7 @@ interface CreatorCategory {
   id: string;
   label: string;
   isDynamic?: boolean;
+  allowPoliticalProtocol?: boolean;
   eventDateLabel?: string;
   eventStartAt?: number;
 }
@@ -284,6 +285,20 @@ function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
     default:
       return null;
   }
+}
+
+function categoryAllowsPoliticalProtocol(category: CreatorCategory | null): boolean {
+  if (!category) return false;
+  const normalized = category.id
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return (
+    normalized.startsWith("party_") ||
+    category.allowPoliticalProtocol === true ||
+    category.isDynamic === true
+  );
 }
 
 function supportsManualPublishDate(category: CreatorCategory | null): boolean {
@@ -1074,6 +1089,8 @@ export default function CreatorUploadStudioPage() {
     (file && isVideoFile(file)) ||
     (activeEditPoster && isVideoPoster(activeEditPoster)),
   );
+  const canUsePoliticalProtocol =
+    categoryAllowsPoliticalProtocol(activeCategory) && !isVideoPreview;
   const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
   const posterAspectRatio = posterAspect(fileMeta);
   const stripOverlapWarning =
@@ -2277,13 +2294,19 @@ export default function CreatorUploadStudioPage() {
                     <span className="relative inline-flex items-center">
                       <input
                         type="checkbox"
-                        checked={personalization.showPoliticalProtocol}
+                        checked={
+                          personalization.showPoliticalProtocol &&
+                          canUsePoliticalProtocol
+                        }
+                        disabled={!canUsePoliticalProtocol}
                         onChange={(event) =>
                           setPersonalization((prev) =>
                             clampPhotoSafeArea(
                               {
                                 ...prev,
-                                showPoliticalProtocol: event.target.checked,
+                                showPoliticalProtocol:
+                                  canUsePoliticalProtocol &&
+                                  event.target.checked,
                               },
                               fileMeta,
                             ),
@@ -2295,7 +2318,8 @@ export default function CreatorUploadStudioPage() {
                       <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
                     </span>
                   </label>
-                  {personalization.showPoliticalProtocol ? (
+                  {personalization.showPoliticalProtocol &&
+                  canUsePoliticalProtocol ? (
                     <div className="mt-4 grid gap-3">
                       <label className="block">
                         <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
@@ -2375,7 +2399,8 @@ export default function CreatorUploadStudioPage() {
                           </>
                         )}
 
-                        {personalization.showPoliticalProtocol
+                        {personalization.showPoliticalProtocol &&
+                        canUsePoliticalProtocol
                           ? safePersonalization.politicalProtocolSlots.map(
                               (slot, index) => {
                                 const side = protocolSlotSidePercent(

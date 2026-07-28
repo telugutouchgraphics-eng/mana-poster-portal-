@@ -23,6 +23,7 @@ import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
 } from "@/lib/political-party-categories";
+import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 
 const payloadSchema = z.object({
   status: z.enum(["approved", "rejected", "deleted"]),
@@ -99,13 +100,14 @@ export async function POST(
     const submittedCategoryLabel =
       payload.categoryLabel ?? String(current.categoryLabel ?? "").trim();
     const categoryLabel =
-      CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)?.label ??
-      submittedCategoryLabel;
+      CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)
+        ?.label ?? submittedCategoryLabel;
     const regionId = String(current.regionId ?? "").trim();
     const regionName = String(current.regionName ?? "").trim();
     await assertActorCanAccessRegion(actor, regionId);
     const imageUrl = payload.imageUrl ?? String(current.imageUrl ?? "").trim();
-    const imagePath = payload.imagePath ?? String(current.imagePath ?? "").trim();
+    const imagePath =
+      payload.imagePath ?? String(current.imagePath ?? "").trim();
     const currentStatus = String(current.status ?? "pending")
       .trim()
       .toLowerCase();
@@ -145,12 +147,29 @@ export async function POST(
           { status: 400 },
         );
       }
-      if (
+      const managedPoliticalCategories = categoryId.startsWith("party_")
+        ? await politicalPartyCategoriesForRegionManaged(regionId)
+        : [];
+      const isManagedPoliticalCategory = managedPoliticalCategories.some(
+        (item) => item.id === categoryId,
+      );
+      const isFallbackPoliticalCategory =
         POLITICAL_PARTY_CATEGORY_IDS.has(categoryId) &&
-        !politicalPartyCategoriesForRegion(regionId).some((item) => item.id === categoryId)
+        politicalPartyCategoriesForRegion(regionId).some(
+          (item) => item.id === categoryId,
+        );
+      if (
+        (categoryId.startsWith("party_") ||
+          POLITICAL_PARTY_CATEGORY_IDS.has(categoryId)) &&
+        !isManagedPoliticalCategory &&
+        !isFallbackPoliticalCategory
       ) {
         return NextResponse.json(
-          { ok: false, error: "This political party category is not available for the upload State / UT." },
+          {
+            ok: false,
+            error:
+              "This political party category is not available for the upload State / UT.",
+          },
           { status: 400 },
         );
       }
