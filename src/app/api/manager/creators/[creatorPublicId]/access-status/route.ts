@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       message: `Creator access changed to ${payload.status}.`,
       metadata: {
         status: payload.status,
-        assignedRegionIds: assignedRegionIds ?? undefined,
+        ...(assignedRegionIds ? { assignedRegionIds } : {}),
       },
     });
 
