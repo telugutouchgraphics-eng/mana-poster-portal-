@@ -121,13 +121,26 @@ async function cleanupTokenPath(refPath?: string) {
   } catch {}
 }
 
-async function loadCreatorUids(): Promise<string[]> {
+async function loadAllUserUidsForReligion(targetReligion: PushReligionTarget): Promise<string[]> {
+  const normalizedReligion = normalizeReligionTarget(targetReligion);
+  const snap =
+    normalizedReligion === "all"
+      ? await adminDb.collection("users").get()
+      : await adminDb.collection("users").where("religionPreference", "==", normalizedReligion).get();
+  return snap.docs.map((doc) => doc.id);
+}
+
+async function loadCreatorUids(targetReligion: PushReligionTarget = "all"): Promise<string[]> {
   const [primarySnap, rolesSnap] = await Promise.all([
     adminDb.collection("users").where("role", "==", "creator").get(),
     adminDb.collection("users").where("roles", "array-contains", "creator").get(),
   ]);
+  const normalizedReligion = normalizeReligionTarget(targetReligion);
   const ids = new Set<string>();
   for (const doc of [...primarySnap.docs, ...rolesSnap.docs]) {
+    if (!userReligionMatches(doc.data(), normalizedReligion)) {
+      continue;
+    }
     ids.add(doc.id);
   }
   return Array.from(ids);
@@ -309,12 +322,21 @@ async function resolveAudienceTargets(
     religion: PushReligionTarget;
   },
 ) {
+  const targetReligion = normalizeReligionTarget(targetLocation.religion);
   if (audience === "all_users") {
+    if (targetReligion !== "all") {
+      const userUids = await loadAllUserUidsForReligion(targetReligion);
+      return {
+        mode: "tokens" as const,
+        topic: "",
+        targets: await loadUserDeviceTokens(userUids),
+      };
+    }
     return { mode: "topic" as const, topic: "all_users", targets: [] as Array<{ token: string; refPath?: string }> };
   }
 
   if (audience === "creators_only") {
-    const creatorUids = await loadCreatorUids();
+    const creatorUids = await loadCreatorUids(targetReligion);
     return {
       mode: "tokens" as const,
       topic: "",
