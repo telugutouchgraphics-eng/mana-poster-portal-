@@ -144,8 +144,16 @@ export function categoryAllowsPoliticalProtocol(
     return false;
   }
   const normalized = canonicalCategoryId(category.id);
+  if (
+    category.allowPoliticalProtocol === false &&
+    !normalized.startsWith("party_") &&
+    normalized !== "today_special"
+  ) {
+    return false;
+  }
   return (
     normalized.startsWith("party_") ||
+    normalized === "today_special" ||
     category.allowPoliticalProtocol === true ||
     category.isDynamic === true ||
     EVENT_DYNAMIC_CATEGORY_IDS.has(normalized) ||

@@ -4,6 +4,7 @@ import { deleteAdminAsset } from "@/lib/server/content-management";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
 export type PushAudience = "all_users" | "creators_only" | "area_users";
+export type PushReligionTarget = "all" | "hindu" | "muslim" | "christian";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
 const PUSH_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 
@@ -49,6 +50,7 @@ export interface PushHistoryRecord {
   targetRegionIds?: string[];
   targetDistrict: string;
   targetCity: string;
+  targetReligion?: PushReligionTarget;
   category: string;
   status: PushStatus;
   targetCount: number;
@@ -191,6 +193,21 @@ function selectedRegionMatches(
   return Boolean(targetState && selectedRegionName === cleanLocationText(targetState));
 }
 
+function normalizeReligionTarget(value: unknown): PushReligionTarget {
+  const normalized = cleanLocationText(value);
+  if (normalized === "hindu" || normalized === "muslim" || normalized === "christian") {
+    return normalized;
+  }
+  return "all";
+}
+
+function userReligionMatches(data: FirebaseFirestore.DocumentData, targetReligion: PushReligionTarget) {
+  if (targetReligion === "all") {
+    return true;
+  }
+  return cleanLocationText(data.religionPreference) === targetReligion;
+}
+
 function areaMatches(
   area: { state: string; district: string; city: string },
   target: { state: string; district: string; city: string },
@@ -213,6 +230,7 @@ async function loadAreaUserUidsForRegionIds(target: {
   regionIds: string[];
   district: string;
   city: string;
+  religion: PushReligionTarget;
 }) {
   const targetRegionId = regionIdForStateName(target.state);
   const targetRegionIds = Array.from(
@@ -231,6 +249,7 @@ async function loadAreaUserUidsForRegionIds(target: {
   );
   const targetDistrict = cleanLocationText(target.district);
   const targetCity = cleanLocationText(target.city);
+  const targetReligion = normalizeReligionTarget(target.religion);
   const needsLocalArea = Boolean(targetDistrict || targetCity);
   const snapshots: FirebaseFirestore.QuerySnapshot[] = [];
   if (targetRegionIds.length > 0) {
@@ -266,6 +285,9 @@ async function loadAreaUserUidsForRegionIds(target: {
     if (!matchedByRegionIds && !matchedByStateName) {
       continue;
     }
+    if (!userReligionMatches(data, targetReligion)) {
+      continue;
+    }
     if (!needsLocalArea) {
       ids.push(doc.id);
       continue;
@@ -279,7 +301,13 @@ async function loadAreaUserUidsForRegionIds(target: {
 
 async function resolveAudienceTargets(
   audience: PushAudience,
-  targetLocation: { state: string; regionIds: string[]; district: string; city: string },
+  targetLocation: {
+    state: string;
+    regionIds: string[];
+    district: string;
+    city: string;
+    religion: PushReligionTarget;
+  },
 ) {
   if (audience === "all_users") {
     return { mode: "topic" as const, topic: "all_users", targets: [] as Array<{ token: string; refPath?: string }> };
@@ -363,6 +391,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
     regionIds: record.targetRegionIds ?? [],
     district: record.targetDistrict,
     city: record.targetCity,
+    religion: normalizeReligionTarget(record.targetReligion),
   });
 
   if (target.mode === "topic") {
@@ -470,6 +499,7 @@ export async function createPushHistoryRecord(input: {
   targetRegionIds?: string[];
   targetDistrict: string;
   targetCity: string;
+  targetReligion?: PushReligionTarget;
   category: string;
   scheduledFor: number | null;
   createdByUid: string;
@@ -493,6 +523,7 @@ export async function createPushHistoryRecord(input: {
       : [],
     targetDistrict: trimValue(input.targetDistrict),
     targetCity: trimValue(input.targetCity),
+    targetReligion: normalizeReligionTarget(input.targetReligion),
     category: trimValue(input.category),
     status: input.scheduledFor && input.scheduledFor > now ? "scheduled" : "processing",
     targetCount: 0,

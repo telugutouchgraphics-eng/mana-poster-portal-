@@ -80,6 +80,7 @@ export function PermanentCategoriesConsole() {
   const [labelsByLanguage, setLabelsByLanguage] =
     useState<CategoryLabelsByLanguage>(() => emptyLabels());
   const [sortOrder, setSortOrder] = useState("0");
+  const [allowPoliticalProtocol, setAllowPoliticalProtocol] = useState(false);
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -127,6 +128,7 @@ export function PermanentCategoriesConsole() {
     setIconAssetPath("");
     setLabelsByLanguage(emptyLabels());
     setSortOrder("0");
+    setAllowPoliticalProtocol(false);
     setSelectedRegionIds([]);
   }
 
@@ -141,6 +143,7 @@ export function PermanentCategoriesConsole() {
         iconAssetPath,
         regionIds: selectedRegionIds,
         sortOrder: Number(sortOrder) || 0,
+        allowPoliticalProtocol,
       };
       const endpoint = editingId
         ? `/api/admin/permanent-categories/${encodeURIComponent(editingId)}`
@@ -217,6 +220,7 @@ export function PermanentCategoriesConsole() {
     setIconAssetPath(item.iconAssetPath ?? "");
     setLabelsByLanguage(item.labelsByLanguage ?? emptyLabels());
     setSortOrder(String(item.sortOrder ?? 0));
+    setAllowPoliticalProtocol(item.allowPoliticalProtocol === true);
     setSelectedRegionIds(item.regionIds ?? []);
   }
 
@@ -383,6 +387,25 @@ export function PermanentCategoriesConsole() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </label>
+        <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+          <span>
+            <span className="block text-sm font-semibold text-slate-800">
+              Allow political protocol photos
+            </span>
+            <span className="block text-xs text-slate-500">
+              Enable this only when posters in this category can use party
+              leader photos.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={allowPoliticalProtocol}
+            onChange={(event) =>
+              setAllowPoliticalProtocol(event.target.checked)
+            }
+            className="h-5 w-5 rounded border-slate-300 text-slate-950"
+          />
+        </label>
         <div className="flex items-end gap-2">
           <button
             type="submit"
@@ -445,6 +468,10 @@ export function PermanentCategoriesConsole() {
                           .map((region) => region.name)
                           .join(", ")
                       : "All States / UTs"}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Political protocol:{" "}
+                    {item.allowPoliticalProtocol ? "Allowed" : "Off"}
                   </p>
                   {item.iconAssetPath ? (
                     <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">

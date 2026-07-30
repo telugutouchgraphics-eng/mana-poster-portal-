@@ -115,6 +115,7 @@ export function ManualEventCategoriesConsole() {
   const [iconAssetPath, setIconAssetPath] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [allowPoliticalProtocol, setAllowPoliticalProtocol] = useState(false);
   const [labelsByLanguage, setLabelsByLanguage] =
     useState<CategoryLabelsByLanguage>(() => emptyLabels());
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([
@@ -203,6 +204,7 @@ export function ManualEventCategoriesConsole() {
     setIconAssetPath("");
     setStartDate("");
     setEndDate("");
+    setAllowPoliticalProtocol(false);
     setLabelsByLanguage(emptyLabels());
     setSelectedRegionIds([region.id]);
   }
@@ -219,6 +221,7 @@ export function ManualEventCategoriesConsole() {
         iconAssetPath,
         startDate,
         endDate: endDate || startDate,
+        allowPoliticalProtocol,
         regionId: region.id,
         regionIds:
           selectedRegionIds.length > 0 ? selectedRegionIds : [region.id],
@@ -234,6 +237,7 @@ export function ManualEventCategoriesConsole() {
                 iconAssetPath,
                 startDate,
                 endDate: endDate || startDate,
+                allowPoliticalProtocol,
                 active: true,
                 regionId: region.id,
                 regionIds:
@@ -538,6 +542,23 @@ export function ManualEventCategoriesConsole() {
               className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
             />
           </label>
+          <label className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--portal-border)] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 md:col-span-2 xl:col-span-4">
+            <span>
+              <span className="block">Allow political protocol photos</span>
+              <span className="block text-xs font-medium text-slate-500">
+                Enable this only when posters in this event can use party
+                leader photos.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={allowPoliticalProtocol}
+              onChange={(event) =>
+                setAllowPoliticalProtocol(event.target.checked)
+              }
+              className="h-5 w-5 rounded border-slate-300 text-[var(--portal-purple)]"
+            />
+          </label>
           <div className="md:col-span-2 xl:col-span-4 flex flex-wrap gap-3">
             <button
               type="submit"
@@ -641,6 +662,10 @@ export function ManualEventCategoriesConsole() {
                         .map((candidate) => candidate.name)
                         .join(", ") || "All States / UTs"}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Political protocol:{" "}
+                      {item.allowPoliticalProtocol ? "Allowed" : "Off"}
+                    </p>
                     {item.iconAssetPath ? (
                       <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
                         {adminCategoryIconPreviewPath(item.iconAssetPath) ? (
@@ -678,6 +703,9 @@ export function ManualEventCategoriesConsole() {
                         );
                         setStartDate(toInputDate(item.startAt));
                         setEndDate(toInputDate(item.endAt));
+                        setAllowPoliticalProtocol(
+                          item.allowPoliticalProtocol === true,
+                        );
                       }}
                       className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700"
                     >

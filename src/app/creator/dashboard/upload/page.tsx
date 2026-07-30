@@ -162,7 +162,7 @@ const defaultPersonalization: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
-  showPoliticalProtocol: false,
+  showPoliticalProtocol: true,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
   politicalProtocolScale: 85,
@@ -294,8 +294,16 @@ function categoryAllowsPoliticalProtocol(category: CreatorCategory | null): bool
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+  if (
+    category.allowPoliticalProtocol === false &&
+    !normalized.startsWith("party_") &&
+    normalized !== "today_special"
+  ) {
+    return false;
+  }
   return (
     normalized.startsWith("party_") ||
+    normalized === "today_special" ||
     category.allowPoliticalProtocol === true ||
     category.isDynamic === true
   );

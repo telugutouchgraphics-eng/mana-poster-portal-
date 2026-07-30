@@ -19,6 +19,7 @@ interface PushNotificationItem {
   targetRegionIds?: string[];
   targetDistrict?: string;
   targetCity?: string;
+  targetReligion?: "all" | "hindu" | "muslim" | "christian";
   category: string;
   status: "scheduled" | "sent" | "failed" | "processing";
   targetCount: number;
@@ -48,6 +49,8 @@ export default function AdminPushNotificationsPage() {
   const [targetRegionIds, setTargetRegionIds] = useState<string[]>([region.id]);
   const [targetDistrict, setTargetDistrict] = useState("");
   const [targetCity, setTargetCity] = useState("");
+  const [targetReligion, setTargetReligion] =
+    useState<"all" | "hindu" | "muslim" | "christian">("all");
   const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -127,6 +130,7 @@ export default function AdminPushNotificationsPage() {
       });
       formData.set("targetDistrict", audience === "area_users" ? targetDistrict.trim() : "");
       formData.set("targetCity", audience === "area_users" ? targetCity.trim() : "");
+      formData.set("targetReligion", targetReligion);
       if (imageFile) {
         formData.set("image", imageFile);
       }
@@ -147,6 +151,7 @@ export default function AdminPushNotificationsPage() {
       setTargetRegionIds([region.id]);
       setTargetDistrict("");
       setTargetCity("");
+      setTargetReligion("all");
       setImageFile(null);
       const input = document.getElementById("push-image-input") as HTMLInputElement | null;
       if (input) {
@@ -246,7 +251,7 @@ export default function AdminPushNotificationsPage() {
             <p className="mt-1 text-xs leading-6 text-emerald-700">
               State targeting uses the user&apos;s selected app state. District and city filters use saved local area when available.
             </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
               <label className="space-y-2 text-sm text-emerald-950">
                 <span className="font-semibold">States / UTs</span>
                 <RegionMultiSelectDropdown
@@ -289,6 +294,21 @@ export default function AdminPushNotificationsPage() {
                   {cityOptions.map((city) => (
                     <option key={city} value={city}>{city}</option>
                   ))}
+                </select>
+              </label>
+              <label className="space-y-2 text-sm text-emerald-950">
+                <span className="font-semibold">Religion</span>
+                <select
+                  value={targetReligion}
+                  onChange={(event) =>
+                    setTargetReligion(event.target.value as "all" | "hindu" | "muslim" | "christian")
+                  }
+                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
+                >
+                  <option value="all">All religions</option>
+                  <option value="hindu">Hindu only</option>
+                  <option value="muslim">Muslim only</option>
+                  <option value="christian">Christian only</option>
                 </select>
               </label>
             </div>
@@ -398,6 +418,10 @@ export default function AdminPushNotificationsPage() {
                         Area: {[item.targetCity, item.targetDistrict, displayTargetStates(item)]
                           .filter(Boolean)
                           .join(", ") || "Selected area"}
+                        {" "}
+                        | Religion: {item.targetReligion && item.targetReligion !== "all"
+                          ? item.targetReligion
+                          : "All"}
                       </p>
                     ) : null}
                     <p className="mt-1 text-xs text-slate-500">

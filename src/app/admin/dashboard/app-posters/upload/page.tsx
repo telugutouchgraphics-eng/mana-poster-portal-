@@ -141,7 +141,7 @@ const defaultPersonalization: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
-  showPoliticalProtocol: false,
+  showPoliticalProtocol: true,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
   politicalProtocolScale: 85,
@@ -289,8 +289,16 @@ function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
 function categoryAllowsPoliticalProtocol(category: AdminCategory | null): boolean {
   if (!category) return false;
   const normalized = normalizeCategoryKey(category.id);
+  if (
+    category.allowPoliticalProtocol === false &&
+    !normalized.startsWith("party_") &&
+    normalized !== "today_special"
+  ) {
+    return false;
+  }
   return (
     normalized.startsWith("party_") ||
+    normalized === "today_special" ||
     category.allowPoliticalProtocol === true ||
     category.isDynamic === true
   );

@@ -105,6 +105,11 @@ export async function POST(req: NextRequest) {
     );
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
+    const requestedReligion = String(formData.get("targetReligion") ?? "all").trim().toLowerCase();
+    const targetReligion =
+      requestedReligion === "hindu" || requestedReligion === "muslim" || requestedReligion === "christian"
+        ? requestedReligion
+        : "all";
     const image = formData.get("image");
 
     if (!title || !message) {
@@ -201,6 +206,7 @@ export async function POST(req: NextRequest) {
       targetRegionIds,
       targetDistrict,
       targetCity,
+      targetReligion,
       category,
       scheduledFor,
       createdByUid: actor.uid,
@@ -229,6 +235,7 @@ export async function POST(req: NextRequest) {
         targetRegionIds,
         targetDistrict,
         targetCity,
+        targetReligion,
         category,
         title,
         message,
