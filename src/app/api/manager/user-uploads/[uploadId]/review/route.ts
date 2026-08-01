@@ -35,7 +35,139 @@ const payloadSchema = z.object({
   imagePath: z.string().trim().min(1).optional(),
 });
 
-async function sendUserUploadStatusNotification(
+type NotificationLanguage =
+  | "telugu"
+  | "hindi"
+  | "english"
+  | "tamil"
+  | "kannada"
+  | "malayalam"
+  | "assamese"
+  | "konkani"
+  | "gujarati"
+  | "marathi"
+  | "meitei"
+  | "mizo"
+  | "odia"
+  | "punjabi"
+  | "nepali"
+  | "bengali"
+  | "kashmiri"
+  | "ladakhi";
+
+function normalizeNotificationLanguage(value: unknown): NotificationLanguage {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  const supported = new Set<NotificationLanguage>([
+    "telugu",
+    "hindi",
+    "english",
+    "tamil",
+    "kannada",
+    "malayalam",
+    "assamese",
+    "konkani",
+    "gujarati",
+    "marathi",
+    "meitei",
+    "mizo",
+    "odia",
+    "punjabi",
+    "nepali",
+    "bengali",
+    "kashmiri",
+    "ladakhi",
+  ]);
+  return supported.has(normalized as NotificationLanguage)
+    ? (normalized as NotificationLanguage)
+    : "english";
+}
+
+function userUploadStatusCopy(
+  status: "approved" | "rejected",
+  language: NotificationLanguage,
+) {
+  const copy: Record<NotificationLanguage, { approved: string; rejected: string }> = {
+    telugu: {
+      approved: "మీ పోస్టర్ ఆమోదించబడింది.",
+      rejected: "మీ పోస్టర్ తిరస్కరించబడింది.",
+    },
+    hindi: {
+      approved: "आपका पोस्टर मंजूर हो गया है।",
+      rejected: "आपका पोस्टर अस्वीकार कर दिया गया है।",
+    },
+    english: {
+      approved: "Your poster has been approved.",
+      rejected: "Your poster has been rejected.",
+    },
+    tamil: {
+      approved: "உங்கள் போஸ்டர் அங்கீகரிக்கப்பட்டது.",
+      rejected: "உங்கள் போஸ்டர் நிராகரிக்கப்பட்டது.",
+    },
+    kannada: {
+      approved: "ನಿಮ್ಮ ಪೋಸ್ಟರ್ ಅನುಮೋದಿಸಲಾಗಿದೆ.",
+      rejected: "ನಿಮ್ಮ ಪೋಸ್ಟರ್ ನಿರಾಕರಿಸಲಾಗಿದೆ.",
+    },
+    malayalam: {
+      approved: "നിങ്ങളുടെ പോസ്റ്റർ അംഗീകരിച്ചു.",
+      rejected: "നിങ്ങളുടെ പോസ്റ്റർ നിരസിച്ചു.",
+    },
+    assamese: {
+      approved: "আপোনাৰ পোষ্টাৰ অনুমোদিত হৈছে।",
+      rejected: "আপোনাৰ পোষ্টাৰ নাকচ কৰা হৈছে।",
+    },
+    konkani: {
+      approved: "तुमचो पोस्टर मंजूर जाला.",
+      rejected: "तुमचो पोस्टर नाकारला.",
+    },
+    gujarati: {
+      approved: "તમારું પોસ્ટર મંજૂર થયું છે.",
+      rejected: "તમારું પોસ્ટર નકારવામાં આવ્યું છે.",
+    },
+    marathi: {
+      approved: "तुमचा पोस्टर मंजूर झाला आहे.",
+      rejected: "तुमचा पोस्टर नाकारला आहे.",
+    },
+    meitei: {
+      approved: "নহাক্কী poster approve তৌরে.",
+      rejected: "নহাক্কী poster reject তৌরে.",
+    },
+    mizo: {
+      approved: "I poster pawm a ni.",
+      rejected: "I poster hnawl a ni.",
+    },
+    odia: {
+      approved: "ଆପଣଙ୍କ ପୋଷ୍ଟର ଅନୁମୋଦିତ ହୋଇଛି।",
+      rejected: "ଆପଣଙ୍କ ପୋଷ୍ଟର ଅସ୍ୱୀକାର ହୋଇଛି।",
+    },
+    punjabi: {
+      approved: "ਤੁਹਾਡਾ ਪੋਸਟਰ ਮਨਜ਼ੂਰ ਹੋ ਗਿਆ ਹੈ।",
+      rejected: "ਤੁਹਾਡਾ ਪੋਸਟਰ ਰੱਦ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ।",
+    },
+    nepali: {
+      approved: "तपाईंको पोस्टर स्वीकृत भएको छ।",
+      rejected: "तपाईंको पोस्टर अस्वीकार गरिएको छ।",
+    },
+    bengali: {
+      approved: "আপনার পোস্টার অনুমোদিত হয়েছে।",
+      rejected: "আপনার পোস্টার বাতিল করা হয়েছে।",
+    },
+    kashmiri: {
+      approved: "تُہند پوسٹر منظور گومُت چھ۔",
+      rejected: "تُہند پوسٹر رد گومُت چھ۔",
+    },
+    ladakhi: {
+      approved: "Khyod-kyi poster approve in.",
+      rejected: "Khyod-kyi poster reject in.",
+    },
+  };
+  return {
+    title: "Mana Poster",
+    body: status === "approved" ? copy[language].approved : copy[language].rejected,
+  };
+}
+
+
+async function sendUserUploadStatusNotificationLocalized(
   uid: string,
   status: "approved" | "rejected",
   rejectionReason: string,
@@ -48,31 +180,44 @@ async function sendUserUploadStatusNotification(
     .doc(uid)
     .collection("deviceTokens")
     .get();
-  const tokens = tokensSnap.docs
-    .map((doc) => String(doc.data().token ?? "").trim())
-    .filter((token) => token.length > 0);
-  if (tokens.length === 0) {
+  const tokensByLanguage = new Map<NotificationLanguage, string[]>();
+  for (const doc of tokensSnap.docs) {
+    const data = doc.data();
+    const token = String(data.token ?? "").trim();
+    if (!token) {
+      continue;
+    }
+    const language = normalizeNotificationLanguage(data.preferredLanguage);
+    const tokens = tokensByLanguage.get(language) ?? [];
+    tokens.push(token);
+    tokensByLanguage.set(language, tokens);
+  }
+  if (tokensByLanguage.size === 0) {
     return;
   }
   const isApproved = status === "approved";
-  const title = "Mana Poster";
-  const body = isApproved
-    ? "మీ పోస్టర్ ఆమోదించబడింది"
-    : "మీ పోస్టర్ తిరస్కరించబడింది";
-  await adminMessaging.sendEachForMulticast({
-    tokens,
-    notification: { title, body },
-    data: {
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-      route: "home",
-      source: "manager_user_upload_review",
-      userUploadStatus: status,
-      rejectionReason: isApproved ? "" : rejectionReason,
-    },
-    android: {
-      priority: "high",
-    },
-  });
+  for (const [language, tokens] of tokensByLanguage.entries()) {
+    const { title, body } = userUploadStatusCopy(status, language);
+    await adminMessaging.sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        route: "home",
+        source: "manager_user_upload_review",
+        userUploadStatus: status,
+        title,
+        body,
+        title_key: isApproved ? "user_upload_approved_title" : "user_upload_rejected_title",
+        body_key: isApproved ? "user_upload_approved_body" : "user_upload_rejected_body",
+        languageCode: language,
+        rejectionReason: isApproved ? "" : rejectionReason,
+      },
+      android: {
+        priority: "high",
+      },
+    });
+  }
 }
 export async function POST(
   req: NextRequest,
@@ -283,7 +428,7 @@ export async function POST(
       },
       { merge: true },
     );
-    await sendUserUploadStatusNotification(
+    await sendUserUploadStatusNotificationLocalized(
       userId,
       payload.status,
       rejectionReason,

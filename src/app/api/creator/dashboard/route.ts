@@ -32,6 +32,7 @@ import {
   getIstDayKey,
 } from "@/lib/server/ist-schedule";
 import { localizeCategoryLabel } from "@/lib/dashboard-category-localization";
+import type { CategoryType } from "@/lib/category-groups";
 import { requireRole } from "@/lib/server/auth";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
@@ -227,15 +228,34 @@ export async function GET(req: NextRequest) {
         })),
       ].map((item) => [item.id, item.label]),
     );
+    const manualCategoryIds = new Set(manualCategories.map((item) => item.id));
+    const permanentCategoryIds = new Set(
+      permanentCategories.map((item) => item.id),
+    );
+    const politicalCategoryIds = new Set(
+      politicalCategories.map((item) => item.id),
+    );
 
     const assignedCategories = creator.assignedCategories.map((categoryId) => {
       const meta = visibleCategoryMeta.get(categoryId);
+      const categoryType: CategoryType = politicalCategoryIds.has(categoryId)
+        ? "political"
+        : manualCategoryIds.has(categoryId)
+          ? "manual"
+          : permanentCategoryIds.has(categoryId)
+            ? "permanent"
+            : categoryId.startsWith("weekday_")
+              ? "weekday"
+              : Boolean(meta?.isDynamic)
+                ? "event"
+                : "daily";
       return {
         id: categoryId,
         label: localizeCategoryLabel(
           { id: categoryId, label: categoryMap[categoryId] ?? categoryId },
           region,
         ),
+        categoryType,
         isDynamic:
           categoryId.startsWith("weekday_") || Boolean(meta?.isDynamic),
         eventDateLabel: meta?.eventDateLabel ?? "",

@@ -245,7 +245,7 @@ function resolvedRenderShape(shape: PhotoShape): PhotoShape {
 
 function resolvedEdgeStyle(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): PhotoEdgeStyle {
   if (shape === "transparent_bottom_fade") return "bottom_fade";
-  if (shape === "transparent_soft_round") return "bottom_fade";
+  if (shape === "transparent_soft_round") return "feather";
   if (shape === "transparent_clean" || shape === "transparent_sharp_round") return "sharp";
   return edgeStyle;
 }

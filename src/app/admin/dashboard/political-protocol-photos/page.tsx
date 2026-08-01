@@ -76,8 +76,9 @@ function partyIdFromName(value: string) {
 }
 
 export default function PoliticalProtocolPhotosPage() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { region, regions } = useDashboardRegion();
+  const canManageParties = roles.includes("admin");
   const fallbackParties = useMemo(
     () => politicalPartyCategoriesForRegion(region.id),
     [region.id],
@@ -502,6 +503,7 @@ export default function PoliticalProtocolPhotosPage() {
 
   return (
     <main className="space-y-6">
+      {canManageParties ? (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -654,6 +656,7 @@ export default function PoliticalProtocolPhotosPage() {
           </button>
         </form>
       </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5">
@@ -709,6 +712,7 @@ export default function PoliticalProtocolPhotosPage() {
         ) : null}
       </section>
 
+      {canManageParties ? (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
@@ -766,6 +770,7 @@ export default function PoliticalProtocolPhotosPage() {
           </button>
         </form>
       </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">

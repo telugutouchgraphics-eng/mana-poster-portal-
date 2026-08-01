@@ -14,6 +14,7 @@ import {
 } from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
+import { groupCategories, type CategoryType } from "@/lib/category-groups";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
 import {
@@ -37,6 +38,7 @@ interface AdminCategory {
   id: string;
   label: string;
   isDynamic?: boolean;
+  categoryType?: CategoryType | string;
   allowPoliticalProtocol?: boolean;
   eventDateLabel?: string;
   eventStartAt?: number;
@@ -1066,6 +1068,7 @@ export default function AdminUploadStudioPage() {
   }
 
   const assignedCategories = dashboard?.categories ?? [];
+  const categoryGroups = groupCategories(assignedCategories);
   const uploadsByCategory = useMemo(() => {
     return (dashboard?.posters ?? []).reduce<Record<string, AdminPoster[]>>(
       (acc, item) => {
@@ -1486,44 +1489,51 @@ export default function AdminUploadStudioPage() {
             className="hidden"
           />
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 space-y-4">
             {assignedCategories.length === 0 ? (
               <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
                 {customizationCopy.noAssignedCategories}
               </div>
             ) : (
-              assignedCategories.map((category) => {
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => setCategoryId(category.id)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      category.id === categoryId
-                        ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
-                        : categoryTone(category)
-                    }`}
-                  >
-                    <CategoryLabelWithLogo
-                      id={category.id}
-                      label={category.label}
-                    />
-                    {formatCategoryDate(category.eventDateLabel) ? (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+              categoryGroups.map((group) => (
+                <div key={group.type} className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                    {group.label}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {group.categories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setCategoryId(category.id)}
+                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                           category.id === categoryId
-                            ? "bg-white/20 text-white"
-                            : category.isDynamic
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-sky-100 text-sky-800"
+                            ? "border-[var(--portal-purple)] bg-[var(--portal-purple)] text-white"
+                            : categoryTone(category)
                         }`}
                       >
-                        {formatCategoryDate(category.eventDateLabel)}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })
+                        <CategoryLabelWithLogo
+                          id={category.id}
+                          label={category.label}
+                        />
+                        {formatCategoryDate(category.eventDateLabel) ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                              category.id === categoryId
+                                ? "bg-white/20 text-white"
+                                : category.isDynamic
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-sky-100 text-sky-800"
+                            }`}
+                          >
+                            {formatCategoryDate(category.eventDateLabel)}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
             )}
           </div>
 

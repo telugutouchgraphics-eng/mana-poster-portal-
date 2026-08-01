@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { uploadAdminAsset } from "@/lib/server/content-management";
-import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import {
+  assertActorCanAccessRegion,
+  loadActorAllowedRegionIds,
+} from "@/lib/server/region-scope";
 import { findManagedPoliticalParty } from "@/lib/server/political-parties";
 
 const COLLECTION = "politicalProtocolPhotos";
@@ -26,13 +29,17 @@ function extensionFor(file: File) {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const regionId = String(
       req.nextUrl.searchParams.get("regionId") ?? "",
     ).trim();
     const partyId = String(
       req.nextUrl.searchParams.get("partyId") ?? "",
     ).trim();
+    const allowedRegionIds = regionId
+      ? [await assertActorCanAccessRegion(actor, regionId).then((item) => item.id)]
+      : await loadActorAllowedRegionIds(actor);
+    const allowedRegionSet = new Set(allowedRegionIds);
     const snap = await adminDb.collection(COLLECTION).get();
     const photos: ProtocolPhotoRow[] = snap.docs
       .map(
@@ -43,6 +50,7 @@ export async function GET(req: NextRequest) {
           }) as ProtocolPhotoRow,
       )
       .filter((item) => !regionId || String(item.regionId ?? "") === regionId)
+      .filter((item) => allowedRegionSet.has(String(item.regionId ?? "")))
       .filter((item) => !partyId || String(item.partyId ?? "") === partyId)
       .sort(
         (a, b) =>
@@ -61,7 +69,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const actor = await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const formData = await req.formData();
     const regionId = String(formData.get("regionId") ?? "").trim();
     const partyId = String(formData.get("partyId") ?? "").trim();
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const actor = await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const body = (await req.json()) as {
       regionId?: string;
       partyId?: string;

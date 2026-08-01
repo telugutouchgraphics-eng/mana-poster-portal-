@@ -7,8 +7,22 @@ import {
 import { listVisibleManualEventCategories } from "@/lib/server/manual-event-categories";
 import { listActivePermanentCategories } from "@/lib/server/permanent-categories";
 import { localizeCategoryList } from "@/lib/dashboard-category-localization";
+import type { CategoryType } from "@/lib/category-groups";
 import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+
+function withCategoryType<T extends { id: string; isDynamic?: boolean }>(
+  categories: T[],
+  categoryType: CategoryType,
+): Array<T & { categoryType: CategoryType }> {
+  return categories.map((category) => ({
+    ...category,
+    categoryType:
+      category.id.startsWith("weekday_") && categoryType === "event"
+        ? "weekday"
+        : categoryType,
+  }));
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,11 +49,18 @@ export async function GET(req: NextRequest) {
     const permanentCategories = await listActivePermanentCategories(region.id);
     const seen = new Set<string>();
     const categories = [
-      ...baseCategories,
-      ...politicalCategories,
-      ...weekdayCategories,
-      ...manualCategories,
-      ...permanentCategories,
+      ...baseCategories.map((category) => ({
+        ...category,
+        categoryType: (category.id.startsWith("weekday_")
+          ? "weekday"
+          : category.isDynamic
+            ? "event"
+            : "daily") as CategoryType,
+      })),
+      ...withCategoryType(politicalCategories, "political"),
+      ...withCategoryType(weekdayCategories, "weekday"),
+      ...withCategoryType(manualCategories, "manual"),
+      ...withCategoryType(permanentCategories, "permanent"),
     ].filter((item) => {
       if (seen.has(item.id)) {
         return false;

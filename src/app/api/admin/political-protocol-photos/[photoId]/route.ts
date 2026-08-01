@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { deleteAdminAsset } from "@/lib/server/content-management";
+import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
 const COLLECTION = "politicalProtocolPhotos";
 
@@ -10,7 +11,7 @@ export async function DELETE(
   context: { params: Promise<unknown> },
 ) {
   try {
-    await requireRole(req, ["admin"]);
+    const actor = await requireRole(req, ["admin", "manager"]);
     const params = (await context.params) as { photoId?: string };
     const { photoId } = params;
     const id = String(photoId ?? "").trim();
@@ -23,6 +24,7 @@ export async function DELETE(
       return NextResponse.json({ ok: true });
     }
     const data = snap.data() as Record<string, unknown>;
+    await assertActorCanAccessRegion(actor, String(data.regionId ?? ""));
     await deleteAdminAsset(String(data.imagePath ?? ""));
     await ref.delete();
     return NextResponse.json({ ok: true });

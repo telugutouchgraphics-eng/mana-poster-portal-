@@ -67,7 +67,7 @@ function parseLabelsByLanguage(value: FormDataEntryValue | null) {
 
 export async function GET(req: NextRequest) {
   try {
-    await requireRole(req, ["admin"]);
+    await requireRole(req, ["admin", "manager"]);
     const parties = await listManagedPoliticalParties();
     return NextResponse.json({ ok: true, parties });
   } catch (error) {

@@ -36,6 +36,7 @@ import {
   localizeCategoryLabel,
   localizeCategoryList,
 } from "@/lib/dashboard-category-localization";
+import type { CategoryType } from "@/lib/category-groups";
 import {
   POLITICAL_PARTY_CATEGORY_IDS,
   politicalPartyCategoriesForRegion,
@@ -366,10 +367,26 @@ async function buildAdminAppPosterCategories(regionId?: string | null) {
   );
   const permanentCategories = await listActivePermanentCategories(regionId);
   const mergedVisible = [
-    ...visibleCategories,
-    ...politicalCategories,
-    ...manualCategories,
-    ...permanentCategories,
+    ...visibleCategories.map((category) => ({
+      ...category,
+      categoryType: (category.id.startsWith("weekday_")
+        ? "weekday"
+        : category.isDynamic
+          ? "event"
+          : "daily") as CategoryType,
+    })),
+    ...politicalCategories.map((category) => ({
+      ...category,
+      categoryType: "political" as CategoryType,
+    })),
+    ...manualCategories.map((category) => ({
+      ...category,
+      categoryType: "manual" as CategoryType,
+    })),
+    ...permanentCategories.map((category) => ({
+      ...category,
+      categoryType: "permanent" as CategoryType,
+    })),
   ];
   const visibleIds = new Set(mergedVisible.map((item) => item.id));
   const weekdayCategories = CREATOR_ASSIGNABLE_CATEGORIES.filter(
@@ -378,6 +395,7 @@ async function buildAdminAppPosterCategories(regionId?: string | null) {
     id: item.id,
     label: item.label,
     isDynamic: true,
+    categoryType: "weekday" as CategoryType,
   }));
 
   return localizeCategoryList(
