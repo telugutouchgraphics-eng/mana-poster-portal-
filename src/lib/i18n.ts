@@ -253,13 +253,6 @@ type TranslationKey =
   | "creator.upload.showGradientStrip"
   | "creator.upload.apply"
   | "creator.upload.appliedMessage"
-  | "creator.upload.shape.circle"
-  | "creator.upload.shape.scallop_circle"
-  | "creator.upload.shape.soft_burst"
-  | "creator.upload.shape.badge"
-  | "creator.upload.shape.rounded_square"
-  | "creator.upload.shape.vertical_rectangle"
-  | "creator.upload.shape.square"
   | "creator.upload.shape.transparent_bottom_fade"
   | "creator.upload.shape.transparent_clean"
   | "creator.upload.shape.transparent_soft_round"
@@ -524,13 +517,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "creator.upload.showGradientStrip": "Show gradient strip",
     "creator.upload.apply": "Apply",
     "creator.upload.appliedMessage": "Customization applied. This placement will be saved when you upload.",
-    "creator.upload.shape.circle": "Circle",
-    "creator.upload.shape.scallop_circle": "Scallop Circle",
-    "creator.upload.shape.soft_burst": "Soft Burst",
-    "creator.upload.shape.badge": "Badge",
-    "creator.upload.shape.rounded_square": "Rounded Square",
-    "creator.upload.shape.vertical_rectangle": "Vertical Rectangle",
-    "creator.upload.shape.square": "Classic Square",
     "creator.upload.shape.transparent_bottom_fade": "Bottom Blend",
     "creator.upload.shape.transparent_clean": "Clean Cutout",
     "creator.upload.shape.transparent_soft_round": "Soft Round",
@@ -794,13 +780,6 @@ const translations: Record<PortalLanguage, Record<TranslationKey, string>> = {
     "creator.upload.showGradientStrip": "à°—à±à°°à°¾à°¡à°¿à°¯à±†à°‚à°Ÿà± à°¸à±à°Ÿà±à°°à°¿à°ªà± à°šà±‚à°ªà°¿à°‚à°šà±",
     "creator.upload.apply": "à°…à°ªà±à°²à±ˆ",
     "creator.upload.appliedMessage": "à°•à°¸à±à°Ÿà°®à±ˆà°œà±‡à°·à°¨à± à°…à°ªà±à°²à±ˆ à°…à°¯à°¿à°‚à°¦à°¿. à°…à°ªà±â€Œà°²à±‹à°¡à± à°šà±‡à°¸à°¿à°¨à°ªà±à°ªà±à°¡à± à°‡à°¦à±‡ à°ªà±à°²à±‡à°¸à±â€Œà°®à±†à°‚à°Ÿà± à°¸à±‡à°µà± à°…à°µà±à°¤à±à°‚à°¦à°¿.",
-    "creator.upload.shape.circle": "à°¸à°°à±à°•à°¿à°²à±",
-    "creator.upload.shape.scallop_circle": "à°¸à±à°•à°¾à°²à±‹à°ªà± à°¸à°°à±à°•à°¿à°²à±",
-    "creator.upload.shape.soft_burst": "à°¸à°¾à°«à±à°Ÿà± à°¬à°°à±à°¸à±à±à°Ÿà±",
-    "creator.upload.shape.badge": "à°¬à±à°¯à°¾à°¡à±à°œà±",
-    "creator.upload.shape.rounded_square": "à°°à±Œà°‚à°¡à±†à°¡à± à°¸à±à°•à±à°µà±‡à°°à±",
-    "creator.upload.shape.vertical_rectangle": "à°µà±†à°°à±à°Ÿà°¿à°•à°²à± à°°à±†à°•à±à°Ÿà°¾à°‚à°—à°¿à°²à±",
-    "creator.upload.shape.square": "à°•à±à°²à°¾à°¸à°¿à°•à± à°¸à±à°•à±à°µà±‡à°°à±",
     "creator.upload.shape.transparent_bottom_fade": "à°¬à°¾à°Ÿà°®à± à°¬à±à°²à±†à°‚à°¡à±",
     "creator.upload.shape.transparent_clean": "à°•à±à°²à±€à°¨à± à°•à°Ÿà±â€Œà°”à°Ÿà±",
     "creator.upload.shape.transparent_soft_round": "à°¸à°¾à°«à±à°Ÿà± à°°à±Œà°‚à°¡à±",

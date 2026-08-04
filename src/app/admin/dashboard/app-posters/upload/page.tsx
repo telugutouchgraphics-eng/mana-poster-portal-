@@ -18,6 +18,7 @@ import { groupCategories, type CategoryType } from "@/lib/category-groups";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
 import {
+  PHOTO_EDGE_STYLE_OPTIONS,
   PHOTO_SHAPE_GROUPS,
   photoShapeAspectRatio,
   photoShapeFrameStyle,
@@ -118,7 +119,7 @@ const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 
 const defaultPersonalization: PersonalizationConfig = {
-  photoShape: "circle",
+  photoShape: "transparent_bottom_fade",
   photoRenderMode: "cutout",
   edgeStyle: "soft_fade",
   photoFrameStyle: "none",
@@ -127,7 +128,7 @@ const defaultPersonalization: PersonalizationConfig = {
   photoY: 42,
   photoScale: 44,
   showVideoExtraPhoto: false,
-  videoExtraPhotoShape: "circle",
+  videoExtraPhotoShape: "transparent_bottom_fade",
   videoExtraPhotoRenderMode: "cutout",
   videoExtraPhotoEdgeStyle: "soft_fade",
   videoExtraPhotoFrameStyle: "none",
@@ -1216,13 +1217,6 @@ export default function AdminUploadStudioPage() {
       ? "కస్టమైజేషన్ అప్లై అయింది. అప్లోడ్ చేసినప్పుడు ఇదే ప్లేస్‌మెంట్ సేవ్ అవుతుంది."
       : "Customization applied. This placement will be saved when you upload.",
     shapeLabels: {
-      circle: t("creator.upload.shape.circle", lang),
-      scallop_circle: t("creator.upload.shape.scallop_circle", lang),
-      soft_burst: t("creator.upload.shape.soft_burst", lang),
-      badge: t("creator.upload.shape.badge", lang),
-      rounded_square: t("creator.upload.shape.rounded_square", lang),
-      vertical_rectangle: t("creator.upload.shape.vertical_rectangle", lang),
-      square: t("creator.upload.shape.square", lang),
       transparent_bottom_fade: t(
         "creator.upload.shape.transparent_bottom_fade",
         lang,
@@ -2041,6 +2035,56 @@ export default function AdminUploadStudioPage() {
                         </option>
                       </select>
                     </label>
+
+                    {(selectedPhotoTarget === "videoExtraPhoto"
+                      ? personalization.videoExtraPhotoShape
+                      : personalization.photoShape) ===
+                    "transparent_soft_round" ? (
+                      <label className="block">
+                        <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                          Blend / Feather
+                        </span>
+                        <select
+                          data-no-auto-translate="true"
+                          value={
+                            selectedPhotoTarget === "videoExtraPhoto"
+                              ? personalization.videoExtraPhotoEdgeStyle
+                              : personalization.edgeStyle
+                          }
+                          onChange={(event) =>
+                            setPersonalization((prev) => ({
+                              ...prev,
+                              ...(selectedPhotoTarget === "videoExtraPhoto"
+                                ? {
+                                    videoExtraPhotoEdgeStyle: event.target
+                                      .value as PhotoEdgeStyle,
+                                  }
+                                : {
+                                    edgeStyle: event.target
+                                      .value as PhotoEdgeStyle,
+                                  }),
+                            }))
+                          }
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
+                        >
+                          {PHOTO_EDGE_STYLE_OPTIONS.filter(
+                            (option) =>
+                              option.value === "bottom_fade" ||
+                              option.value === "feather",
+                          ).map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              className="bg-white text-slate-950"
+                            >
+                              {option.value === "bottom_fade"
+                                ? "Bottom Blend"
+                                : "Feather"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
 
                     {isVideoPreview ? (
                       <label className="block">

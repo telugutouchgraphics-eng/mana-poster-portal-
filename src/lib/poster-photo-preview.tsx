@@ -42,18 +42,6 @@ export const PHOTO_SHAPE_GROUPS: Array<{
   options: Array<{ value: PhotoShape; label: string }>;
 }> = [
   {
-    label: "Premium Shapes",
-    options: [
-      { value: "circle", label: "Circle" },
-      { value: "scallop_circle", label: "Scallop Circle" },
-      { value: "soft_burst", label: "Soft Burst" },
-      { value: "badge", label: "Badge" },
-      { value: "rounded_square", label: "Rounded Square" },
-      { value: "vertical_rectangle", label: "Vertical Rectangle" },
-      { value: "square", label: "Classic Square" },
-    ],
-  },
-  {
     label: "Transparent Cutouts",
     options: [
       { value: "transparent_bottom_fade", label: "Bottom Blend" },
@@ -245,7 +233,9 @@ function resolvedRenderShape(shape: PhotoShape): PhotoShape {
 
 function resolvedEdgeStyle(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): PhotoEdgeStyle {
   if (shape === "transparent_bottom_fade") return "bottom_fade";
-  if (shape === "transparent_soft_round") return "feather";
+  if (shape === "transparent_soft_round") {
+    return edgeStyle === "bottom_fade" || edgeStyle === "feather" ? edgeStyle : "feather";
+  }
   if (shape === "transparent_clean" || shape === "transparent_sharp_round") return "sharp";
   return edgeStyle;
 }
@@ -438,6 +428,7 @@ export function renderPosterPhotoPreview({
   const photoShell = shapeOverlayStyle(renderShape);
   const hasBackground = !isTransparentPhotoShape(shape);
   const shouldClip = shouldClipPhotoToShape(shape);
+  const shouldRenderFeatherBlur = normalized === "feather" && shape !== "transparent_soft_round";
 
   return (
     <div className={`relative h-full w-full ${photoClassName(shape)}`}>
@@ -464,7 +455,7 @@ export function renderPosterPhotoPreview({
           overflow: "hidden",
         }}
       >
-      {normalized === "feather" ? (
+      {shouldRenderFeatherBlur ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

@@ -20,6 +20,7 @@ import { getPermanentCategoryById } from "@/lib/server/permanent-categories";
 import {
   getCreatorPosterPublishAt,
   getIstWeekday,
+  getNextIstHourStart,
   getNextIstMidnight,
   getNextIstWeekdayStart,
   parseIstDateKeyToEpoch,
@@ -63,23 +64,6 @@ const payloadSchema = z.object({
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 const photoShapeSchema = z.enum([
-  "circle",
-  "scallop_circle",
-  "soft_burst",
-  "badge",
-  "square",
-  "rounded_square",
-  "vertical_rectangle",
-  "oval",
-  "flower",
-  "blob",
-  "wave_bottom",
-  "arch",
-  "diagonal_cut",
-  "diamond",
-  "hexagon",
-  "parallelogram",
-  "sunburst",
   "transparent_bottom_fade",
   "transparent_clean",
   "transparent_soft_round",
@@ -103,7 +87,7 @@ const videoPhotoAnimationSchema = z.enum([
   "zoom_out",
 ]);
 const personalizationSchema = z.object({
-  photoShape: photoShapeSchema.default("circle"),
+  photoShape: photoShapeSchema.default("transparent_bottom_fade"),
   photoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
   edgeStyle: z
     .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
@@ -129,7 +113,7 @@ const personalizationSchema = z.object({
   photoY: z.number().min(0).max(100).default(42),
   photoScale: z.number().min(10).max(100).default(44),
   showVideoExtraPhoto: z.boolean().default(false),
-  videoExtraPhotoShape: photoShapeSchema.default("circle"),
+  videoExtraPhotoShape: photoShapeSchema.default("transparent_bottom_fade"),
   videoExtraPhotoRenderMode: z.enum(["cutout", "original"]).default("cutout"),
   videoExtraPhotoEdgeStyle: z
     .enum(["soft_fade", "sharp", "bottom_fade", "feather"])
@@ -317,6 +301,23 @@ async function resolveAdminPosterSchedule(
   requestedPublishAt: number,
   regionId: string,
 ) {
+  const timeCategoryStartHour = {
+    good_morning: 4,
+    good_afternoon: 12,
+    good_evening: 15,
+    good_night: 20,
+  }[categoryId];
+  if (timeCategoryStartHour != null) {
+    const publishAt = getNextIstHourStart(now, timeCategoryStartHour);
+    return {
+      publishAt,
+      eventStartAt: publishAt,
+      eventEndAt: 0,
+      dynamicCategoryId: "",
+      dynamicCategoryLabel: "",
+    };
+  }
+
   const weekday = getWeekdayForCategoryId(categoryId);
   if (weekday) {
     const fallbackWeekdayStart = getNextIstWeekdayStart(now, weekday);

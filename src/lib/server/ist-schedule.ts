@@ -40,6 +40,13 @@ export function getIstStartOfDayOffset(epochMs: number, daysFromInputDay: number
   return getIstStartOfDay(epochMs) + daysFromInputDay * DAY_MS;
 }
 
+export function getNextIstHourStart(epochMs: number, hour: number): number {
+  const normalizedHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const todayStart = getIstStartOfDay(epochMs);
+  const candidate = todayStart + normalizedHour * 60 * 60 * 1000;
+  return epochMs < candidate ? candidate : candidate + DAY_MS;
+}
+
 export function parseIstDateKeyToEpoch(dayKey: string): number | null {
   const normalized = dayKey.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {

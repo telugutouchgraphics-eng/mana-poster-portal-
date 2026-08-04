@@ -11,23 +11,6 @@ import {
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 type PhotoShape =
-  | "circle"
-  | "scallop_circle"
-  | "soft_burst"
-  | "badge"
-  | "square"
-  | "rounded_square"
-  | "vertical_rectangle"
-  | "oval"
-  | "flower"
-  | "blob"
-  | "wave_bottom"
-  | "arch"
-  | "diagonal_cut"
-  | "diamond"
-  | "hexagon"
-  | "parallelogram"
-  | "sunburst"
   | "transparent_bottom_fade"
   | "transparent_clean"
   | "transparent_soft_round"
@@ -38,23 +21,6 @@ type PhotoFrameStyle =
   "none" | "inner_shadow" | "white_outline" | "glow_edge" | "double_border";
 
 const photoShapes = new Set<string>([
-  "circle",
-  "scallop_circle",
-  "soft_burst",
-  "badge",
-  "square",
-  "rounded_square",
-  "vertical_rectangle",
-  "oval",
-  "flower",
-  "blob",
-  "wave_bottom",
-  "arch",
-  "diagonal_cut",
-  "diamond",
-  "hexagon",
-  "parallelogram",
-  "sunburst",
   "transparent_bottom_fade",
   "transparent_clean",
   "transparent_soft_round",
@@ -189,7 +155,7 @@ function isDashboardVisible(
 }
 
 const defaultPersonalization: PosterPersonalization = {
-  photoShape: "circle",
+  photoShape: "transparent_bottom_fade",
   photoRenderMode: "cutout",
   edgeStyle: "soft_fade",
   photoFrameStyle: "none",
@@ -198,7 +164,7 @@ const defaultPersonalization: PosterPersonalization = {
   photoY: 42,
   photoScale: 44,
   showVideoExtraPhoto: false,
-  videoExtraPhotoShape: "circle",
+  videoExtraPhotoShape: "transparent_bottom_fade",
   videoExtraPhotoRenderMode: "cutout",
   videoExtraPhotoEdgeStyle: "soft_fade",
   videoExtraPhotoFrameStyle: "none",
