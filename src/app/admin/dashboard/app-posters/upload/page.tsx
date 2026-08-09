@@ -88,6 +88,7 @@ interface PersonalizationConfig {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  stripLayoutStyle: "full" | "split" | "badge";
   showPoliticalProtocol: boolean;
   politicalProtocolX: number;
   politicalProtocolY: number;
@@ -144,6 +145,7 @@ const defaultPersonalization: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  stripLayoutStyle: "full",
   showPoliticalProtocol: true,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
@@ -166,6 +168,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isVideoFile(file: File | null): boolean {
   return Boolean(file && (file.type || "").toLowerCase().startsWith("video/"));
+}
+
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
 }
 
 function isImageFile(file: File | null): boolean {
@@ -289,7 +296,9 @@ function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
   }
 }
 
-function categoryAllowsPoliticalProtocol(category: AdminCategory | null): boolean {
+function categoryAllowsPoliticalProtocol(
+  category: AdminCategory | null,
+): boolean {
   if (!category) return false;
   const normalized = normalizeCategoryKey(category.id);
   if (
@@ -456,10 +465,22 @@ function normalizePoliticalProtocolSlots(
     const deltaY = second.y - first.y;
     if (Math.hypot(deltaX, deltaY) >= minimumGap) return slots;
 
-    const centerX = clampNumber((first.x + second.x) / 2, minimumGap / 2, 100 - minimumGap / 2);
+    const centerX = clampNumber(
+      (first.x + second.x) / 2,
+      minimumGap / 2,
+      100 - minimumGap / 2,
+    );
     const direction = deltaX >= 0 ? 1 : -1;
-    const nextFirstX = clampNumber(centerX - (minimumGap / 2) * direction, firstSide / 2, 100 - firstSide / 2);
-    const nextSecondX = clampNumber(centerX + (minimumGap / 2) * direction, secondSide / 2, 100 - secondSide / 2);
+    const nextFirstX = clampNumber(
+      centerX - (minimumGap / 2) * direction,
+      firstSide / 2,
+      100 - firstSide / 2,
+    );
+    const nextSecondX = clampNumber(
+      centerX + (minimumGap / 2) * direction,
+      secondSide / 2,
+      100 - secondSide / 2,
+    );
     return [
       { ...first, x: nextFirstX },
       { ...second, x: nextSecondX },
@@ -467,20 +488,24 @@ function normalizePoliticalProtocolSlots(
     ];
   };
   if (Array.isArray(raw) && raw.length >= 2) {
-    return avoidOverlap(raw.slice(0, 2).map((slot) => ({
-      x: clampNumber(Number(slot.x), 4, 96),
-      y: clampNumber(Number(slot.y), 4, 96),
-      scale: clampNumber(Number(slot.scale || fallbackScale), 45, 135),
-    })));
+    return avoidOverlap(
+      raw.slice(0, 2).map((slot) => ({
+        x: clampNumber(Number(slot.x), 4, 96),
+        y: clampNumber(Number(slot.y), 4, 96),
+        scale: clampNumber(Number(slot.scale || fallbackScale), 45, 135),
+      })),
+    );
   }
   const safeScale = clampNumber(fallbackScale, 45, 135);
   const side = protocolSlotSidePercent(safeScale);
   const spacing = side + 4;
-  return avoidOverlap(Array.from({ length: 2 }, (_, index) => ({
-    x: clampNumber(fallbackX + (index - 0.5) * spacing, 4, 96),
-    y: clampNumber(fallbackY, 4, 96),
-    scale: safeScale,
-  })));
+  return avoidOverlap(
+    Array.from({ length: 2 }, (_, index) => ({
+      x: clampNumber(fallbackX + (index - 0.5) * spacing, 4, 96),
+      y: clampNumber(fallbackY, 4, 96),
+      scale: safeScale,
+    })),
+  );
 }
 
 function protocolSlotSidePercent(scale: number): number {
@@ -499,6 +524,11 @@ function parsePersonalizationConfig(
     {
       ...defaultPersonalization,
       ...input,
+      stripLayoutStyle:
+        input?.stripLayoutStyle === "split" ||
+        input?.stripLayoutStyle === "badge"
+          ? input.stripLayoutStyle
+          : defaultPersonalization.stripLayoutStyle,
       politicalProtocolSlots: input?.politicalProtocolSlots ?? [],
       photoAnimation: parseVideoPhotoAnimation(input?.photoAnimation),
       videoExtraPhotoAnimation: parseVideoPhotoAnimation(
@@ -1112,24 +1142,29 @@ export default function AdminUploadStudioPage() {
       : "1 / 1";
   const safePersonalization = clampPhotoSafeArea(personalization, fileMeta);
   const isVideoPreview = Boolean(file && isVideoFile(file));
+  const isJokesCustomization =
+    !isVideoPreview && isJokesCategoryId(categoryId);
   const canUsePoliticalProtocol =
-    categoryAllowsPoliticalProtocol(activeCategory) && !isVideoPreview;
+    categoryAllowsPoliticalProtocol(activeCategory) &&
+    !isVideoPreview &&
+    !isJokesCustomization;
   const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
   const posterAspectRatio = posterAspect(fileMeta);
   const stripOverlapWarning =
-    isPhotoInNameStripSafeZone({
+    !isJokesCustomization &&
+    (isPhotoInNameStripSafeZone({
       config: personalization,
       posterAspectRatio,
       photoY: safePersonalization.photoY,
       photoScale: safePersonalization.photoScale,
     }) ||
-    (safePersonalization.showVideoExtraPhoto &&
-      isPhotoInNameStripSafeZone({
-        config: personalization,
-        posterAspectRatio,
-        photoY: safePersonalization.videoExtraPhotoY,
-        photoScale: safePersonalization.videoExtraPhotoScale,
-      }));
+      (safePersonalization.showVideoExtraPhoto &&
+        isPhotoInNameStripSafeZone({
+          config: personalization,
+          posterAspectRatio,
+          photoY: safePersonalization.videoExtraPhotoY,
+          photoScale: safePersonalization.videoExtraPhotoScale,
+        })));
   async function startVideoPreviewPlayback() {
     if (!isVideoPreview) return;
     setVideoPreviewCycle((prev) => prev + 1);
@@ -1883,7 +1918,15 @@ export default function AdminUploadStudioPage() {
               </div>
 
               <div className="mt-5 space-y-4 text-sm">
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                {isJokesCustomization ? (
+                  <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">
+                    Jokes posters are watermark-only. User photo, name, and
+                    name strip controls are disabled for this category.
+                  </div>
+                ) : null}
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-4`}
+                >
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-200">
                     Photo Controls
                   </p>
@@ -2173,11 +2216,15 @@ export default function AdminUploadStudioPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300`}
+                >
                   {customizationCopy.dragHelp}
                 </div>
 
-                <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                <label
+                  className={`${isJokesCustomization ? "hidden " : ""}flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90`}
+                >
                   <span className="font-medium">
                     {customizationCopy.showGradientStrip}
                   </span>
@@ -2203,7 +2250,9 @@ export default function AdminUploadStudioPage() {
                   </span>
                 </label>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/90">
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/90`}
+                >
                   <label className="flex items-center justify-between">
                     <span className="font-medium">
                       Political protocol photos
@@ -2346,6 +2395,7 @@ export default function AdminUploadStudioPage() {
                             )
                           : null}
 
+                        {!isJokesCustomization ? (
                         <div
                           key={`main-photo-${personalization.photoAnimation}-${videoPreviewCycle}`}
                           onPointerDown={startPhotoDrag}
@@ -2379,8 +2429,10 @@ export default function AdminUploadStudioPage() {
                             alt: "Sample user",
                           })}
                         </div>
+                        ) : null}
 
-                        {personalization.showVideoExtraPhoto ? (
+                        {personalization.showVideoExtraPhoto &&
+                        !isJokesCustomization ? (
                           <div
                             key={`extra-photo-${personalization.videoExtraPhotoAnimation}-${videoPreviewCycle}`}
                             onPointerDown={startVideoExtraPhotoDrag}
@@ -2443,7 +2495,8 @@ export default function AdminUploadStudioPage() {
                             heightPercent={stripSafeZoneHeight}
                           />
                         ) : null}
-                        {!personalization.showBottomStrip ? (
+                        {!isJokesCustomization &&
+                        !personalization.showBottomStrip ? (
                           <div
                             onPointerDown={startNameDrag}
                             className={`absolute max-w-[92%] -translate-x-1/2 -translate-y-1/2 select-none ${
@@ -2470,7 +2523,8 @@ export default function AdminUploadStudioPage() {
                             </p>
                           </div>
                         ) : null}
-                        {personalization.showBottomStrip ? (
+                        {!isJokesCustomization &&
+                        personalization.showBottomStrip ? (
                           <div
                             className="absolute z-[3] touch-none"
                             style={{

@@ -85,6 +85,16 @@ export default function AdminDashboardLayout({
       shortLabel: t("admin.nav.contests", lang),
     },
     {
+      href: "/admin/dashboard/daily-quiz",
+      label: "Daily Quiz",
+      shortLabel: "Quiz",
+    },
+    {
+      href: "/admin/dashboard/first150-trial",
+      label: "Free Trial Promo",
+      shortLabel: "Trial Promo",
+    },
+    {
       href: "/admin/dashboard/creator-banners",
       label: t("admin.nav.creatorBanners", lang),
       shortLabel: t("admin.nav.creatorAds", lang),

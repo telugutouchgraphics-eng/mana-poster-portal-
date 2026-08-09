@@ -29,6 +29,30 @@ function parseTargetRegionIds(value: FormDataEntryValue | null): string[] {
   return [];
 }
 
+function parseTargetReligions(value: FormDataEntryValue | null): string[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+  const allowed = new Set(["all", "hindu", "muslim", "christian"]);
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item ?? "").trim().toLowerCase()).filter((item) => allowed.has(item));
+    }
+  } catch {
+    return value
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter((item) => allowed.has(item));
+  }
+  return [];
+}
+
+function parsePromoCardGroup(value: FormDataEntryValue | null): number {
+  const numeric = Number(value ?? 1);
+  return Number.isFinite(numeric) ? Math.min(3, Math.max(1, Math.trunc(numeric))) : 1;
+}
+
 function cleanTargetRegionIds(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -105,6 +129,8 @@ export async function PATCH(
     const ctaTarget = String(formData.get("ctaTarget") ?? "").trim();
     const placement = String(formData.get("placement") ?? existingData.placement ?? "home_category_banner").trim();
     const targetRegionIds = parseTargetRegionIds(formData.get("targetRegionIds"));
+    const targetReligions = parseTargetReligions(formData.get("targetReligions"));
+    const promoCardGroup = parsePromoCardGroup(formData.get("promoCardGroup"));
     const targetState = String(formData.get("targetState") ?? "").trim();
     const targetDistrict = String(formData.get("targetDistrict") ?? "").trim();
     const targetCity = String(formData.get("targetCity") ?? "").trim();
@@ -148,6 +174,8 @@ export async function PATCH(
         ctaTarget,
         placement,
         targetRegionIds: effectiveRegionIds,
+        targetReligions,
+        promoCardGroup,
         targetState,
         targetDistrict,
         targetCity,

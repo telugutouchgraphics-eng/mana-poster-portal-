@@ -103,6 +103,7 @@ const personalizationSchema = z.object({
   stripWidth: z.number().min(35).max(100).default(100),
   stripX: z.number().min(0).max(100).default(50),
   stripBottom: z.number().min(0).max(20).default(0),
+  stripLayoutStyle: z.enum(["full", "split", "badge"]).default("full"),
   videoFit: z.enum(["contain", "cover"]).default("contain"),
   videoScale: z.number().min(50).max(200).default(100),
   videoOffsetX: z.number().min(0).max(100).default(50),

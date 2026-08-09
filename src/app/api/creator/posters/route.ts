@@ -92,6 +92,7 @@ const personalizationSchema = z.object({
   stripWidth: z.number().min(35).max(100).default(100),
   stripX: z.number().min(0).max(100).default(50),
   stripBottom: z.number().min(0).max(20).default(0),
+  stripLayoutStyle: z.enum(["full", "split", "badge"]).default("full"),
   showPoliticalProtocol: z.boolean().default(false),
   politicalProtocolEnabledAtMillis: z.number().int().nonnegative().default(0),
   politicalProtocolX: z.number().min(4).max(96).default(50),

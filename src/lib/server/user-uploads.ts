@@ -38,6 +38,7 @@ export const defaultUserUploadPersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  stripLayoutStyle: "full",
   showPoliticalProtocol: false,
   politicalProtocolEnabledAtMillis: 0,
   politicalProtocolX: 50,
@@ -98,6 +99,10 @@ export function sanitizeUserUploadPersonalizationConfig(raw: unknown) {
       0,
       20,
     ),
+    stripLayoutStyle:
+      source.stripLayoutStyle === "split" || source.stripLayoutStyle === "badge"
+        ? source.stripLayoutStyle
+        : defaultUserUploadPersonalizationConfig.stripLayoutStyle,
     showPoliticalProtocol:
       typeof source.showPoliticalProtocol === "boolean"
         ? source.showPoliticalProtocol

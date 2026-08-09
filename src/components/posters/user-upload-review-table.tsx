@@ -150,6 +150,11 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
+}
+
 const REJECTION_REASON_OPTIONS: Record<DashboardRegionLanguage, string[]> = {
   assamese: [
     "আপুনি বাছনি কৰা শ্ৰেণীৰ সৈতে এই কন্টেন্ট মিল নাখায়।",
@@ -617,23 +622,25 @@ function CustomizationModal({
   };
 }) {
   if (!row) return null;
+  const isJokesCustomization = isJokesCategoryId(row.categoryId);
   const safePersonalization = clampPhotoSafeArea(value, fileMeta);
   const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(value);
   const posterAspectRatio = posterAspect(fileMeta);
   const stripOverlapWarning =
-    isPhotoInNameStripSafeZone({
+    !isJokesCustomization &&
+    (isPhotoInNameStripSafeZone({
       config: value,
       posterAspectRatio,
       photoY: safePersonalization.photoY,
       photoScale: safePersonalization.photoScale,
     }) ||
-    (safePersonalization.showVideoExtraPhoto &&
-      isPhotoInNameStripSafeZone({
-        config: value,
-        posterAspectRatio,
-        photoY: safePersonalization.videoExtraPhotoY,
-        photoScale: safePersonalization.videoExtraPhotoScale,
-      }));
+      (safePersonalization.showVideoExtraPhoto &&
+        isPhotoInNameStripSafeZone({
+          config: value,
+          posterAspectRatio,
+          photoY: safePersonalization.videoExtraPhotoY,
+          photoScale: safePersonalization.videoExtraPhotoScale,
+        })));
   return (
     <div
       data-no-auto-translate="true"
@@ -660,7 +667,15 @@ function CustomizationModal({
           </div>
 
           <div className="mt-5 space-y-4 text-sm">
-            <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+            {isJokesCustomization ? (
+              <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">
+                Jokes posters are watermark-only. User photo, name, and name
+                strip controls are disabled for this category.
+              </div>
+            ) : null}
+            <div
+              className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-4`}
+            >
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-200">
                 Photo Controls
               </p>
@@ -719,7 +734,7 @@ function CustomizationModal({
               </div>
             </div>
 
-            <label className="block">
+            <label className={`${isJokesCustomization ? "hidden " : ""}block`}>
               <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
                 {customizationCopy.photoShape}
               </span>
@@ -764,7 +779,7 @@ function CustomizationModal({
               </select>
             </label>
 
-            <label className="block">
+            <label className={`${isJokesCustomization ? "hidden " : ""}block`}>
               <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
                 {customizationCopy.photoMode}
               </span>
@@ -803,7 +818,7 @@ function CustomizationModal({
             {(selectedPhotoTarget === "videoExtraPhoto"
               ? value.videoExtraPhotoShape
               : value.photoShape) === "transparent_soft_round" ? (
-              <label className="block">
+              <label className={`${isJokesCustomization ? "hidden " : ""}block`}>
                 <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
                   Blend / Feather
                 </span>
@@ -846,7 +861,7 @@ function CustomizationModal({
               </label>
             ) : null}
 
-            <label className="block">
+            <label className={`${isJokesCustomization ? "hidden " : ""}block`}>
               <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
                 {customizationCopy.photoSize} (
                 {Math.round(
@@ -882,11 +897,15 @@ function CustomizationModal({
               />
             </label>
 
-            <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">
+            <div
+              className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300`}
+            >
               {customizationCopy.dragHelp}
             </div>
 
-            <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+            <label
+              className={`${isJokesCustomization ? "hidden " : ""}flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90`}
+            >
               <span className="font-medium">
                 {customizationCopy.showGradientStrip}
               </span>
@@ -912,7 +931,9 @@ function CustomizationModal({
               </span>
             </label>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+            <div
+              className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-slate-900/50 p-4`}
+            >
               <label className="flex items-center justify-between gap-3 text-sm text-white/90">
                 <span className="font-medium">Political protocol photos</span>
                 <span className="relative inline-flex items-center">
@@ -1011,6 +1032,7 @@ function CustomizationModal({
                     className="block h-auto max-h-[62vh] w-auto max-w-full object-contain align-top sm:max-h-[72vh]"
                   />
 
+                  {!isJokesCustomization ? (
                   <div
                     onPointerDown={startPhotoDrag}
                     onWheel={onPhotoWheel}
@@ -1037,8 +1059,9 @@ function CustomizationModal({
                       alt: "Sample user",
                     })}
                   </div>
+                  ) : null}
 
-                  {value.showVideoExtraPhoto ? (
+                  {value.showVideoExtraPhoto && !isJokesCustomization ? (
                     <div
                       onPointerDown={startVideoExtraPhotoDrag}
                       onWheel={onVideoExtraPhotoWheel}
@@ -1076,17 +1099,19 @@ function CustomizationModal({
                     </div>
                   ) : null}
 
-                  <PoliticalProtocolSlotPreview
-                    config={safePersonalization}
-                    onStartDrag={startPoliticalProtocolDrag}
-                  />
+                  {!isJokesCustomization ? (
+                    <PoliticalProtocolSlotPreview
+                      config={safePersonalization}
+                      onStartDrag={startPoliticalProtocolDrag}
+                    />
+                  ) : null}
 
                   {stripOverlapWarning ? (
                     <NameStripOverlapWarning
                       heightPercent={stripSafeZoneHeight}
                     />
                   ) : null}
-                  {!value.showBottomStrip ? (
+                  {!isJokesCustomization && !value.showBottomStrip ? (
                     <div
                       onPointerDown={startNameDrag}
                       className={`absolute max-w-[92%] -translate-x-1/2 -translate-y-1/2 select-none ${
@@ -1113,7 +1138,7 @@ function CustomizationModal({
                       </p>
                     </div>
                   ) : null}
-                  {value.showBottomStrip ? (
+                  {!isJokesCustomization && value.showBottomStrip ? (
                     <div
                       className="absolute z-[3] touch-none"
                       style={{

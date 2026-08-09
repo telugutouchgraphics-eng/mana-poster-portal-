@@ -4,9 +4,20 @@ import { deleteAdminAsset } from "@/lib/server/content-management";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
 export type PushAudience = "all_users" | "creators_only" | "area_users";
+export type PushAudienceSegment =
+  | "all_area_users"
+  | "daily_active_users"
+  | "active_users"
+  | "monthly_active_users"
+  | "inactive_users"
+  | "subscribers"
+  | "non_subscribers";
 export type PushReligionTarget = "all" | "hindu" | "muslim" | "christian";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
 const PUSH_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DAILY_ACTIVE_USER_WINDOW_MS = 24 * 60 * 60 * 1000;
+const ACTIVE_USER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const MONTHLY_ACTIVE_USER_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface PushTemplateOption {
   id: "morning" | "afternoon" | "night";
@@ -46,6 +57,7 @@ export interface PushHistoryRecord {
   imagePath: string;
   route: string;
   audience: PushAudience;
+  audienceSegment?: PushAudienceSegment;
   targetState: string;
   targetRegionIds?: string[];
   targetDistrict: string;
@@ -53,6 +65,7 @@ export interface PushHistoryRecord {
   targetReligion?: PushReligionTarget;
   category: string;
   status: PushStatus;
+  matchedUserCount?: number;
   targetCount: number;
   deliveredCount: number;
   failedCount: number;
@@ -77,6 +90,21 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 function trimValue(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function readTimestampMillis(value: unknown): number {
+  if (!value) return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (typeof value === "object" && value !== null && "toMillis" in value) {
+    const maybeTimestamp = value as { toMillis?: () => number };
+    const millis = maybeTimestamp.toMillis?.();
+    return typeof millis === "number" && Number.isFinite(millis) ? millis : 0;
+  }
+  return 0;
 }
 
 function notificationPaletteIndex(categoryKey: string) {
@@ -121,13 +149,28 @@ async function cleanupTokenPath(refPath?: string) {
   } catch {}
 }
 
+function tokenDocId(token: string) {
+  return token.replace(/\//g, "_");
+}
+
+async function tokenBelongsToUid(token: string, uid: string) {
+  const publicSnap = await adminDb
+    .collection("publicDeviceTokens")
+    .doc(tokenDocId(token))
+    .get();
+  if (!publicSnap.exists) {
+    return true;
+  }
+  const ownerUid = trimValue(publicSnap.data()?.uid);
+  return !ownerUid || ownerUid === uid;
+}
+
 async function loadAllUserUidsForReligion(targetReligion: PushReligionTarget): Promise<string[]> {
   const normalizedReligion = normalizeReligionTarget(targetReligion);
-  const snap =
-    normalizedReligion === "all"
-      ? await adminDb.collection("users").get()
-      : await adminDb.collection("users").where("religionPreference", "==", normalizedReligion).get();
-  return snap.docs.map((doc) => doc.id);
+  const snap = await adminDb.collection("users").get();
+  return snap.docs
+    .filter((doc) => userReligionMatches(doc.data(), normalizedReligion))
+    .map((doc) => doc.id);
 }
 
 async function loadCreatorUids(targetReligion: PushReligionTarget = "all"): Promise<string[]> {
@@ -152,8 +195,16 @@ async function loadUserDeviceTokens(userIds: string[]) {
     const snap = await adminDb.collection("users").doc(uid).collection("deviceTokens").get();
     for (const doc of snap.docs) {
       const data = doc.data() || {};
+      const token = trimValue(data.token);
+      if (!token) {
+        continue;
+      }
+      if (!(await tokenBelongsToUid(token, uid))) {
+        await cleanupTokenPath(doc.ref.path);
+        continue;
+      }
       tokens.push({
-        token: trimValue(data.token),
+        token,
         refPath: doc.ref.path,
       });
     }
@@ -214,11 +265,136 @@ function normalizeReligionTarget(value: unknown): PushReligionTarget {
   return "all";
 }
 
+function normalizeAudienceSegment(value: unknown): PushAudienceSegment {
+  const normalized = cleanLocationText(value);
+  if (
+    normalized === "daily_active_users" ||
+    normalized === "active_users" ||
+    normalized === "monthly_active_users" ||
+    normalized === "inactive_users" ||
+    normalized === "subscribers" ||
+    normalized === "non_subscribers"
+  ) {
+    return normalized;
+  }
+  return "all_area_users";
+}
+
 function userReligionMatches(data: FirebaseFirestore.DocumentData, targetReligion: PushReligionTarget) {
   if (targetReligion === "all") {
     return true;
   }
-  return cleanLocationText(data.religionPreference) === targetReligion;
+  const userReligion = cleanLocationText(data.religionPreference);
+  return userReligion === targetReligion || userReligion === "all";
+}
+
+function hasActiveSubscriptionAccess(data: Record<string, unknown> | undefined, now = Date.now()) {
+  if (!data || data.isPro !== true) {
+    return false;
+  }
+  const expiryMillis = readTimestampMillis(data.expiryTime);
+  return expiryMillis <= 0 || expiryMillis > now;
+}
+
+async function loadActiveUserUidSet(userIds: string[], windowMs = ACTIVE_USER_WINDOW_MS) {
+  if (userIds.length === 0) {
+    return new Set<string>();
+  }
+  const allowed = new Set(userIds);
+  const activeSince = Date.now() - windowMs;
+  const active = new Set<string>();
+  const snap = await adminDb.collectionGroup("activeSession").get();
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const uid = trimValue(data.uid || doc.ref.parent.parent?.id);
+    if (!uid || !allowed.has(uid)) {
+      continue;
+    }
+    const updatedAt = readTimestampMillis(data.updatedAt);
+    if (updatedAt >= activeSince) {
+      active.add(uid);
+    }
+  }
+  return active;
+}
+
+async function loadSubscribedUserUidSet(userIds: string[]) {
+  const subscribed = new Set<string>();
+  const refs = userIds.map((uid) => adminDb.doc(`users/${uid}/entitlements/pro`));
+  for (let index = 0; index < refs.length; index += 300) {
+    const group = refs.slice(index, index + 300);
+    if (group.length === 0) {
+      continue;
+    }
+    const snaps = await adminDb.getAll(...group);
+    snaps.forEach((snap, offset) => {
+      if (hasActiveSubscriptionAccess(snap.data() as Record<string, unknown> | undefined)) {
+        subscribed.add(userIds[index + offset]);
+      }
+    });
+  }
+  return subscribed;
+}
+
+async function applyAudienceSegment(
+  userIds: string[],
+  segment: PushAudienceSegment,
+) {
+  const uniqueIds = Array.from(new Set(userIds.map((uid) => trimValue(uid)).filter(Boolean)));
+  if (segment === "all_area_users") {
+    return uniqueIds;
+  }
+  if (segment === "daily_active_users" || segment === "active_users" || segment === "monthly_active_users" || segment === "inactive_users") {
+    const windowMs =
+      segment === "daily_active_users"
+        ? DAILY_ACTIVE_USER_WINDOW_MS
+        : segment === "monthly_active_users"
+          ? MONTHLY_ACTIVE_USER_WINDOW_MS
+          : ACTIVE_USER_WINDOW_MS;
+    const active = await loadActiveUserUidSet(uniqueIds, windowMs);
+    return uniqueIds.filter((uid) =>
+      segment === "inactive_users" ? !active.has(uid) : active.has(uid),
+    );
+  }
+  const subscribed = await loadSubscribedUserUidSet(uniqueIds);
+  return uniqueIds.filter((uid) =>
+    segment === "subscribers" ? subscribed.has(uid) : !subscribed.has(uid),
+  );
+}
+
+export async function countPushAudienceSegments(targetLocation: {
+  state: string;
+  regionIds: string[];
+  district: string;
+  city: string;
+  religion: PushReligionTarget;
+}) {
+  const baseUserIds = Array.from(
+    new Set(
+      (await loadAreaUserUidsForRegionIds({
+        ...targetLocation,
+        religion: normalizeReligionTarget(targetLocation.religion),
+      }))
+        .map((uid) => trimValue(uid))
+        .filter(Boolean),
+    ),
+  );
+  const [dailyActive, weeklyActive, monthlyActive, subscribed] = await Promise.all([
+    loadActiveUserUidSet(baseUserIds, DAILY_ACTIVE_USER_WINDOW_MS),
+    loadActiveUserUidSet(baseUserIds, ACTIVE_USER_WINDOW_MS),
+    loadActiveUserUidSet(baseUserIds, MONTHLY_ACTIVE_USER_WINDOW_MS),
+    loadSubscribedUserUidSet(baseUserIds),
+  ]);
+
+  return {
+    all_area_users: baseUserIds.length,
+    daily_active_users: dailyActive.size,
+    active_users: weeklyActive.size,
+    monthly_active_users: monthlyActive.size,
+    inactive_users: baseUserIds.filter((uid) => !weeklyActive.has(uid)).length,
+    subscribers: subscribed.size,
+    non_subscribers: baseUserIds.filter((uid) => !subscribed.has(uid)).length,
+  } satisfies Record<PushAudienceSegment, number>;
 }
 
 function areaMatches(
@@ -320,40 +496,54 @@ async function resolveAudienceTargets(
     district: string;
     city: string;
     religion: PushReligionTarget;
+    segment: PushAudienceSegment;
   },
 ) {
   const targetReligion = normalizeReligionTarget(targetLocation.religion);
+  const targetSegment = normalizeAudienceSegment(targetLocation.segment);
   if (audience === "all_users") {
-    if (targetReligion !== "all") {
-      const userUids = await loadAllUserUidsForReligion(targetReligion);
+    if (targetReligion !== "all" || targetSegment !== "all_area_users") {
+      const userUids = await applyAudienceSegment(
+        await loadAllUserUidsForReligion(targetReligion),
+        targetSegment,
+      );
       return {
         mode: "tokens" as const,
         topic: "",
+        userCount: userUids.length,
         targets: await loadUserDeviceTokens(userUids),
       };
     }
-    return { mode: "topic" as const, topic: "all_users", targets: [] as Array<{ token: string; refPath?: string }> };
+    return { mode: "topic" as const, topic: "all_users", userCount: 0, targets: [] as Array<{ token: string; refPath?: string }> };
   }
 
   if (audience === "creators_only") {
-    const creatorUids = await loadCreatorUids(targetReligion);
+    const creatorUids = await applyAudienceSegment(
+      await loadCreatorUids(targetReligion),
+      targetSegment,
+    );
     return {
       mode: "tokens" as const,
       topic: "",
+      userCount: creatorUids.length,
       targets: await loadUserDeviceTokens(creatorUids),
     };
   }
 
   if (audience === "area_users") {
-    const userUids = await loadAreaUserUidsForRegionIds(targetLocation);
+    const userUids = await applyAudienceSegment(
+      await loadAreaUserUidsForRegionIds(targetLocation),
+      targetSegment,
+    );
     return {
       mode: "tokens" as const,
       topic: "",
+      userCount: userUids.length,
       targets: await loadUserDeviceTokens(userUids),
     };
   }
 
-  return { mode: "tokens" as const, topic: "", targets: [] as Array<{ token: string; refPath?: string }> };
+  return { mode: "tokens" as const, topic: "", userCount: 0, targets: [] as Array<{ token: string; refPath?: string }> };
 }
 
 export function buildPushData(payload: {
@@ -414,6 +604,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
     district: record.targetDistrict,
     city: record.targetCity,
     religion: normalizeReligionTarget(record.targetReligion),
+    segment: normalizeAudienceSegment(record.audienceSegment),
   });
 
   if (target.mode === "topic") {
@@ -432,6 +623,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
         sentAt,
         expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
         updatedAt: sentAt,
+        matchedUserCount: target.userCount,
         targetCount: 1,
         deliveredCount: 1,
         failedCount: 0,
@@ -452,6 +644,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
         sentAt,
         expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
         updatedAt: sentAt,
+        matchedUserCount: target.userCount,
         targetCount: 0,
         deliveredCount: 0,
         failedCount: 0,
@@ -497,6 +690,7 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
       sentAt,
       expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
       updatedAt: sentAt,
+      matchedUserCount: target.userCount,
       targetCount: tokens.length,
       deliveredCount,
       failedCount,
@@ -517,6 +711,7 @@ export async function createPushHistoryRecord(input: {
   imagePath: string;
   route: string;
   audience: PushAudience;
+  audienceSegment?: PushAudienceSegment;
   targetState: string;
   targetRegionIds?: string[];
   targetDistrict: string;
@@ -539,6 +734,7 @@ export async function createPushHistoryRecord(input: {
     imagePath: input.imagePath,
     route: trimValue(input.route) || "home",
     audience: input.audience,
+    audienceSegment: normalizeAudienceSegment(input.audienceSegment),
     targetState: trimValue(input.targetState),
     targetRegionIds: Array.isArray(input.targetRegionIds)
       ? input.targetRegionIds.map((item) => trimValue(item)).filter(Boolean)
@@ -548,6 +744,7 @@ export async function createPushHistoryRecord(input: {
     targetReligion: normalizeReligionTarget(input.targetReligion),
     category: trimValue(input.category),
     status: input.scheduledFor && input.scheduledFor > now ? "scheduled" : "processing",
+    matchedUserCount: 0,
     targetCount: 0,
     deliveredCount: 0,
     failedCount: 0,

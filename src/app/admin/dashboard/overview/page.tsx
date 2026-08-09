@@ -33,9 +33,17 @@ interface AdminOverviewResponse {
     totalInstalls?: number;
     todayActiveUsers?: number;
     last7DaysActiveUsers?: number;
+    nonActiveUsers?: number;
     subscribedUsers?: number;
+    lifetimeSubscribers?: number;
+    todayNewSubscribers?: number;
     trialUsers?: number;
     notSubscribedUsers?: number;
+    hinduUsers?: number;
+    muslimUsers?: number;
+    christianUsers?: number;
+    allReligionUsers?: number;
+    unknownReligionUsers?: number;
   };
   installMetrics?: {
     totalInstalls: number;
@@ -69,6 +77,24 @@ interface AdminOverviewResponse {
       referralReward: number;
     }>;
   };
+  religionMetrics?: {
+    totalUsers: number;
+    hindu: number;
+    muslim: number;
+    christian: number;
+    allReligions: number;
+    unknown: number;
+    byRegion: Array<{
+      regionId: string;
+      regionName: string;
+      totalUsers: number;
+      hindu: number;
+      muslim: number;
+      christian: number;
+      allReligions: number;
+      unknown: number;
+    }>;
+  };
   uploadsTrend?: UploadTrendItem[];
   revenue?: {
     gross: number;
@@ -78,6 +104,8 @@ interface AdminOverviewResponse {
   };
   categoryPerformance?: CategoryPerformanceItem[];
 }
+
+type SubscriptionRegionItem = NonNullable<AdminOverviewResponse["subscriptionMetrics"]>["byRegion"][number];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -169,6 +197,25 @@ export default function AdminOverviewPage() {
     () => Object.fromEntries(subscriptionRegions.map((item) => [item.regionId, item])),
     [subscriptionRegions],
   );
+  const religionRegions = useMemo(
+    () => data?.religionMetrics?.byRegion ?? [],
+    [data?.religionMetrics?.byRegion],
+  );
+  const religionByRegion = useMemo(
+    () => Object.fromEntries(religionRegions.map((item) => [item.regionId, item])),
+    [religionRegions],
+  );
+  const freeUsersFor = (subscription?: SubscriptionRegionItem) =>
+    subscription
+      ? Math.max(
+          0,
+          subscription.totalUsers -
+            subscription.subscribed -
+            subscription.trialActive -
+            subscription.manualFree -
+            subscription.referralReward,
+        )
+      : 0;
 
   return (
     <section className="space-y-6">
@@ -185,7 +232,7 @@ export default function AdminOverviewPage() {
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-3xl border border-white/15 bg-white/14 px-4 py-4 backdrop-blur">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/70">
-              Total Live Users
+              Total Users
             </p>
             <p className="mt-2 text-4xl font-black text-white">
               {loading ? "..." : data?.headline?.totalInstalls ?? 0}
@@ -204,7 +251,7 @@ export default function AdminOverviewPage() {
           </div>
           <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4 backdrop-blur">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/70">
-              Subscribed
+              Active Subscribers
             </p>
             <p className="mt-2 text-3xl font-black text-white">
               {loading ? "..." : data?.headline?.subscribedUsers ?? 0}
@@ -270,7 +317,7 @@ export default function AdminOverviewPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          label="App Installs"
+          label="App Users"
           value={loading ? "..." : String(data?.headline?.totalInstalls ?? 0)}
           tone="border-cyan-200 bg-cyan-50 text-cyan-950"
         />
@@ -284,24 +331,77 @@ export default function AdminOverviewPage() {
           value={loading ? "..." : String(data?.headline?.last7DaysActiveUsers ?? 0)}
           tone="border-indigo-200 bg-indigo-50 text-indigo-950"
         />
+        <MetricCard
+          label="Non-active Users"
+          value={loading ? "..." : String(data?.headline?.nonActiveUsers ?? 0)}
+          tone="border-slate-200 bg-slate-50 text-slate-950"
+        />
+        <MetricCard
+          label="Active Subscribers"
+          value={loading ? "..." : String(data?.headline?.subscribedUsers ?? 0)}
+          tone="border-emerald-200 bg-emerald-50 text-emerald-950"
+        />
+        <MetricCard
+          label="Lifetime Subscribers"
+          value={loading ? "..." : String(data?.headline?.lifetimeSubscribers ?? 0)}
+          tone="border-purple-200 bg-purple-50 text-purple-950"
+        />
+        <MetricCard
+          label="Today New Subscribers"
+          value={loading ? "..." : String(data?.headline?.todayNewSubscribers ?? 0)}
+          tone="border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950"
+        />
+        <MetricCard
+          label="Free Users"
+          value={loading ? "..." : String(data?.headline?.notSubscribedUsers ?? 0)}
+          tone="border-orange-200 bg-orange-50 text-orange-950"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard
+          label="Hindu Users"
+          value={loading ? "..." : String(data?.headline?.hinduUsers ?? 0)}
+          tone="border-amber-200 bg-amber-50 text-amber-950"
+        />
+        <MetricCard
+          label="Muslim Users"
+          value={loading ? "..." : String(data?.headline?.muslimUsers ?? 0)}
+          tone="border-emerald-200 bg-emerald-50 text-emerald-950"
+        />
+        <MetricCard
+          label="Christian Users"
+          value={loading ? "..." : String(data?.headline?.christianUsers ?? 0)}
+          tone="border-sky-200 bg-sky-50 text-sky-950"
+        />
+        <MetricCard
+          label="All Religion Users"
+          value={loading ? "..." : String(data?.headline?.allReligionUsers ?? 0)}
+          tone="border-violet-200 bg-violet-50 text-violet-950"
+        />
+        <MetricCard
+          label="Religion Not Set"
+          value={loading ? "..." : String(data?.headline?.unknownReligionUsers ?? 0)}
+          tone="border-rose-200 bg-rose-50 text-rose-950"
+        />
       </div>
 
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--portal-purple)]">
-              Live State-wise Installs
+              State-wise Users
             </p>
             <h3 className="mt-2 text-2xl font-bold text-slate-950">
-              Users by selected State / UT
+              Real users by selected State / UT
             </h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Counts update when users open the app or change their State/UT.
+              Counts use registered users and their selected State/UT.
             </p>
           </div>
           <div className="rounded-3xl bg-slate-950 px-5 py-4 text-white">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/65">
-              Total Live Count
+              Total Users
             </p>
             <p className="mt-2 text-4xl font-black">{data?.installMetrics?.totalInstalls ?? 0}</p>
           </div>
@@ -309,19 +409,20 @@ export default function AdminOverviewPage() {
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {summaryInstallRegions.map((item) => {
             const subscription = subscriptionByRegion[item.regionId];
+            const religion = religionByRegion[item.regionId];
             return (
               <div key={item.regionId} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <p className="truncate text-sm font-black text-slate-950">{item.regionName}</p>
                 <p className="mt-3 text-3xl font-black text-slate-950">{item.totalInstalls}</p>
                 <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-                  installs
+                  users
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold">
                   <span className="rounded-2xl bg-emerald-100 px-2 py-1.5 text-emerald-700">
                     Sub {subscription?.subscribed ?? 0}
                   </span>
                   <span className="rounded-2xl bg-slate-200 px-2 py-1.5 text-slate-700">
-                    Free {subscription?.notSubscribed ?? 0}
+                    Free {freeUsersFor(subscription)}
                   </span>
                   <span className="rounded-2xl bg-amber-100 px-2 py-1.5 text-amber-700">
                     Trial {subscription?.trialActive ?? 0}
@@ -334,6 +435,12 @@ export default function AdminOverviewPage() {
                   </span>
                   <span className="rounded-2xl bg-violet-100 px-2 py-1.5 text-violet-700">
                     Manual {subscription?.manualFree ?? 0}
+                  </span>
+                  <span className="rounded-2xl bg-orange-100 px-2 py-1.5 text-orange-700">
+                    Hindu {religion?.hindu ?? 0}
+                  </span>
+                  <span className="rounded-2xl bg-teal-100 px-2 py-1.5 text-teal-700">
+                    All Rel {religion?.allReligions ?? 0}
                   </span>
                 </div>
               </div>
@@ -358,28 +465,39 @@ export default function AdminOverviewPage() {
               Scroll inside this box to view more rows.
             </p>
           </div>
-          <div className="grid min-w-[760px] grid-cols-[minmax(0,1.4fr)_0.6fr_0.8fr_0.7fr_0.7fr_0.7fr] bg-slate-50 px-3 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+          <div className="grid min-w-[1120px] grid-cols-[minmax(0,1.4fr)_0.55fr_0.7fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr] bg-slate-50 px-3 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
             <span>State / UT</span>
-            <span>Installs</span>
+            <span>Users</span>
             <span>Subscribed</span>
             <span>Free</span>
             <span>Today</span>
             <span>7D</span>
+            <span>Non-active</span>
+            <span>Hindu</span>
+            <span>Muslim</span>
+            <span>Christian</span>
+            <span>All Rel</span>
           </div>
           <div className={showAllInstallRegions && isAllStatesOverview ? "max-h-[360px] overflow-y-auto" : ""}>
             {tableInstallRegions.map((item) => {
               const subscription = subscriptionByRegion[item.regionId];
+              const religion = religionByRegion[item.regionId];
               return (
                 <div
                   key={`row-${item.regionId}`}
-                  className="grid min-w-[760px] grid-cols-[minmax(0,1.4fr)_0.6fr_0.8fr_0.7fr_0.7fr_0.7fr] border-t border-slate-100 px-3 py-3 text-sm"
+                  className="grid min-w-[1120px] grid-cols-[minmax(0,1.4fr)_0.55fr_0.7fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr_0.65fr] border-t border-slate-100 px-3 py-3 text-sm"
                 >
                   <span className="font-bold text-slate-950">{item.regionName}</span>
                   <span className="font-bold text-slate-700">{item.totalInstalls}</span>
                   <span className="font-bold text-emerald-700">{subscription?.subscribed ?? 0}</span>
-                  <span className="font-bold text-slate-700">{subscription?.notSubscribed ?? 0}</span>
+                  <span className="font-bold text-slate-700">{freeUsersFor(subscription)}</span>
                   <span className="font-bold text-cyan-700">{item.todayActive}</span>
                   <span className="font-bold text-indigo-700">{item.last7DaysActive}</span>
+                  <span className="font-bold text-slate-700">{Math.max(0, item.totalInstalls - item.last7DaysActive)}</span>
+                  <span className="font-bold text-amber-700">{religion?.hindu ?? 0}</span>
+                  <span className="font-bold text-teal-700">{religion?.muslim ?? 0}</span>
+                  <span className="font-bold text-sky-700">{religion?.christian ?? 0}</span>
+                  <span className="font-bold text-violet-700">{religion?.allReligions ?? 0}</span>
                 </div>
               );
             })}

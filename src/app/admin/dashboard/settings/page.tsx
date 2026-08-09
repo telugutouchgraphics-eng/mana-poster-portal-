@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
+import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
 
 interface SettingsResponse {
   ok: boolean;
@@ -28,6 +29,16 @@ interface SettingsResponse {
       afternoonEnabled: boolean;
       nightEnabled: boolean;
     };
+    ads: {
+      homeExportRewardedEnabled: boolean;
+      homeExportManualAd?: {
+        active: boolean;
+        url: string;
+        contentType: string;
+        fileName: string;
+        updatedAt: number;
+      };
+    };
     bannerVisibility: {
       appBannersVisible: boolean;
       creatorBannersVisible: boolean;
@@ -40,7 +51,7 @@ interface SettingsResponse {
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
-  const { region } = useDashboardRegion();
+  const { region, regions } = useDashboardRegion();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,6 +68,14 @@ export default function AdminSettingsPage() {
   const [morningEnabled, setMorningEnabled] = useState(true);
   const [afternoonEnabled, setAfternoonEnabled] = useState(true);
   const [nightEnabled, setNightEnabled] = useState(true);
+  const [homeExportRewardedEnabled, setHomeExportRewardedEnabled] = useState(false);
+  const [homeExportManualAdUrl, setHomeExportManualAdUrl] = useState("");
+  const [homeExportManualAdActive, setHomeExportManualAdActive] = useState(false);
+  const [homeExportManualAdFileName, setHomeExportManualAdFileName] = useState("");
+  const [homeExportManualAdContentType, setHomeExportManualAdContentType] = useState("");
+  const [manualAdUploading, setManualAdUploading] = useState(false);
+  const [manualAdDeleting, setManualAdDeleting] = useState(false);
+  const [adTargetStates, setAdTargetStates] = useState<string[]>([region.id]);
   const [landingPageTitle, setLandingPageTitle] = useState("");
   const [landingPageSubtitle, setLandingPageSubtitle] = useState("");
   const [appBannersVisible, setAppBannersVisible] = useState(true);
@@ -72,6 +91,7 @@ export default function AdminSettingsPage() {
   ];
   const exitVideoInputRef = useRef<HTMLInputElement | null>(null);
   const thanksVideoInputRef = useRef<HTMLInputElement | null>(null);
+  const manualAdInputRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     const token = await user?.getIdToken();
@@ -97,6 +117,12 @@ export default function AdminSettingsPage() {
       setMorningEnabled(Boolean(data.settings.notifications?.morningEnabled));
       setAfternoonEnabled(Boolean(data.settings.notifications?.afternoonEnabled));
       setNightEnabled(Boolean(data.settings.notifications?.nightEnabled));
+      setHomeExportRewardedEnabled(Boolean(data.settings.ads?.homeExportRewardedEnabled));
+      setHomeExportManualAdUrl(data.settings.ads?.homeExportManualAd?.url || "");
+      setHomeExportManualAdActive(Boolean(data.settings.ads?.homeExportManualAd?.active));
+      setHomeExportManualAdFileName(data.settings.ads?.homeExportManualAd?.fileName || "");
+      setHomeExportManualAdContentType(data.settings.ads?.homeExportManualAd?.contentType || "");
+      setAdTargetStates((prev) => (prev.length > 0 ? prev : [region.id]));
       setLandingPageTitle(data.settings.landingPageTitle || "");
       setLandingPageSubtitle(data.settings.landingPageSubtitle || "");
       setAppBannersVisible(Boolean(data.settings.bannerVisibility?.appBannersVisible));
@@ -109,6 +135,7 @@ export default function AdminSettingsPage() {
   }
 
   useEffect(() => {
+    setAdTargetStates([region.id]);
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, region.id]);
@@ -135,6 +162,10 @@ export default function AdminSettingsPage() {
             afternoonEnabled,
             nightEnabled,
           },
+          ads: {
+            homeExportRewardedEnabled,
+          },
+          targetRegionIds: adTargetStates.length ? adTargetStates : [region.id],
           subscriptionExitVideo: {
             active: subscriptionVideoActive,
             url: subscriptionVideoUrl,
@@ -243,6 +274,80 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function handleManualAdUpload(file: File | null) {
+    if (!file) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    setManualAdUploading(true);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.set("media", file);
+      body.set("regionId", region.id);
+      body.set("targetRegionIds", (adTargetStates.length ? adTargetStates : [region.id]).join(","));
+      const response = await fetch("/api/admin/settings/home-export-manual-ad", {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+        body,
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        manualAd?: {
+          active: boolean;
+          url: string;
+          contentType: string;
+          fileName: string;
+        };
+        error?: string;
+      };
+      if (!response.ok || !data.ok || !data.manualAd) {
+        throw new Error(data.error ?? "Unable to upload manual ad.");
+      }
+      setHomeExportManualAdUrl(data.manualAd.url || "");
+      setHomeExportManualAdActive(Boolean(data.manualAd.active));
+      setHomeExportManualAdFileName(data.manualAd.fileName || file.name);
+      setHomeExportManualAdContentType(data.manualAd.contentType || file.type);
+      setMessage("Manual ad uploaded successfully.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to upload manual ad.");
+    } finally {
+      setManualAdUploading(false);
+      if (manualAdInputRef.current) {
+        manualAdInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleManualAdDelete() {
+    const token = await user?.getIdToken();
+    if (!token) return;
+    setManualAdDeleting(true);
+    setMessage(null);
+    try {
+      const params = new URLSearchParams({ regionId: region.id });
+      for (const item of adTargetStates.length ? adTargetStates : [region.id]) {
+        params.append("targetRegionIds", item);
+      }
+      const response = await fetch(`/api/admin/settings/home-export-manual-ad?${params.toString()}`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to delete manual ad.");
+      }
+      setHomeExportManualAdUrl("");
+      setHomeExportManualAdActive(false);
+      setHomeExportManualAdFileName("");
+      setHomeExportManualAdContentType("");
+      setMessage("Manual ad deleted successfully.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to delete manual ad.");
+    } finally {
+      setManualAdDeleting(false);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
@@ -294,6 +399,90 @@ export default function AdminSettingsPage() {
                 />
               </label>
             ))}
+          </div>
+
+          <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-950">Free user rewarded ads</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Controls AdMob rewarded ads before free poster share/download. Subscribers are never shown these ads.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={homeExportRewardedEnabled}
+                  onChange={(event) => setHomeExportRewardedEnabled(event.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 text-[var(--portal-purple)] focus:ring-[var(--portal-purple)]"
+                />
+                Manual ad {homeExportRewardedEnabled ? "ON" : "OFF"}
+              </label>
+            </div>
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Apply to states</p>
+              <RegionMultiSelectDropdown
+                regions={regions}
+                selectedRegionIds={adTargetStates}
+                onChange={(items) => setAdTargetStates(items.length ? items : [region.id])}
+                label="Add state / UT"
+              />
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Save applies only this ad setting to all selected states. Other settings stay state-specific.
+              </p>
+            </div>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-950">Manual image/video ad</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    If this manual ad is active for a state, the app shows it before free poster share/download and skips AdMob. If no manual ad exists, AdMob rewarded ad is used.
+                  </p>
+                  {homeExportManualAdActive && homeExportManualAdUrl ? (
+                    <p className="mt-2 text-xs font-semibold text-emerald-700">
+                      Active: {homeExportManualAdFileName || "manual ad"} {homeExportManualAdContentType ? `(${homeExportManualAdContentType})` : ""}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs font-semibold text-slate-500">No manual ad uploaded for this state.</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={manualAdInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                    className="hidden"
+                    onChange={(event) => void handleManualAdUpload(event.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => manualAdInputRef.current?.click()}
+                    disabled={manualAdUploading}
+                    className="rounded-full bg-slate-950 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {manualAdUploading ? "Uploading..." : homeExportManualAdActive ? "Replace manual ad" : "Upload manual ad"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleManualAdDelete()}
+                    disabled={manualAdDeleting || !homeExportManualAdActive}
+                    className="rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-600 disabled:opacity-50"
+                  >
+                    {manualAdDeleting ? "Deleting..." : "Delete manual ad"}
+                  </button>
+                </div>
+              </div>
+              {homeExportManualAdUrl ? (
+                <a
+                  href={homeExportManualAdUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex text-xs font-semibold text-[var(--portal-purple)]"
+                >
+                  Open uploaded ad
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">

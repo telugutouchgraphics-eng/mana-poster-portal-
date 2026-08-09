@@ -14,6 +14,17 @@ function scopedDocId(baseId: string, regionId: string) {
 interface PortalSettingsRecord {
   defaultNotificationImageUrl: string;
   defaultLanguage: "en" | "te";
+  ads: {
+    homeExportRewardedEnabled: boolean;
+    homeExportManualAd: {
+      active: boolean;
+      url: string;
+      path: string;
+      contentType: string;
+      fileName: string;
+      updatedAt: number;
+    };
+  };
   subscriptionExitVideo: {
     active: boolean;
     url: string;
@@ -105,6 +116,17 @@ export async function GET(req: NextRequest) {
         afternoonEnabled: boolValue(settingsData.notifications?.afternoonEnabled, true),
         nightEnabled: boolValue(settingsData.notifications?.nightEnabled, true),
       },
+      ads: {
+        homeExportRewardedEnabled: boolValue(settingsData.ads?.homeExportRewardedEnabled, false),
+        homeExportManualAd: {
+          active: boolValue(settingsData.ads?.homeExportManualAd?.active, false),
+          url: stringValue(settingsData.ads?.homeExportManualAd?.url),
+          path: stringValue(settingsData.ads?.homeExportManualAd?.path),
+          contentType: stringValue(settingsData.ads?.homeExportManualAd?.contentType),
+          fileName: stringValue(settingsData.ads?.homeExportManualAd?.fileName),
+          updatedAt: Number(settingsData.ads?.homeExportManualAd?.updatedAt || 0),
+        },
+      },
       bannerVisibility: {
         appBannersVisible: boolValue(settingsData.bannerVisibility?.appBannersVisible, true),
         creatorBannersVisible: boolValue(
@@ -138,6 +160,10 @@ export async function PUT(req: NextRequest) {
         afternoonEnabled?: boolean;
         nightEnabled?: boolean;
       };
+      ads?: {
+        homeExportRewardedEnabled?: boolean;
+      };
+      targetRegionIds?: string[];
       subscriptionExitVideo?: {
         active?: boolean;
         url?: string;
@@ -154,12 +180,21 @@ export async function PUT(req: NextRequest) {
       landingPageSubtitle?: string;
     };
     const region = await assertActorCanAccessRegion(actor, body.regionId);
+    const requestedRegionIds = Array.isArray(body.targetRegionIds)
+      ? body.targetRegionIds.map((item) => stringValue(item)).filter(Boolean)
+      : [];
+    const targetRegions = requestedRegionIds.length
+      ? await Promise.all(
+          Array.from(new Set(requestedRegionIds)).map((regionId) =>
+            assertActorCanAccessRegion(actor, regionId),
+          ),
+        )
+      : [region];
 
     const now = Date.now();
-    const settingsDocId = scopedDocId(SETTINGS_DOC_ID, region.id);
     const landingDocId = scopedDocId(LANDING_DOC_ID, region.id);
-    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
-    const existingSettingsSnap = await settingsRef.get();
+    const currentSettingsRef = adminDb.collection("websiteConfig").doc(scopedDocId(SETTINGS_DOC_ID, region.id));
+    const existingSettingsSnap = await currentSettingsRef.get();
     const existingSettings = existingSettingsSnap.data() || {};
     const subscriptionExitVideo = mergeSubscriptionVideo(
       existingSettings.subscriptionExitVideo as Record<string, unknown> | undefined,
@@ -170,32 +205,81 @@ export async function PUT(req: NextRequest) {
       body.subscriptionThanksVideo,
     );
     await Promise.all([
-      settingsRef.set(
-        {
-          defaultNotificationImageUrl: stringValue(body.defaultNotificationImageUrl),
-          regionId: region.id,
-          regionName: region.name,
-          defaultLanguage: body.defaultLanguage === "te" ? "te" : "en",
-          subscriptionExitVideo,
-          subscriptionThanksVideo,
-          notifications: {
-            morningEnabled: boolValue(body.notifications?.morningEnabled, true),
-            afternoonEnabled: boolValue(body.notifications?.afternoonEnabled, true),
-            nightEnabled: boolValue(body.notifications?.nightEnabled, true),
+      ...targetRegions.map(async (targetRegion) => {
+        const settingsDocId = scopedDocId(SETTINGS_DOC_ID, targetRegion.id);
+        const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
+        const targetExistingSnap = targetRegion.id === region.id ? existingSettingsSnap : await settingsRef.get();
+        const targetExisting = targetExistingSnap.data() || {};
+        return settingsRef.set(
+          {
+            defaultNotificationImageUrl:
+              targetRegion.id === region.id
+                ? stringValue(body.defaultNotificationImageUrl)
+                : stringValue(targetExisting.defaultNotificationImageUrl),
+            regionId: targetRegion.id,
+            regionName: targetRegion.name,
+            defaultLanguage:
+              targetRegion.id === region.id
+                ? body.defaultLanguage === "te"
+                  ? "te"
+                  : "en"
+                : stringValue(targetExisting.defaultLanguage) === "te"
+                  ? "te"
+                  : "en",
+            subscriptionExitVideo: targetRegion.id === region.id
+              ? subscriptionExitVideo
+              : targetExisting.subscriptionExitVideo || {
+                  active: false,
+                  url: "",
+                  path: "",
+                  fileName: "",
+                  updatedAt: 0,
+                },
+            subscriptionThanksVideo: targetRegion.id === region.id
+              ? subscriptionThanksVideo
+              : targetExisting.subscriptionThanksVideo || {
+                  active: false,
+                  url: "",
+                  path: "",
+                  fileName: "",
+                  updatedAt: 0,
+                },
+            notifications:
+              targetRegion.id === region.id
+                ? {
+                    morningEnabled: boolValue(body.notifications?.morningEnabled, true),
+                    afternoonEnabled: boolValue(body.notifications?.afternoonEnabled, true),
+                    nightEnabled: boolValue(body.notifications?.nightEnabled, true),
+                  }
+                : targetExisting.notifications || {
+                    morningEnabled: true,
+                    afternoonEnabled: true,
+                    nightEnabled: true,
+                  },
+            ads: {
+              ...(targetExisting.ads || {}),
+              homeExportRewardedEnabled: boolValue(body.ads?.homeExportRewardedEnabled, false),
+            },
+            bannerVisibility:
+              targetRegion.id === region.id
+                ? {
+                    appBannersVisible: boolValue(body.bannerVisibility?.appBannersVisible, true),
+                    creatorBannersVisible: boolValue(
+                      body.bannerVisibility?.creatorBannersVisible,
+                      true,
+                    ),
+                  }
+                : targetExisting.bannerVisibility || {
+                    appBannersVisible: true,
+                    creatorBannersVisible: true,
+                  },
+            updatedAt: now,
+            updatedByUid: actor.uid,
+            updatedByEmail: actor.email ?? "",
           },
-          bannerVisibility: {
-            appBannersVisible: boolValue(body.bannerVisibility?.appBannersVisible, true),
-            creatorBannersVisible: boolValue(
-              body.bannerVisibility?.creatorBannersVisible,
-              true,
-            ),
-          },
-          updatedAt: now,
-          updatedByUid: actor.uid,
-          updatedByEmail: actor.email ?? "",
-        },
-        { merge: true },
-      ),
+          { merge: true },
+        );
+      }),
       adminDb.collection("websiteConfig").doc(landingDocId).set(
         {
           regionId: region.id,
@@ -217,10 +301,15 @@ export async function PUT(req: NextRequest) {
       actorRole: actor.role,
       actorEmail: actor.email,
       action: "admin.settings.update",
-      targetId: settingsDocId,
+      targetId: scopedDocId(SETTINGS_DOC_ID, region.id),
       targetType: "websiteConfig",
       message: "Updated portal settings configuration",
-      metadata: { regionId: region.id, regionName: region.name },
+      metadata: {
+        regionId: region.id,
+        regionName: region.name,
+        targetRegionIds: targetRegions.map((item) => item.id),
+        homeExportRewardedEnabled: boolValue(body.ads?.homeExportRewardedEnabled, false),
+      },
     });
 
     return NextResponse.json({ ok: true });

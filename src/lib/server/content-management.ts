@@ -22,6 +22,8 @@ export interface AppBannerRecord {
   ctaTarget: string;
   placement: string;
   targetRegionIds?: string[];
+  targetReligions?: string[];
+  promoCardGroup?: number;
   targetState?: string;
   targetDistrict?: string;
   targetCity?: string;
@@ -71,12 +73,15 @@ export interface AdminPushNotificationRecord {
   imagePath: string;
   route: string;
   audience: "all_users" | "creators_only" | "area_users";
+  audienceSegment?: "all_area_users" | "daily_active_users" | "active_users" | "monthly_active_users" | "inactive_users" | "subscribers" | "non_subscribers";
   targetState?: string;
   targetRegionIds?: string[];
   targetDistrict?: string;
   targetCity?: string;
+  targetReligion?: "all" | "hindu" | "muslim" | "christian";
   category: string;
   status: "scheduled" | "sent" | "failed" | "processing";
+  matchedUserCount?: number;
   targetCount: number;
   deliveredCount: number;
   failedCount: number;

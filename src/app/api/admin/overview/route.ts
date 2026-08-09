@@ -80,6 +80,19 @@ function emptySubscriptionRow(regionId: string, regionName: string) {
   };
 }
 
+function emptyReligionRow(regionId: string, regionName: string) {
+  return {
+    regionId,
+    regionName,
+    totalUsers: 0,
+    hindu: 0,
+    muslim: 0,
+    christian: 0,
+    allReligions: 0,
+    unknown: 0,
+  };
+}
+
 function hasActiveAccess(data: Record<string, unknown> | undefined, now = Date.now()) {
   if (!data) return false;
   if (data.isPro !== true) return false;
@@ -109,6 +122,30 @@ function subscriptionBucket(data: Record<string, unknown> | undefined, now = Dat
   return "expired";
 }
 
+function subscriptionStartMillis(data: Record<string, unknown> | undefined) {
+  if (!data) return 0;
+  return (
+    readTimestampMillis(data.startTime) ||
+    readTimestampMillis(data.purchaseTime) ||
+    readTimestampMillis(data.purchaseTimeMillis) ||
+    readTimestampMillis(data.activatedAt) ||
+    readTimestampMillis(data.createdAt)
+  );
+}
+
+function hasPaidSubscriptionHistory(data: Record<string, unknown> | undefined) {
+  if (!data) return false;
+  const source = String(data.source ?? "").trim();
+  const productId = String(data.productId ?? "").trim();
+  return Boolean(
+    productId &&
+      productId !== "manual_lifetime_whitelist" &&
+      productId !== "first150_trial" &&
+      source !== "manual_lifetime_whitelist" &&
+      source !== "first150_trial",
+  );
+}
+
 async function loadInstallMetrics(regionIds: string[]) {
   const allowed = new Set(regionIds);
   const now = Date.now();
@@ -126,31 +163,37 @@ async function loadInstallMetrics(regionIds: string[]) {
       },
     ]),
   );
-  const seenInstallIds = new Set<string>();
   const seenTodayIds = new Set<string>();
   const seenLast7Ids = new Set<string>();
-  const snap = await adminDb.collectionGroup("activeSession").get();
+  const userRegionByUid = new Map<string, string>();
+  const userSnap = await adminDb.collection("users").get();
 
-  for (const doc of snap.docs) {
+  for (const doc of userSnap.docs) {
     const data = doc.data();
-    const regionId = String(data.regionId ?? "").trim();
+    const regionId = String(data.selectedRegion ?? "").trim();
     if (!allowed.has(regionId)) continue;
     const row = rows.get(regionId);
     if (!row) continue;
-    const installId = String(data.activeDeviceId ?? doc.ref.parent.parent?.id ?? doc.id).trim();
-    if (!installId) continue;
-    const installKey = `${regionId}:${installId}`;
+    userRegionByUid.set(doc.id, regionId);
+    row.totalInstalls += 1;
+  }
+
+  const activeSnap = await adminDb.collectionGroup("activeSession").get();
+  for (const doc of activeSnap.docs) {
+    const data = doc.data();
+    const uid = String(data.uid ?? doc.ref.parent.parent?.id ?? "").trim();
+    const regionId = uid ? userRegionByUid.get(uid) : "";
+    if (!regionId) continue;
+    const row = rows.get(regionId);
+    if (!row) continue;
+    const userKey = `${regionId}:${uid}`;
     const updatedAt = readTimestampMillis(data.updatedAt);
-    if (!seenInstallIds.has(installKey)) {
-      seenInstallIds.add(installKey);
-      row.totalInstalls += 1;
-    }
-    if (updatedAt > 0 && dayKeyInIst(updatedAt) === todayKey && !seenTodayIds.has(installKey)) {
-      seenTodayIds.add(installKey);
+    if (updatedAt > 0 && dayKeyInIst(updatedAt) === todayKey && !seenTodayIds.has(userKey)) {
+      seenTodayIds.add(userKey);
       row.todayActive += 1;
     }
-    if (updatedAt >= sevenDaysAgo && !seenLast7Ids.has(installKey)) {
-      seenLast7Ids.add(installKey);
+    if (updatedAt >= sevenDaysAgo && !seenLast7Ids.has(userKey)) {
+      seenLast7Ids.add(userKey);
       row.last7DaysActive += 1;
     }
   }
@@ -167,6 +210,7 @@ async function loadInstallMetrics(regionIds: string[]) {
 async function loadSubscriptionMetrics(regionIds: string[]) {
   const allowed = new Set(regionIds);
   const now = Date.now();
+  const todayKey = dayKeyInIst(now);
   const byRegion = new Map(
     DASHBOARD_REGIONS.filter((item) => allowed.has(item.id)).map((item) => [
       item.id,
@@ -211,9 +255,65 @@ async function loadSubscriptionMetrics(regionIds: string[]) {
     subscribed: rows.reduce((sum, item) => sum + item.subscribed, 0),
     trialActive: rows.reduce((sum, item) => sum + item.trialActive, 0),
     expired: rows.reduce((sum, item) => sum + item.expired, 0),
-    notSubscribed: rows.reduce((sum, item) => sum + item.notSubscribed, 0),
+    notSubscribed: rows.reduce(
+      (sum, item) =>
+        sum +
+        Math.max(
+          0,
+          item.totalUsers -
+            item.subscribed -
+            item.trialActive -
+            item.manualFree -
+            item.referralReward,
+        ),
+      0,
+    ),
     manualFree: rows.reduce((sum, item) => sum + item.manualFree, 0),
     referralReward: rows.reduce((sum, item) => sum + item.referralReward, 0),
+    lifetimeSubscribers: entitlementSnaps.reduce((sum, snap) => {
+      const data = snap.data() as Record<string, unknown> | undefined;
+      return sum + (hasPaidSubscriptionHistory(data) ? 1 : 0);
+    }, 0),
+    todayNewSubscribers: users.reduce((sum, user, index) => {
+      const data = entitlementSnaps[index]?.data() as Record<string, unknown> | undefined;
+      const startAt = subscriptionStartMillis(data);
+      return sum + (hasActiveAccess(data, now) && startAt > 0 && dayKeyInIst(startAt) === todayKey ? 1 : 0);
+    }, 0),
+    byRegion: rows,
+  };
+}
+
+async function loadReligionMetrics(regionIds: string[]) {
+  const allowed = new Set(regionIds);
+  const byRegion = new Map(
+    DASHBOARD_REGIONS.filter((item) => allowed.has(item.id)).map((item) => [
+      item.id,
+      emptyReligionRow(item.id, item.name),
+    ]),
+  );
+  const userSnap = await adminDb.collection("users").get();
+  for (const doc of userSnap.docs) {
+    const data = doc.data();
+    const regionId = String(data.selectedRegion ?? "").trim();
+    if (!allowed.has(regionId)) continue;
+    const row = byRegion.get(regionId);
+    if (!row) continue;
+    row.totalUsers += 1;
+    const religion = String(data.religionPreference ?? "").trim().toLowerCase();
+    if (religion === "hindu") row.hindu += 1;
+    else if (religion === "muslim") row.muslim += 1;
+    else if (religion === "christian") row.christian += 1;
+    else if (religion === "all") row.allReligions += 1;
+    else row.unknown += 1;
+  }
+  const rows = Array.from(byRegion.values()).sort((a, b) => b.totalUsers - a.totalUsers);
+  return {
+    totalUsers: rows.reduce((sum, item) => sum + item.totalUsers, 0),
+    hindu: rows.reduce((sum, item) => sum + item.hindu, 0),
+    muslim: rows.reduce((sum, item) => sum + item.muslim, 0),
+    christian: rows.reduce((sum, item) => sum + item.christian, 0),
+    allReligions: rows.reduce((sum, item) => sum + item.allReligions, 0),
+    unknown: rows.reduce((sum, item) => sum + item.unknown, 0),
     byRegion: rows,
   };
 }
@@ -235,6 +335,9 @@ export async function GET(req: NextRequest) {
       showAllRegions ? allowedRegionIds : region?.id ? [region.id] : [],
     );
     const subscriptionMetrics = await loadSubscriptionMetrics(
+      showAllRegions ? allowedRegionIds : region?.id ? [region.id] : [],
+    );
+    const religionMetrics = await loadReligionMetrics(
       showAllRegions ? allowedRegionIds : region?.id ? [region.id] : [],
     );
     const creators = showAllRegions
@@ -288,12 +391,21 @@ export async function GET(req: NextRequest) {
         totalInstalls: installMetrics.totalInstalls,
         todayActiveUsers: installMetrics.todayActive,
         last7DaysActiveUsers: installMetrics.last7DaysActive,
+        nonActiveUsers: Math.max(0, installMetrics.totalInstalls - installMetrics.last7DaysActive),
         subscribedUsers: subscriptionMetrics.subscribed,
+        lifetimeSubscribers: subscriptionMetrics.lifetimeSubscribers,
+        todayNewSubscribers: subscriptionMetrics.todayNewSubscribers,
         trialUsers: subscriptionMetrics.trialActive,
         notSubscribedUsers: subscriptionMetrics.notSubscribed,
+        hinduUsers: religionMetrics.hindu,
+        muslimUsers: religionMetrics.muslim,
+        christianUsers: religionMetrics.christian,
+        allReligionUsers: religionMetrics.allReligions,
+        unknownReligionUsers: religionMetrics.unknown,
       },
       installMetrics,
       subscriptionMetrics,
+      religionMetrics,
       uploadsTrend: buildUploadsTrend(posters.map((item) => item.createdAt)),
       revenue: {
         gross: posters.reduce((sum, item) => sum + item.grossAmount, 0),

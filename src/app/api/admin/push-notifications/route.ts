@@ -9,13 +9,24 @@ import {
 } from "@/lib/server/content-management";
 import {
   cleanupExpiredPushHistory,
+  countPushAudienceSegments,
   createPushHistoryRecord,
   sendPushNotificationRecord,
   type PushAudience,
+  type PushAudienceSegment,
 } from "@/lib/server/push-notifications";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const AUDIENCE_OPTIONS = new Set<PushAudience>(["area_users"]);
+const AUDIENCE_SEGMENT_OPTIONS = new Set<PushAudienceSegment>([
+  "all_area_users",
+  "daily_active_users",
+  "active_users",
+  "monthly_active_users",
+  "inactive_users",
+  "subscribers",
+  "non_subscribers",
+]);
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
 
 function normalize(value: string) {
@@ -70,10 +81,33 @@ export async function GET(req: NextRequest) {
     const notifications = (await loadAdminPushNotifications()).filter((item) =>
       notificationVisibleToActor(item, allowedRegionIds, hasAllRegions),
     );
+    const searchParams = req.nextUrl.searchParams;
+    const requestedRegionIds = Array.from(
+      new Set(searchParams.getAll("targetRegionIds").map((item) => item.trim()).filter(Boolean)),
+    );
+    const targetRegions = regionsForIds(
+      requestedRegionIds.length > 0 ? requestedRegionIds : allowedRegionIds.slice(0, 1),
+    ).filter((targetRegion) => hasAllRegions || allowedRegionIds.includes(targetRegion.id));
+    const targetReligionValue = searchParams.get("targetReligion")?.trim().toLowerCase() ?? "all";
+    const targetReligion =
+      targetReligionValue === "hindu" || targetReligionValue === "muslim" || targetReligionValue === "christian"
+        ? targetReligionValue
+        : "all";
+    const audienceCounts = targetRegions.length > 0
+      ? await countPushAudienceSegments({
+          state: targetRegions.map((targetRegion) => targetRegion.name).join(", "),
+          regionIds: targetRegions.map((targetRegion) => targetRegion.id),
+          district: searchParams.get("targetDistrict")?.trim() ?? "",
+          city: searchParams.get("targetCity")?.trim() ?? "",
+          religion: targetReligion,
+        })
+      : null;
+
     return NextResponse.json({
       ok: true,
       notifications,
       audiences: ["area_users"],
+      audienceCounts,
     });
   } catch (error) {
     const message =
@@ -92,6 +126,10 @@ export async function POST(req: NextRequest) {
     const message = String(formData.get("message") ?? "").trim();
     const requestedRoute = String(formData.get("route") ?? "home").trim() || "home";
     const audience = String(formData.get("audience") ?? "area_users").trim() as PushAudience;
+const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_area_users").trim() as PushAudienceSegment;
+    const audienceSegment = AUDIENCE_SEGMENT_OPTIONS.has(requestedAudienceSegment)
+      ? requestedAudienceSegment
+      : "all_area_users";
     const route = requestedRoute;
     const category = "";
     const targetState = String(formData.get("targetState") ?? "").trim();
@@ -202,6 +240,7 @@ export async function POST(req: NextRequest) {
       imagePath,
       route,
       audience,
+      audienceSegment,
       targetState: targetStateNames,
       targetRegionIds,
       targetDistrict,
@@ -231,6 +270,7 @@ export async function POST(req: NextRequest) {
         route,
         imageUrl,
         audience,
+        audienceSegment,
         targetState: targetStateNames,
         targetRegionIds,
         targetDistrict,

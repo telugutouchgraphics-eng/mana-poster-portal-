@@ -82,6 +82,22 @@ function normalizeNotificationLanguage(value: unknown): NotificationLanguage {
     : "english";
 }
 
+function tokenDocId(token: string) {
+  return token.replace(/\//g, "_");
+}
+
+async function tokenBelongsToUid(token: string, uid: string) {
+  const publicSnap = await adminDb
+    .collection("publicDeviceTokens")
+    .doc(tokenDocId(token))
+    .get();
+  if (!publicSnap.exists) {
+    return true;
+  }
+  const ownerUid = String(publicSnap.data()?.uid ?? "").trim();
+  return !ownerUid || ownerUid === uid;
+}
+
 function userUploadStatusCopy(
   status: "approved" | "rejected",
   language: NotificationLanguage,
@@ -185,6 +201,10 @@ async function sendUserUploadStatusNotificationLocalized(
     const data = doc.data();
     const token = String(data.token ?? "").trim();
     if (!token) {
+      continue;
+    }
+    if (!(await tokenBelongsToUid(token, uid))) {
+      await adminDb.doc(doc.ref.path).delete().catch(() => undefined);
       continue;
     }
     const language = normalizeNotificationLanguage(data.preferredLanguage);

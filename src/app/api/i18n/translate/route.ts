@@ -1,11 +1,49 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-type SupportedLanguage = "te" | "hi" | "en" | "ta" | "kn" | "ml";
+type SupportedLanguage =
+  | "te"
+  | "hi"
+  | "en"
+  | "ta"
+  | "kn"
+  | "ml"
+  | "as"
+  | "gom"
+  | "gu"
+  | "mr"
+  | "mni-Mtei"
+  | "lus"
+  | "or"
+  | "pa"
+  | "ne"
+  | "bn"
+  | "ur"
+  | "bo";
 
 const payloadSchema = z.object({
-  targetLanguage: z.enum(["te", "hi", "en", "ta", "kn", "ml"]),
+  targetLanguage: z.enum([
+    "te",
+    "hi",
+    "en",
+    "ta",
+    "kn",
+    "ml",
+    "as",
+    "gom",
+    "gu",
+    "mr",
+    "mni-Mtei",
+    "lus",
+    "or",
+    "pa",
+    "ne",
+    "bn",
+    "ur",
+    "bo",
+  ]),
   texts: z.array(z.string().trim().min(1).max(500)).max(250),
+  mode: z.enum(["dashboard", "translate"]).optional(),
 });
 
 const EXACT_TRANSLITERATION_TE = new Map<string, string>([
@@ -126,7 +164,7 @@ async function transliterateWithGoogleInputTools(text: string) {
 
 async function translateWithGoogle(
   text: string,
-  targetLanguage: Exclude<SupportedLanguage, "te" | "en">,
+  targetLanguage: SupportedLanguage,
 ) {
   const url = new URL("https://translate.googleapis.com/translate_a/single");
   url.searchParams.set("client", "gtx");
@@ -156,14 +194,22 @@ async function translateWithGoogle(
   );
 }
 
-async function translateSingle(text: string, targetLanguage: SupportedLanguage) {
+async function translateSingle(
+  text: string,
+  targetLanguage: SupportedLanguage,
+  mode: "dashboard" | "translate" = "dashboard",
+) {
   const normalized = normalizeText(text);
   if (!normalized) {
     return normalized;
   }
 
-  if (targetLanguage === "en") {
+  if (targetLanguage === "en" && mode !== "translate") {
     return normalized;
+  }
+
+  if (mode === "translate") {
+    return translateWithGoogle(normalized, targetLanguage);
   }
 
   if (targetLanguage === "te") {
@@ -193,17 +239,14 @@ async function translateSingle(text: string, targetLanguage: SupportedLanguage) 
     return applyExistingTeluguNormalization(restored);
   }
 
-  return translateWithGoogle(
-    normalized,
-    targetLanguage as Exclude<SupportedLanguage, "te" | "en">,
-  );
+  return translateWithGoogle(normalized, targetLanguage);
 }
 
 export async function POST(req: NextRequest) {
   try {
     const payload = payloadSchema.parse(await req.json());
     const translations = await Promise.all(
-      payload.texts.map((text) => translateSingle(text, payload.targetLanguage)),
+      payload.texts.map((text) => translateSingle(text, payload.targetLanguage, payload.mode)),
     );
     return NextResponse.json({ ok: true, translations });
   } catch (error) {

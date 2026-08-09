@@ -51,6 +51,7 @@ interface PosterPersonalization {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  stripLayoutStyle: "full" | "split" | "badge";
   showPoliticalProtocol: boolean;
   politicalProtocolX: number;
   politicalProtocolY: number;
@@ -178,6 +179,7 @@ const defaultPersonalization: PosterPersonalization = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  stripLayoutStyle: "full",
   showPoliticalProtocol: false,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
@@ -338,6 +340,10 @@ function parsePersonalization(input: unknown): PosterPersonalization {
       0,
       20,
     ),
+    stripLayoutStyle:
+      raw.stripLayoutStyle === "split" || raw.stripLayoutStyle === "badge"
+        ? raw.stripLayoutStyle
+        : defaultPersonalization.stripLayoutStyle,
     showPoliticalProtocol:
       typeof raw.showPoliticalProtocol === "boolean"
         ? raw.showPoliticalProtocol

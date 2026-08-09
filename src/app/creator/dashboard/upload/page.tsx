@@ -89,6 +89,7 @@ interface PersonalizationConfig {
   stripWidth: number;
   stripX: number;
   stripBottom: number;
+  stripLayoutStyle: "full" | "split" | "badge";
   showPoliticalProtocol: boolean;
   politicalProtocolX: number;
   politicalProtocolY: number;
@@ -165,6 +166,7 @@ const defaultPersonalization: PersonalizationConfig = {
   stripWidth: 100,
   stripX: 50,
   stripBottom: 0,
+  stripLayoutStyle: "full",
   showPoliticalProtocol: true,
   politicalProtocolX: 50,
   politicalProtocolY: 7,
@@ -290,7 +292,9 @@ function categoryWeekday(categoryId: string): 1 | 2 | 3 | 4 | 5 | 6 | 7 | null {
   }
 }
 
-function categoryAllowsPoliticalProtocol(category: CreatorCategory | null): boolean {
+function categoryAllowsPoliticalProtocol(
+  category: CreatorCategory | null,
+): boolean {
   if (!category) return false;
   const normalized = category.id
     .trim()
@@ -461,10 +465,22 @@ function normalizePoliticalProtocolSlots(
     const deltaY = second.y - first.y;
     if (Math.hypot(deltaX, deltaY) >= minimumGap) return slots;
 
-    const centerX = clampNumber((first.x + second.x) / 2, minimumGap / 2, 100 - minimumGap / 2);
+    const centerX = clampNumber(
+      (first.x + second.x) / 2,
+      minimumGap / 2,
+      100 - minimumGap / 2,
+    );
     const direction = deltaX >= 0 ? 1 : -1;
-    const nextFirstX = clampNumber(centerX - (minimumGap / 2) * direction, firstSide / 2, 100 - firstSide / 2);
-    const nextSecondX = clampNumber(centerX + (minimumGap / 2) * direction, secondSide / 2, 100 - secondSide / 2);
+    const nextFirstX = clampNumber(
+      centerX - (minimumGap / 2) * direction,
+      firstSide / 2,
+      100 - firstSide / 2,
+    );
+    const nextSecondX = clampNumber(
+      centerX + (minimumGap / 2) * direction,
+      secondSide / 2,
+      100 - secondSide / 2,
+    );
     return [
       { ...first, x: nextFirstX },
       { ...second, x: nextSecondX },
@@ -472,20 +488,24 @@ function normalizePoliticalProtocolSlots(
     ];
   };
   if (Array.isArray(raw) && raw.length >= 2) {
-    return avoidOverlap(raw.slice(0, 2).map((slot) => ({
-      x: clampNumber(Number(slot.x), 4, 96),
-      y: clampNumber(Number(slot.y), 4, 96),
-      scale: clampNumber(Number(slot.scale || fallbackScale), 45, 135),
-    })));
+    return avoidOverlap(
+      raw.slice(0, 2).map((slot) => ({
+        x: clampNumber(Number(slot.x), 4, 96),
+        y: clampNumber(Number(slot.y), 4, 96),
+        scale: clampNumber(Number(slot.scale || fallbackScale), 45, 135),
+      })),
+    );
   }
   const safeScale = clampNumber(fallbackScale, 45, 135);
   const side = protocolSlotSidePercent(safeScale);
   const spacing = side + 4;
-  return avoidOverlap(Array.from({ length: 2 }, (_, index) => ({
-    x: clampNumber(fallbackX + (index - 0.5) * spacing, 4, 96),
-    y: clampNumber(fallbackY, 4, 96),
-    scale: safeScale,
-  })));
+  return avoidOverlap(
+    Array.from({ length: 2 }, (_, index) => ({
+      x: clampNumber(fallbackX + (index - 0.5) * spacing, 4, 96),
+      y: clampNumber(fallbackY, 4, 96),
+      scale: safeScale,
+    })),
+  );
 }
 
 function protocolSlotSidePercent(scale: number): number {
@@ -504,6 +524,11 @@ function parsePersonalizationConfig(
     {
       ...defaultPersonalization,
       ...input,
+      stripLayoutStyle:
+        input?.stripLayoutStyle === "split" ||
+        input?.stripLayoutStyle === "badge"
+          ? input.stripLayoutStyle
+          : defaultPersonalization.stripLayoutStyle,
       politicalProtocolSlots: input?.politicalProtocolSlots ?? [],
       photoAnimation: parseVideoPhotoAnimation(input?.photoAnimation),
       videoExtraPhotoAnimation: parseVideoPhotoAnimation(

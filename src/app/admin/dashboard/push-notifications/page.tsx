@@ -15,6 +15,7 @@ interface PushNotificationItem {
   imageUrl: string;
   route: string;
   audience: "area_users";
+  audienceSegment?: AudienceSegment;
   targetState?: string;
   targetRegionIds?: string[];
   targetDistrict?: string;
@@ -22,6 +23,7 @@ interface PushNotificationItem {
   targetReligion?: "all" | "hindu" | "muslim" | "christian";
   category: string;
   status: "scheduled" | "sent" | "failed" | "processing";
+  matchedUserCount?: number;
   targetCount: number;
   deliveredCount: number;
   failedCount: number;
@@ -31,6 +33,15 @@ interface PushNotificationItem {
   sentAt: number | null;
   createdByEmail: string;
 }
+
+type AudienceSegment =
+  | "all_area_users"
+  | "daily_active_users"
+  | "active_users"
+  | "monthly_active_users"
+  | "inactive_users"
+  | "subscribers"
+  | "non_subscribers";
 
 interface LocationInsightRow {
   key: string;
@@ -46,11 +57,13 @@ export default function AdminPushNotificationsPage() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [audience] = useState<"area_users">("area_users");
+  const [audienceSegment, setAudienceSegment] = useState<AudienceSegment>("all_area_users");
   const [targetRegionIds, setTargetRegionIds] = useState<string[]>([region.id]);
   const [targetDistrict, setTargetDistrict] = useState("");
   const [targetCity, setTargetCity] = useState("");
   const [targetReligion, setTargetReligion] =
     useState<"all" | "hindu" | "muslim" | "christian">("all");
+  const [audienceCounts, setAudienceCounts] = useState<Partial<Record<AudienceSegment, number>>>({});
   const [locationRows, setLocationRows] = useState<LocationInsightRow[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,10 +100,41 @@ export default function AdminPushNotificationsPage() {
     }
   }
 
+  async function loadAudienceCounts() {
+    const token = await user?.getIdToken();
+    if (!token) {
+      return;
+    }
+    const params = new URLSearchParams();
+    targetRegionIds.forEach((regionId) => params.append("targetRegionIds", regionId));
+    if (targetDistrict.trim()) {
+      params.set("targetDistrict", targetDistrict.trim());
+    }
+    if (targetCity.trim()) {
+      params.set("targetCity", targetCity.trim());
+    }
+    params.set("targetReligion", targetReligion);
+    const response = await fetch(`/api/admin/push-notifications?${params.toString()}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const data = (await response.json()) as {
+      ok: boolean;
+      audienceCounts?: Partial<Record<AudienceSegment, number>> | null;
+    };
+    if (response.ok && data.ok) {
+      setAudienceCounts(data.audienceCounts ?? {});
+    }
+  }
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    void loadAudienceCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, targetRegionIds.join(","), targetDistrict, targetCity, targetReligion]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,6 +167,7 @@ export default function AdminPushNotificationsPage() {
       formData.set("message", message.trim());
       formData.set("route", "home");
       formData.set("audience", audience);
+      formData.set("audienceSegment", audienceSegment);
       formData.set("category", "");
       formData.set("targetState", audience === "area_users" ? selectedRegionNames.join(", ") : "");
       targetRegionIds.forEach((regionId) => {
@@ -149,6 +194,7 @@ export default function AdminPushNotificationsPage() {
       setTitle("");
       setMessage("");
       setTargetRegionIds([region.id]);
+      setAudienceSegment("all_area_users");
       setTargetDistrict("");
       setTargetCity("");
       setTargetReligion("all");
@@ -215,6 +261,30 @@ export default function AdminPushNotificationsPage() {
     return item.targetState ?? "";
   }
 
+  function audienceSegmentLabel(segment?: AudienceSegment) {
+    switch (segment) {
+      case "daily_active_users":
+        return "Daily active users";
+      case "active_users":
+        return "Weekly active users";
+      case "monthly_active_users":
+        return "Monthly active users";
+      case "inactive_users":
+        return "Non-active users";
+      case "subscribers":
+        return "Subscribers";
+      case "non_subscribers":
+        return "Non-subscribers";
+      default:
+        return "All selected users";
+    }
+  }
+
+  function audienceOptionLabel(segment: AudienceSegment, label: string) {
+    const count = audienceCounts[segment];
+    return `${label}${typeof count === "number" ? ` (${count})` : ""}`;
+  }
+
   return (
     <section className="grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
@@ -240,9 +310,19 @@ export default function AdminPushNotificationsPage() {
             </label>
             <label className="space-y-2 text-sm text-slate-700">
               <span className="font-semibold">Audience</span>
-              <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800">
-                App selected State / UT users
-              </div>
+              <select
+                value={audienceSegment}
+                onChange={(event) => setAudienceSegment(event.target.value as AudienceSegment)}
+                className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+              >
+                <option value="all_area_users">{audienceOptionLabel("all_area_users", "All selected State / UT users")}</option>
+                <option value="daily_active_users">{audienceOptionLabel("daily_active_users", "Daily active users - last 24 hours")}</option>
+                <option value="active_users">{audienceOptionLabel("active_users", "Weekly active users - last 7 days")}</option>
+                <option value="monthly_active_users">{audienceOptionLabel("monthly_active_users", "Monthly active users - last 30 days")}</option>
+                <option value="inactive_users">{audienceOptionLabel("inactive_users", "Non-active users - not active in last 7 days")}</option>
+                <option value="subscribers">{audienceOptionLabel("subscribers", "Subscribers only")}</option>
+                <option value="non_subscribers">{audienceOptionLabel("non_subscribers", "Non-subscribers only")}</option>
+              </select>
             </label>
           </div>
 
@@ -410,7 +490,7 @@ export default function AdminPushNotificationsPage() {
                       {item.message}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
-                      Route: {item.route} | Audience: {item.audience}
+                      Route: {item.route} | Audience: {audienceSegmentLabel(item.audienceSegment)}
                       {item.category ? ` | Category: ${item.category}` : ""}
                     </p>
                     {item.audience === "area_users" ? (
@@ -425,7 +505,7 @@ export default function AdminPushNotificationsPage() {
                       </p>
                     ) : null}
                     <p className="mt-1 text-xs text-slate-500">
-                      Targets: {item.targetCount} | Delivered: {item.deliveredCount} | Failed: {item.failedCount}
+                      Matched Users: {item.matchedUserCount ?? "-"} | Target Tokens: {item.targetCount} | Delivered: {item.deliveredCount} | Failed: {item.failedCount}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       By: {item.createdByEmail || "Admin"} |{" "}

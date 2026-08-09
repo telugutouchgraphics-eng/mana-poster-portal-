@@ -131,6 +131,7 @@ const personalizationSchema = z.object({
   stripWidth: z.number().min(35).max(100).default(100),
   stripX: z.number().min(0).max(100).default(50),
   stripBottom: z.number().min(0).max(20).default(0),
+  stripLayoutStyle: z.enum(["full", "split", "badge"]).default("full"),
   sampleName: z.string().trim().min(1).max(80).default(PERMANENT_SAMPLE_NAME),
   sampleDesignation: z
     .string()
@@ -235,6 +236,25 @@ function clampPersonalizationSafeArea(
     videoExtraPhotoScale: extraOverlay.scale,
     videoExtraPhotoX: extraOverlay.x,
     videoExtraPhotoY: extraOverlay.y,
+  };
+}
+
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
+}
+
+function forcePlainWatermarkPersonalization(
+  config: z.infer<typeof personalizationSchema>,
+): z.infer<typeof personalizationSchema> {
+  return {
+    ...config,
+    showBottomStrip: false,
+    showVideoExtraPhoto: false,
+    showSafeAreas: false,
+    showPoliticalProtocol: false,
+    politicalProtocolEnabledAtMillis: 0,
+    politicalProtocolSlots: [],
   };
 }
 
@@ -546,6 +566,17 @@ export async function PATCH(
         showPoliticalProtocol: false,
         politicalProtocolEnabledAtMillis: 0,
       };
+    }
+    if (effectiveMediaKind === "image" && isJokesCategoryId(categoryId)) {
+      personalizationConfig = forcePlainWatermarkPersonalization({
+        ...clampPersonalizationSafeArea(
+          personalizationSchema.parse(
+            personalizationConfig ?? existing.personalizationConfig ?? {},
+          ),
+        ),
+        sampleName: PERMANENT_SAMPLE_NAME,
+        sampleDesignation: PERMANENT_SAMPLE_DESIGNATION,
+      });
     }
     const uploadSource = resolveAdminPosterUploadSource(
       existing.storageFolderKey ?? existing.createdBySurface,

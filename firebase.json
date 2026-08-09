@@ -17,6 +17,7 @@
         ".git",
         ".next",
         ".vercel",
+        ".codex_tmp",
         "firebase-debug.log",
         "firebase-debug.*.log"
       ]
