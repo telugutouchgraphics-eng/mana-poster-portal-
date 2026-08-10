@@ -23,6 +23,7 @@ type ManualEventCategory = {
   endAt: number;
   active: boolean;
   allowPoliticalProtocol?: boolean;
+  manualAppVisible?: boolean;
   regionId?: string;
   regionIds?: string[];
   regionName?: string;
@@ -103,7 +104,7 @@ function selectedIconPreview(iconAssetPath: string): string {
 }
 
 export function ManualEventCategoriesConsole() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { language } = useDashboardLanguage();
   const { region, regions } = useDashboardRegion();
   const [items, setItems] = useState<ManualEventCategory[]>([]);
@@ -116,6 +117,7 @@ export function ManualEventCategoriesConsole() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [allowPoliticalProtocol, setAllowPoliticalProtocol] = useState(false);
+  const [manualAppVisible, setManualAppVisible] = useState(false);
   const [labelsByLanguage, setLabelsByLanguage] =
     useState<CategoryLabelsByLanguage>(() => emptyLabels());
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([
@@ -124,6 +126,7 @@ export function ManualEventCategoriesConsole() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const lang = portalLanguage(language);
+  const isAdmin = roles.includes("admin");
   const copy = {
     eyebrow: t("manualEventCategories.eyebrow", lang),
     title: t("manualEventCategories.title", lang),
@@ -205,6 +208,7 @@ export function ManualEventCategoriesConsole() {
     setStartDate("");
     setEndDate("");
     setAllowPoliticalProtocol(false);
+    setManualAppVisible(false);
     setLabelsByLanguage(emptyLabels());
     setSelectedRegionIds([region.id]);
   }
@@ -222,6 +226,7 @@ export function ManualEventCategoriesConsole() {
         startDate,
         endDate: endDate || startDate,
         allowPoliticalProtocol,
+        ...(isAdmin ? { manualAppVisible } : {}),
         regionId: region.id,
         regionIds:
           selectedRegionIds.length > 0 ? selectedRegionIds : [region.id],
@@ -238,6 +243,7 @@ export function ManualEventCategoriesConsole() {
                 startDate,
                 endDate: endDate || startDate,
                 allowPoliticalProtocol,
+                ...(isAdmin ? { manualAppVisible } : {}),
                 active: true,
                 regionId: region.id,
                 regionIds:
@@ -559,6 +565,23 @@ export function ManualEventCategoriesConsole() {
               className="h-5 w-5 rounded border-slate-300 text-[var(--portal-purple)]"
             />
           </label>
+          {isAdmin ? (
+            <label className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 md:col-span-2 xl:col-span-4">
+              <span>
+                <span className="block">Show in app now</span>
+                <span className="block text-xs font-medium text-emerald-700">
+                  Admin only. Turn on to show this category in the app
+                  immediately instead of waiting for the 3-day event window.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={manualAppVisible}
+                onChange={(event) => setManualAppVisible(event.target.checked)}
+                className="h-5 w-5 rounded border-emerald-300 text-emerald-600"
+              />
+            </label>
+          ) : null}
           <div className="md:col-span-2 xl:col-span-4 flex flex-wrap gap-3">
             <button
               type="submit"
@@ -666,6 +689,12 @@ export function ManualEventCategoriesConsole() {
                       Political protocol:{" "}
                       {item.allowPoliticalProtocol ? "Allowed" : "Off"}
                     </p>
+                    {isAdmin ? (
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        App manual visibility:{" "}
+                        {item.manualAppVisible ? "ON" : "OFF"}
+                      </p>
+                    ) : null}
                     {item.iconAssetPath ? (
                       <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
                         {adminCategoryIconPreviewPath(item.iconAssetPath) ? (
@@ -706,6 +735,7 @@ export function ManualEventCategoriesConsole() {
                         setAllowPoliticalProtocol(
                           item.allowPoliticalProtocol === true,
                         );
+                        setManualAppVisible(item.manualAppVisible === true);
                       }}
                       className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700"
                     >
