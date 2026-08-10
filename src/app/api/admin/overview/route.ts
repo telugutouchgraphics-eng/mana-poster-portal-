@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { DocumentSnapshot } from "firebase-admin/firestore";
 import { requireRole } from "@/lib/server/auth";
-import { adminDb } from "@/lib/firebase/admin";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
 import { assertActorCanAccessRegion, loadActorAllowedRegionIds } from "@/lib/server/region-scope";
@@ -146,6 +146,25 @@ function hasPaidSubscriptionHistory(data: Record<string, unknown> | undefined) {
   );
 }
 
+async function loadAuthCreationMillisByUid(uids: string[]) {
+  const uniqueUids = Array.from(new Set(uids.map((uid) => uid.trim()).filter(Boolean)));
+  const createdAtByUid = new Map<string, number>();
+
+  for (let index = 0; index < uniqueUids.length; index += 100) {
+    const chunk = uniqueUids.slice(index, index + 100);
+    if (chunk.length === 0) continue;
+    const result = await adminAuth.getUsers(chunk.map((uid) => ({ uid })));
+    for (const user of result.users) {
+      const createdAt = Date.parse(user.metadata.creationTime);
+      if (Number.isFinite(createdAt)) {
+        createdAtByUid.set(user.uid, createdAt);
+      }
+    }
+  }
+
+  return createdAtByUid;
+}
+
 async function loadInstallMetrics(regionIds: string[]) {
   const allowed = new Set(regionIds);
   const now = Date.now();
@@ -167,6 +186,7 @@ async function loadInstallMetrics(regionIds: string[]) {
   const seenTodayIds = new Set<string>();
   const seenLast7Ids = new Set<string>();
   const userRegionByUid = new Map<string, string>();
+  const installAuthFallbacks: Array<{ uid: string; regionId: string }> = [];
   const userSnap = await adminDb.collection("users").get();
 
   for (const doc of userSnap.docs) {
@@ -177,9 +197,32 @@ async function loadInstallMetrics(regionIds: string[]) {
     if (!row) continue;
     userRegionByUid.set(doc.id, regionId);
     row.totalInstalls += 1;
-    const createdAt = readTimestampMillis(data.createdAt);
+    const createdAt =
+      readTimestampMillis(data.createdAt) ||
+      readTimestampMillis(data.createdAtMillis) ||
+      readTimestampMillis(data.registeredAt) ||
+      readTimestampMillis(data.firstSeenAt) ||
+      readTimestampMillis(data.installedAt);
     if (createdAt > 0 && dayKeyInIst(createdAt) === todayKey) {
       row.todayInstalls += 1;
+    } else if (createdAt <= 0) {
+      installAuthFallbacks.push({ uid: doc.id, regionId });
+    }
+  }
+
+  if (installAuthFallbacks.length > 0) {
+    try {
+      const createdAtByUid = await loadAuthCreationMillisByUid(
+        installAuthFallbacks.map((item) => item.uid),
+      );
+      for (const item of installAuthFallbacks) {
+        const createdAt = createdAtByUid.get(item.uid) ?? 0;
+        if (createdAt > 0 && dayKeyInIst(createdAt) === todayKey) {
+          rows.get(item.regionId)!.todayInstalls += 1;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load auth creation times for install metrics", error);
     }
   }
 
