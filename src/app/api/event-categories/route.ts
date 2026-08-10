@@ -45,7 +45,6 @@ const payloadSchema = z.object({
   startDate: z.string().trim().min(10).max(10),
   endDate: z.string().trim().min(10).max(10).optional(),
   allowPoliticalProtocol: z.boolean().optional(),
-  manualAppVisible: z.boolean().optional(),
   regionId: z.string().trim().min(1),
   regionIds: z.array(z.string().trim().min(1)).optional(),
 });
@@ -132,8 +131,6 @@ export async function POST(req: NextRequest) {
       regionIds: effectiveRegionIds,
       regionName: region.name,
       allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
-      manualAppVisible:
-        actor.roles.includes("admin") && payload.manualAppVisible === true,
       startAt,
       endAt,
       active: true,

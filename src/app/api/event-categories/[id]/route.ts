@@ -33,7 +33,6 @@ const payloadSchema = z.object({
   endDate: z.string().trim().min(10).max(10).optional(),
   active: z.boolean().optional(),
   allowPoliticalProtocol: z.boolean().optional(),
-  manualAppVisible: z.boolean().optional(),
   regionId: z.string().trim().min(1),
   regionIds: z.array(z.string().trim().min(1)).optional(),
 });
@@ -107,7 +106,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       snap.data()?.labelsByLanguage,
       payload.labelsByLanguage,
     );
-    const update: Record<string, unknown> = {
+    await ref.set(
+      {
         label: payload.label,
         labelsByLanguage,
         iconAssetPath: payload.iconAssetPath ?? "",
@@ -121,11 +121,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         endAt,
         active: payload.active ?? true,
         updatedAt: Date.now(),
-      };
-    if (actor.roles.includes("admin") && payload.manualAppVisible != null) {
-      update.manualAppVisible = payload.manualAppVisible === true;
-    }
-    await ref.set(update, { merge: true });
+      },
+      { merge: true },
+    );
     return NextResponse.json({
       ok: true,
       categories: await listManualEventCategories(requestedRegion.id),

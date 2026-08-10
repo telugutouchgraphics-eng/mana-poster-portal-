@@ -24,7 +24,6 @@ export interface ManualEventCategoryRecord {
   regionIds: string[];
   regionName: string;
   allowPoliticalProtocol: boolean;
-  manualAppVisible: boolean;
   startAt: number;
   endAt: number;
   active: boolean;
@@ -108,7 +107,6 @@ function mapRecord(
           : [],
     regionName: String(data.regionName ?? "").trim(),
     allowPoliticalProtocol: Boolean(data.allowPoliticalProtocol ?? false),
-    manualAppVisible: Boolean(data.manualAppVisible ?? false),
     startAt: normalized.startAt,
     endAt: normalized.endAt,
     active: Boolean(data.active ?? true),
@@ -229,7 +227,7 @@ export function toVisibleManualEventCategory(
     return null;
   }
   const visibleAt = getManualDashboardVisibleAt(item.startAt);
-  if (!item.manualAppVisible && (now < visibleAt || now > item.endAt)) {
+  if (now < visibleAt || now > item.endAt) {
     return null;
   }
   return {
@@ -240,9 +238,7 @@ export function toVisibleManualEventCategory(
     regionIds: item.regionIds,
     allowPoliticalProtocol: item.allowPoliticalProtocol,
     isDynamic: true,
-    isBlinking:
-      item.manualAppVisible ||
-      (now >= getManualAppPublishAt(item.startAt) && now <= item.endAt),
+    isBlinking: now >= getManualAppPublishAt(item.startAt) && now <= item.endAt,
     eventDateLabel: formatEventDateLabel(item.endAt),
     eventStartAt: item.startAt,
     eventEndAt: item.endAt,
