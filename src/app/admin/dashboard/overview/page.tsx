@@ -31,6 +31,7 @@ interface AdminOverviewResponse {
     todayUploads: number;
     totalEarnings: number;
     totalInstalls?: number;
+    todayInstalls?: number;
     todayActiveUsers?: number;
     last7DaysActiveUsers?: number;
     nonActiveUsers?: number;
@@ -47,12 +48,14 @@ interface AdminOverviewResponse {
   };
   installMetrics?: {
     totalInstalls: number;
+    todayInstalls: number;
     todayActive: number;
     last7DaysActive: number;
     byRegion: Array<{
       regionId: string;
       regionName: string;
       totalInstalls: number;
+      todayInstalls: number;
       todayActive: number;
       last7DaysActive: number;
     }>;
@@ -229,7 +232,7 @@ export default function AdminOverviewPage() {
         <p className="mt-3 max-w-3xl text-sm leading-7 text-white/90">
           {t("admin.overview.description", lang)}
         </p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-4">
           <div className="rounded-3xl border border-white/15 bg-white/14 px-4 py-4 backdrop-blur">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/70">
               Total Users
@@ -239,6 +242,14 @@ export default function AdminOverviewPage() {
             </p>
             <p className="mt-1 text-xs font-semibold text-white/70">
               {isAllStatesOverview ? "All States / UTs combined" : overviewRegionName}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4 backdrop-blur">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/70">
+              Today Installs
+            </p>
+            <p className="mt-2 text-3xl font-black text-white">
+              {loading ? "..." : data?.headline?.todayInstalls ?? 0}
             </p>
           </div>
           <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4 backdrop-blur">
@@ -320,6 +331,11 @@ export default function AdminOverviewPage() {
           label="App Users"
           value={loading ? "..." : String(data?.headline?.totalInstalls ?? 0)}
           tone="border-cyan-200 bg-cyan-50 text-cyan-950"
+        />
+        <MetricCard
+          label="Today Installs"
+          value={loading ? "..." : String(data?.headline?.todayInstalls ?? 0)}
+          tone="border-teal-200 bg-teal-50 text-teal-950"
         />
         <MetricCard
           label="Today Active"

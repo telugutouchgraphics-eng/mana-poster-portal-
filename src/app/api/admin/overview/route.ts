@@ -158,6 +158,7 @@ async function loadInstallMetrics(regionIds: string[]) {
         regionId: item.id,
         regionName: item.name,
         totalInstalls: 0,
+        todayInstalls: 0,
         todayActive: 0,
         last7DaysActive: 0,
       },
@@ -176,6 +177,10 @@ async function loadInstallMetrics(regionIds: string[]) {
     if (!row) continue;
     userRegionByUid.set(doc.id, regionId);
     row.totalInstalls += 1;
+    const createdAt = readTimestampMillis(data.createdAt);
+    if (createdAt > 0 && dayKeyInIst(createdAt) === todayKey) {
+      row.todayInstalls += 1;
+    }
   }
 
   const activeSnap = await adminDb.collectionGroup("activeSession").get();
@@ -201,6 +206,7 @@ async function loadInstallMetrics(regionIds: string[]) {
   const byRegion = Array.from(rows.values()).sort((a, b) => b.totalInstalls - a.totalInstalls);
   return {
     totalInstalls: byRegion.reduce((sum, item) => sum + item.totalInstalls, 0),
+    todayInstalls: byRegion.reduce((sum, item) => sum + item.todayInstalls, 0),
     todayActive: byRegion.reduce((sum, item) => sum + item.todayActive, 0),
     last7DaysActive: byRegion.reduce((sum, item) => sum + item.last7DaysActive, 0),
     byRegion,
@@ -389,6 +395,7 @@ export async function GET(req: NextRequest) {
         todayUploads,
         totalEarnings,
         totalInstalls: installMetrics.totalInstalls,
+        todayInstalls: installMetrics.todayInstalls,
         todayActiveUsers: installMetrics.todayActive,
         last7DaysActiveUsers: installMetrics.last7DaysActive,
         nonActiveUsers: Math.max(0, installMetrics.totalInstalls - installMetrics.last7DaysActive),
