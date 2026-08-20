@@ -509,7 +509,9 @@ function resolveAdminPosterStorageFolder(
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
-    const dashboardFetchLimit = 500;
+    const dashboardResultLimit = 500;
+    const dashboardFetchPageSize = 500;
+    const dashboardMaxScanned = 5000;
     const sourceParam = req.nextUrl.searchParams.get("source");
     const sourceFilter =
       sourceParam === "upload_posters" || sourceParam === "app_posters"
@@ -519,36 +521,66 @@ export async function GET(req: NextRequest) {
       actor,
       req.nextUrl.searchParams.get("regionId"),
     );
-    const snap = await adminDb
-      .collection("creatorPosters")
-      .where("createdByRole", "==", "admin")
-      .limit(dashboardFetchLimit)
-      .get();
-    const posters = snap.docs
-      .map((doc) => mapPoster(doc.id, doc.data()))
-      .filter((poster) =>
-        poster.targetRegionIds.length > 0
-          ? poster.targetRegionIds.includes(region.id)
-          : poster.regionId === region.id,
-      )
-      .filter((poster) => {
-        const surface = poster.storageFolderKey || poster.createdBySurface;
-        if (sourceFilter === "upload_posters") {
-          return surface === "upload_posters";
+    const posters: ReturnType<typeof mapPoster>[] = [];
+    let scanned = 0;
+    let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+    while (posters.length < dashboardResultLimit && scanned < dashboardMaxScanned) {
+      let query: FirebaseFirestore.Query = adminDb
+        .collection("creatorPosters")
+        .where("createdByRole", "==", "admin")
+        .orderBy("createdAt", "desc")
+        .limit(dashboardFetchPageSize);
+      if (lastDoc) {
+        query = query.startAfter(lastDoc);
+      }
+      const snap = await query.get();
+      if (snap.empty) {
+        break;
+      }
+
+      for (const doc of snap.docs) {
+        scanned += 1;
+        const poster = mapPoster(doc.id, doc.data());
+        if (poster.status.trim().toLowerCase() === "expired") {
+          continue;
         }
-        return !surface || surface === "app_posters";
-      })
-      .map((poster) => ({
-        ...poster,
-        categoryLabel: localizeCategoryLabel(
-          {
-            id: poster.categoryId,
-            label: poster.categoryLabel || poster.categoryId,
-          },
-          region,
-        ),
-      }))
-      .sort((a, b) => b.createdAt - a.createdAt);
+        const matchesRegion =
+          poster.targetRegionIds.length > 0
+            ? poster.targetRegionIds.includes(region.id)
+            : poster.regionId === region.id;
+        if (!matchesRegion) {
+          continue;
+        }
+        const surface = poster.storageFolderKey || poster.createdBySurface;
+        const matchesSource =
+          sourceFilter === "upload_posters"
+            ? surface === "upload_posters"
+            : !surface || surface === "app_posters";
+        if (!matchesSource) {
+          continue;
+        }
+        posters.push({
+          ...poster,
+          categoryLabel: localizeCategoryLabel(
+            {
+              id: poster.categoryId,
+              label: poster.categoryLabel || poster.categoryId,
+            },
+            region,
+          ),
+        });
+        if (posters.length >= dashboardResultLimit) {
+          break;
+        }
+      }
+
+      lastDoc = snap.docs[snap.docs.length - 1] ?? null;
+      if (snap.docs.length < dashboardFetchPageSize) {
+        break;
+      }
+    }
+
+    posters.sort((a, b) => b.createdAt - a.createdAt);
     return NextResponse.json({
       ok: true,
       categories: await buildAdminAppPosterCategories(region.id),
