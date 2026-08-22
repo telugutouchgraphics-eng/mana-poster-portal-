@@ -9,7 +9,6 @@ const ATTEMPT_COLLECTION = "dailyQuizAttempts";
 const LEADERBOARD_COLLECTION = "weeklyQuizLeaderboards";
 const WEEKLY_SCORE_COLLECTION = "weeklyQuizScores";
 const USER_QUIZ_STATS_COLLECTION = "userQuizStats";
-const QUIZ_PRIZE_PROFILE_COLLECTION = "quizPrizeProfiles";
 const APP_PRO_ENTITLEMENT_PATH = "entitlements/pro";
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const APP_MONTHLY_PRODUCT_ID = "mana_poster_premium_monthly_149";
@@ -42,13 +41,6 @@ type QuizReportParticipant = {
   effectiveDurationSeconds?: number;
   weeklyExpectedTotal?: number;
   missedQuestions?: number;
-  whatsappNumber?: string;
-  upiIdOrNumber?: string;
-  bankAccountName?: string;
-  bankAccountNumber?: string;
-  bankIfscCode?: string;
-  prizeConsentAccepted?: boolean;
-  prizeDetailsUpdatedAtMillis?: number;
   prizeEligible?: boolean;
   prizeEligibilityReason?: string;
   prizeSubscriptionProductId?: string;
@@ -321,38 +313,6 @@ function prizeEligibilityFromEntitlement(data: FirebaseFirestore.DocumentData | 
   };
 }
 
-async function attachPrizeProfiles<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
-  const uidList = Array.from(new Set(participants.map((item) => String(item.uid ?? "").trim()).filter(Boolean)));
-  if (uidList.length === 0) return participants;
-  const refs = uidList.map((uid) => adminDb.collection(QUIZ_PRIZE_PROFILE_COLLECTION).doc(uid));
-  const snapshots: FirebaseFirestore.DocumentSnapshot[] = [];
-  for (let index = 0; index < refs.length; index += 100) {
-    const chunk = refs.slice(index, index + 100);
-    snapshots.push(...await adminDb.getAll(...chunk));
-  }
-  const byUid = new Map<string, FirebaseFirestore.DocumentData>();
-  for (const snapshot of snapshots) {
-    if (snapshot.exists) {
-      byUid.set(snapshot.id, snapshot.data() ?? {});
-    }
-  }
-  return participants.map((item) => {
-    const uid = String(item.uid ?? "").trim();
-    const data = byUid.get(uid);
-    if (!data) return item;
-    return {
-      ...item,
-      whatsappNumber: String(data.whatsappNumber ?? ""),
-      upiIdOrNumber: String(data.upiIdOrNumber ?? ""),
-      bankAccountName: String(data.bankAccountName ?? ""),
-      bankAccountNumber: String(data.bankAccountNumber ?? ""),
-      bankIfscCode: String(data.bankIfscCode ?? ""),
-      prizeConsentAccepted: data.consentAccepted === true,
-      prizeDetailsUpdatedAtMillis: Number(data.updatedAtMillis || 0),
-    };
-  });
-}
-
 async function attachPrizeEligibility<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
   const uidList = Array.from(new Set(participants.map((item) => String(item.uid ?? "").trim()).filter(Boolean)));
   if (uidList.length === 0) return participants;
@@ -377,10 +337,6 @@ async function attachPrizeEligibility<T extends QuizReportParticipant>(participa
       ...prizeEligibilityFromEntitlement(byUid.get(uid), now),
     };
   });
-}
-
-async function attachPrizeData<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
-  return attachPrizeEligibility(await attachPrizeProfiles(participants));
 }
 
 async function countQuery(query: FirebaseFirestore.Query) {
@@ -480,7 +436,7 @@ async function loadDailyReport(dateKey: string, regionId: string) {
       .limit(500)
       .get(),
   ]);
-  const participants = await attachPrizeData(sortDailyParticipants(attemptSnap.docs.map((doc) => {
+  const participants = await attachPrizeEligibility(sortDailyParticipants(attemptSnap.docs.map((doc) => {
     const data = doc.data();
     const correctCount = Number(data.correctCount || 0);
     const totalAnswered = Number(data.totalAnswered || 0);
@@ -535,7 +491,7 @@ async function loadWeeklyReport(weekKey: string, regionId: string, participants:
     countQuery(baseScoreQuery),
     countQuery(baseScoreQuery.where("totalAnswered", ">=", 1)),
   ]);
-  const topParticipants = await attachPrizeData(participants.slice(0, 50).map((item, index) => ({
+  const topParticipants = await attachPrizeEligibility(participants.slice(0, 50).map((item, index) => ({
     ...item,
     weeklyExpectedTotal,
     missedQuestions: Math.max(0, weeklyExpectedTotal - Number(item.totalAnswered || 0)),
@@ -652,7 +608,7 @@ export async function GET(req: NextRequest) {
         }),
         userEmail: userEmailFromQuizData(doc.data()),
       }));
-      const sortedParticipants = await attachPrizeData(sortWeeklyParticipants(participants).map((item, index) => ({
+      const sortedParticipants = await attachPrizeEligibility(sortWeeklyParticipants(participants).map((item, index) => ({
         ...item,
         rank: index + 1,
       })));

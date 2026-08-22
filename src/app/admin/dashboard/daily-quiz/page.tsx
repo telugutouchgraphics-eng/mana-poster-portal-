@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-select-dropdown";
@@ -64,13 +64,6 @@ type LeaderboardRow = {
   effectiveDurationSeconds?: number;
   weeklyExpectedTotal?: number;
   missedQuestions?: number;
-  whatsappNumber?: string;
-  upiIdOrNumber?: string;
-  bankAccountName?: string;
-  bankAccountNumber?: string;
-  bankIfscCode?: string;
-  prizeConsentAccepted?: boolean;
-  prizeDetailsUpdatedAtMillis?: number;
   prizeEligible?: boolean;
   prizeEligibilityReason?: string;
   prizeSubscriptionProductId?: string;
@@ -248,16 +241,6 @@ function formatQuizTime(row: Pick<LeaderboardRow, "totalDurationSeconds" | "effe
   return "-";
 }
 
-function hasCompletePrizeDetails(row: LeaderboardRow) {
-  return Boolean(
-    row.prizeConsentAccepted &&
-      row.whatsappNumber?.trim() &&
-      row.bankAccountName?.trim() &&
-      row.bankAccountNumber?.trim() &&
-      row.bankIfscCode?.trim(),
-  );
-}
-
 function participantMatchesSearch(row: LeaderboardRow, query: string) {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
@@ -265,63 +248,11 @@ function participantMatchesSearch(row: LeaderboardRow, query: string) {
     row.userName,
     row.userEmail,
     row.uid,
-    row.whatsappNumber,
-    row.bankAccountName,
-    row.bankAccountNumber,
-    row.bankIfscCode,
     row.prizeEligibilityReason,
     row.prizeSubscriptionProductId,
   ]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalizedQuery));
-}
-
-function PrizeDetailsSummary({
-  row,
-  expanded,
-  onToggle,
-}: {
-  row: LeaderboardRow;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const hasPrizeDetails = hasCompletePrizeDetails(row);
-  return (
-    <div className="min-w-[150px] text-xs leading-5">
-      <div className={hasPrizeDetails ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>
-        {hasPrizeDetails ? "Ready" : "Missing"}
-      </div>
-      <div className="text-slate-600">WhatsApp: {row.whatsappNumber || "-"}</div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="mt-2 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700"
-      >
-        {expanded ? "Hide details" : "View details"}
-      </button>
-    </div>
-  );
-}
-
-function PrizeDetailsPanel({ row }: { row: LeaderboardRow }) {
-  const hasPrizeDetails = Boolean(
-      row.prizeConsentAccepted &&
-        row.whatsappNumber?.trim() &&
-        row.bankAccountName?.trim() &&
-        row.bankAccountNumber?.trim() &&
-        row.bankIfscCode?.trim(),
-    );
-  return (
-    <div className="min-w-[170px] text-xs leading-5">
-      <div className={hasPrizeDetails ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>
-        {hasPrizeDetails ? "Ready" : "Missing"}
-      </div>
-      <div className="text-slate-600">WhatsApp: {row.whatsappNumber || "-"}</div>
-      <div className="text-slate-600">Account holder: {row.bankAccountName || "-"}</div>
-      <div className="text-slate-600">Account no: {row.bankAccountNumber || "-"}</div>
-      <div className="text-slate-600">IFSC: {row.bankIfscCode || "-"}</div>
-    </div>
-  );
 }
 
 function PrizeEligibilityCell({ row }: { row: LeaderboardRow }) {
@@ -367,7 +298,6 @@ export default function AdminDailyQuizPage() {
   const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [reportSearchQuery, setReportSearchQuery] = useState("");
-  const [expandedPrizeRowKey, setExpandedPrizeRowKey] = useState<string | null>(null);
   const [history, setHistory] = useState<QuizHistoryItem[]>([]);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [sendingWinnerUid, setSendingWinnerUid] = useState<string | null>(null);
@@ -830,10 +760,7 @@ export default function AdminDailyQuizPage() {
               <button
                 key={tab}
                 type="button"
-                onClick={() => {
-                  setReportTab(tab);
-                  setExpandedPrizeRowKey(null);
-                }}
+                onClick={() => setReportTab(tab)}
                 className={`rounded-2xl border px-4 py-2 text-sm font-semibold ${reportTab === tab ? "border-[var(--portal-purple)] bg-violet-50 text-[var(--portal-purple)]" : "border-slate-200 text-slate-600"}`}
               >
                 {tab === "daily" ? "Daily" : "Weekly"}
@@ -843,11 +770,8 @@ export default function AdminDailyQuizPage() {
           <input
             type="search"
             value={reportSearchQuery}
-            onChange={(event) => {
-              setReportSearchQuery(event.target.value);
-              setExpandedPrizeRowKey(null);
-            }}
-            placeholder="Search name, email, phone, bank..."
+            onChange={(event) => setReportSearchQuery(event.target.value)}
+            placeholder="Search name, email, eligibility..."
             className="min-w-[260px] rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none focus:border-[var(--portal-purple)]"
           />
         </div>
@@ -871,44 +795,24 @@ export default function AdminDailyQuizPage() {
             <div className="overflow-hidden rounded-2xl border border-slate-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
-                  <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Daily score</th><th className="px-4 py-3">Quiz time</th><th className="px-4 py-3">Prize details</th><th className="px-4 py-3">Prize eligible</th><th className="px-4 py-3">Status</th></tr>
+                  <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Daily score</th><th className="px-4 py-3">Quiz time</th><th className="px-4 py-3">Prize eligible</th><th className="px-4 py-3">Status</th></tr>
                 </thead>
                 <tbody>
                   {!dailyReport || dailyReport.topParticipants.length === 0 ? (
-                    <tr><td colSpan={8} className="px-4 py-6 text-slate-500">No daily participants yet.</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-6 text-slate-500">No daily participants yet.</td></tr>
                   ) : filteredDailyParticipants.length === 0 ? (
-                    <tr><td colSpan={8} className="px-4 py-6 text-slate-500">No participants match this search.</td></tr>
-                  ) : filteredDailyParticipants.map((row) => {
-                    const rowKey = `daily-${row.uid}`;
-                    const expanded = expandedPrizeRowKey === rowKey;
-                    return (
-                      <Fragment key={rowKey}>
-                        <tr className={row.rank <= 3 ? "bg-amber-50 font-semibold" : "border-t border-slate-100"}>
-                          <td className="px-4 py-3">#{row.rank}</td>
-                          <td className="px-4 py-3">{row.userName || row.uid}</td>
-                          <td className="px-4 py-3 text-xs text-slate-600">{row.userEmail || "-"}</td>
-                          <td className="px-4 py-3">{row.correctCount} / {dailyReport.dailyExpectedTotal || row.totalAnswered}</td>
-                          <td className="px-4 py-3">{formatQuizTime(row)}</td>
-                          <td className="px-4 py-3">
-                            <PrizeDetailsSummary
-                              row={row}
-                              expanded={expanded}
-                              onToggle={() => setExpandedPrizeRowKey(expanded ? null : rowKey)}
-                            />
-                          </td>
-                          <td className="px-4 py-3"><PrizeEligibilityCell row={row} /></td>
-                          <td className="px-4 py-3">{row.totalAnswered >= (dailyReport.dailyExpectedTotal || 10) ? "Completed" : "Active"}</td>
-                        </tr>
-                        {expanded ? (
-                          <tr className="border-t border-slate-100 bg-slate-50">
-                            <td colSpan={8} className="px-4 py-4">
-                              <PrizeDetailsPanel row={row} />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
+                    <tr><td colSpan={7} className="px-4 py-6 text-slate-500">No participants match this search.</td></tr>
+                  ) : filteredDailyParticipants.map((row) => (
+                    <tr key={`daily-${row.uid}`} className={row.rank <= 3 ? "bg-amber-50 font-semibold" : "border-t border-slate-100"}>
+                      <td className="px-4 py-3">#{row.rank}</td>
+                      <td className="px-4 py-3">{row.userName || row.uid}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{row.userEmail || "-"}</td>
+                      <td className="px-4 py-3">{row.correctCount} / {dailyReport.dailyExpectedTotal || row.totalAnswered}</td>
+                      <td className="px-4 py-3">{formatQuizTime(row)}</td>
+                      <td className="px-4 py-3"><PrizeEligibilityCell row={row} /></td>
+                      <td className="px-4 py-3">{row.totalAnswered >= (dailyReport.dailyExpectedTotal || 10) ? "Completed" : "Active"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -936,63 +840,41 @@ export default function AdminDailyQuizPage() {
             <div className="overflow-hidden rounded-2xl border border-slate-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
-                  <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Quiz time</th><th className="px-4 py-3">Answered</th><th className="px-4 py-3">Prize details</th><th className="px-4 py-3">Prize eligible</th><th className="px-4 py-3">Winner push</th></tr>
+                  <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Quiz time</th><th className="px-4 py-3">Answered</th><th className="px-4 py-3">Prize eligible</th><th className="px-4 py-3">Winner push</th></tr>
                 </thead>
                 <tbody>
                   {leaderboard.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-6 text-slate-500">No weekly participants yet.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-6 text-slate-500">No weekly participants yet.</td></tr>
                   ) : filteredWeeklyParticipants.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-6 text-slate-500">No participants match this search.</td></tr>
-                  ) : filteredWeeklyParticipants.map((row) => {
-                    const rowKey = `weekly-${row.uid}`;
-                    const expanded = expandedPrizeRowKey === rowKey;
-                    return (
-                      <Fragment key={rowKey}>
-                        <tr className={row.rank <= 3 ? "bg-amber-50 font-semibold" : "border-t border-slate-100"}>
-                          <td className="px-4 py-3">#{row.rank}</td>
-                          <td className="px-4 py-3">{row.userName || row.uid}</td>
-                          <td className="px-4 py-3 text-xs text-slate-600">{row.userEmail || "-"}</td>
-                          <td className="px-4 py-3">{row.correctCount} / {row.weeklyExpectedTotal || weeklyReport?.weeklyExpectedTotal || row.totalAnswered}</td>
-                          <td className="px-4 py-3">
-                            {formatQuizTime(row)}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-600">
-                            {row.totalAnswered} answered
-                            {row.missedQuestions ? `, ${row.missedQuestions} missed` : ""}
-                          </td>
-                          <td className="px-4 py-3">
-                            <PrizeDetailsSummary
-                              row={row}
-                              expanded={expanded}
-                              onToggle={() => setExpandedPrizeRowKey(expanded ? null : rowKey)}
-                            />
-                          </td>
-                          <td className="px-4 py-3"><PrizeEligibilityCell row={row} /></td>
-                          <td className="px-4 py-3">
-                            {row.rank <= 3 ? (
-                              <button
-                                type="button"
-                                disabled={sendingWinnerUid === row.uid}
-                                onClick={() => void sendWinnerPush(row)}
-                                className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {sendingWinnerUid === row.uid ? "Sending..." : "Send push"}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-slate-400">Top 3 only</span>
-                            )}
-                          </td>
-                        </tr>
-                        {expanded ? (
-                          <tr className="border-t border-slate-100 bg-slate-50">
-                            <td colSpan={9} className="px-4 py-4">
-                              <PrizeDetailsPanel row={row} />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
+                    <tr><td colSpan={8} className="px-4 py-6 text-slate-500">No participants match this search.</td></tr>
+                  ) : filteredWeeklyParticipants.map((row) => (
+                    <tr key={`weekly-${row.uid}`} className={row.rank <= 3 ? "bg-amber-50 font-semibold" : "border-t border-slate-100"}>
+                      <td className="px-4 py-3">#{row.rank}</td>
+                      <td className="px-4 py-3">{row.userName || row.uid}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{row.userEmail || "-"}</td>
+                      <td className="px-4 py-3">{row.correctCount} / {row.weeklyExpectedTotal || weeklyReport?.weeklyExpectedTotal || row.totalAnswered}</td>
+                      <td className="px-4 py-3">{formatQuizTime(row)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {row.totalAnswered} answered
+                        {row.missedQuestions ? `, ${row.missedQuestions} missed` : ""}
+                      </td>
+                      <td className="px-4 py-3"><PrizeEligibilityCell row={row} /></td>
+                      <td className="px-4 py-3">
+                        {row.rank <= 3 ? (
+                          <button
+                            type="button"
+                            disabled={sendingWinnerUid === row.uid}
+                            onClick={() => void sendWinnerPush(row)}
+                            className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {sendingWinnerUid === row.uid ? "Sending..." : "Send push"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">Top 3 only</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
