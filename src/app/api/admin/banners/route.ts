@@ -165,6 +165,7 @@ export async function POST(req: NextRequest) {
       targetCity,
       active,
       sortOrder: Number.isFinite(sortOrder) ? sortOrder : 100,
+      viewCount: 0,
       createdAt: now,
       updatedAt: now,
     });

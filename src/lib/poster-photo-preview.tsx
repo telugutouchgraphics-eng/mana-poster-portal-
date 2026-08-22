@@ -26,11 +26,7 @@ export type PhotoShape =
 export type PhotoEdgeStyle = "sharp" | "soft_fade" | "bottom_fade" | "feather";
 
 export type PhotoFrameStyle =
-  | "none"
-  | "inner_shadow"
-  | "white_outline"
-  | "glow_edge"
-  | "double_border";
+  "none" | "inner_shadow" | "white_outline" | "glow_edge" | "double_border";
 
 interface ShapeFramePreset {
   outerBackground: string;
@@ -52,17 +48,23 @@ export const PHOTO_SHAPE_GROUPS: Array<{
   },
 ];
 
-export const PHOTO_EDGE_STYLE_OPTIONS: Array<{ value: PhotoEdgeStyle; label: string }> = [
+export const PHOTO_EDGE_STYLE_OPTIONS: Array<{
+  value: PhotoEdgeStyle;
+  label: string;
+}> = [
   { value: "sharp", label: "Sharp" },
   { value: "bottom_fade", label: "Bottom Fade" },
   { value: "feather", label: "Feather Soft Edge" },
 ];
 
-export const PHOTO_FRAME_STYLE_OPTIONS: Array<{ value: PhotoFrameStyle; label: string }> = [
-  { value: "none", label: "Clean" },
-];
+export const PHOTO_FRAME_STYLE_OPTIONS: Array<{
+  value: PhotoFrameStyle;
+  label: string;
+}> = [{ value: "none", label: "Clean" }];
 
-function normalizedEdgeStyle(edgeStyle: PhotoEdgeStyle): Exclude<PhotoEdgeStyle, "soft_fade"> {
+function normalizedEdgeStyle(
+  edgeStyle: PhotoEdgeStyle,
+): Exclude<PhotoEdgeStyle, "soft_fade"> {
   return edgeStyle === "soft_fade" ? "bottom_fade" : edgeStyle;
 }
 
@@ -117,7 +119,10 @@ function smoothRadialPathData(
     });
   }
 
-  const midPoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+  const midPoint = (
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+  ) => ({
     x: (a.x + b.x) / 2,
     y: (a.y + b.y) / 2,
   });
@@ -225,18 +230,27 @@ function isTransparentPhotoShape(shape: PhotoShape): boolean {
 }
 
 function resolvedRenderShape(shape: PhotoShape): PhotoShape {
-  if (shape === "transparent_soft_round" || shape === "transparent_sharp_round") {
+  if (
+    shape === "transparent_soft_round" ||
+    shape === "transparent_sharp_round"
+  ) {
     return "circle";
   }
   return shape;
 }
 
-function resolvedEdgeStyle(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): PhotoEdgeStyle {
+function resolvedEdgeStyle(
+  shape: PhotoShape,
+  edgeStyle: PhotoEdgeStyle,
+): PhotoEdgeStyle {
   if (shape === "transparent_bottom_fade") return "bottom_fade";
   if (shape === "transparent_soft_round") {
-    return edgeStyle === "bottom_fade" || edgeStyle === "feather" ? edgeStyle : "feather";
+    return edgeStyle === "bottom_fade" || edgeStyle === "feather"
+      ? edgeStyle
+      : "feather";
   }
-  if (shape === "transparent_clean" || shape === "transparent_sharp_round") return "sharp";
+  if (shape === "transparent_clean" || shape === "transparent_sharp_round")
+    return "sharp";
   return edgeStyle;
 }
 
@@ -248,7 +262,8 @@ function shouldClipPhotoToShape(shape: PhotoShape): boolean {
 }
 
 export function photoShapeAspectRatio(shape: PhotoShape): string {
-  if (shape === "transparent_bottom_fade" || shape === "transparent_clean") return "4 / 5";
+  if (shape === "transparent_bottom_fade" || shape === "transparent_clean")
+    return "4 / 5";
   if (shape === "vertical_rectangle") return "4 / 5";
   if (shape === "oval") return "4 / 5";
   if (shape === "blob") return "4 / 5";
@@ -290,7 +305,10 @@ function photoClassName(shape: PhotoShape): string {
   return "rounded-none";
 }
 
-function imageMask(shape: PhotoShape, edgeStyle: PhotoEdgeStyle): string | undefined {
+function imageMask(
+  shape: PhotoShape,
+  edgeStyle: PhotoEdgeStyle,
+): string | undefined {
   const normalized = normalizedEdgeStyle(edgeStyle);
   if (shape === "transparent_soft_round") {
     return "radial-gradient(112% 96% at 50% 20%, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 58%, rgba(0,0,0,0.98) 68%, rgba(0,0,0,0.86) 77%, rgba(0,0,0,0.56) 86%, rgba(0,0,0,0.22) 93%, rgba(0,0,0,0) 100%)";
@@ -333,7 +351,13 @@ function imageStyle(
                   : "center 36%";
   return {
     objectPosition: isCutout ? cutoutPosition : "center center",
-    transform: isCutout ? (isBlurLayer ? "scale(1.07)" : "scale(1.035)") : isBlurLayer ? "scale(1.04)" : undefined,
+    transform: isCutout
+      ? isBlurLayer
+        ? "scale(1.07)"
+        : "scale(1.035)"
+      : isBlurLayer
+        ? "scale(1.04)"
+        : undefined,
     transformOrigin: "top center",
     filter:
       normalized === "feather" && isBlurLayer
@@ -428,7 +452,8 @@ export function renderPosterPhotoPreview({
   const photoShell = shapeOverlayStyle(renderShape);
   const hasBackground = !isTransparentPhotoShape(shape);
   const shouldClip = shouldClipPhotoToShape(shape);
-  const shouldRenderFeatherBlur = normalized === "feather" && shape !== "transparent_soft_round";
+  const shouldRenderFeatherBlur =
+    normalized === "feather" && shape !== "transparent_soft_round";
 
   return (
     <div className={`relative h-full w-full ${photoClassName(shape)}`}>
@@ -455,35 +480,50 @@ export function renderPosterPhotoPreview({
           overflow: "hidden",
         }}
       >
-      {shouldRenderFeatherBlur ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt=""
-            aria-hidden="true"
-            className={`${className} absolute inset-0`}
-            style={imageStyle(renderShape, renderMode, effectiveEdgeStyle, "blur")}
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            className={`${className} relative`}
-            style={imageStyle(renderShape, renderMode, effectiveEdgeStyle, "main")}
-          />
-        </>
-      ) : (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            className={`${className} relative`}
-            style={imageStyle(renderShape, renderMode, effectiveEdgeStyle, "main")}
-          />
-        </>
-      )}
+        {shouldRenderFeatherBlur ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt=""
+              aria-hidden="true"
+              className={`${className} absolute inset-0`}
+              style={imageStyle(
+                renderShape,
+                renderMode,
+                effectiveEdgeStyle,
+                "blur",
+              )}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={alt}
+              className={`${className} relative`}
+              style={imageStyle(
+                renderShape,
+                renderMode,
+                effectiveEdgeStyle,
+                "main",
+              )}
+            />
+          </>
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={alt}
+              className={`${className} relative`}
+              style={imageStyle(
+                renderShape,
+                renderMode,
+                effectiveEdgeStyle,
+                "main",
+              )}
+            />
+          </>
+        )}
       </div>
     </div>
   );

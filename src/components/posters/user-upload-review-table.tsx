@@ -147,6 +147,39 @@ const defaultPersonalizationConfig: PersonalizationConfig = {
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
 
+const LAST_PHOTO_SHAPE_STORAGE_KEY = "mana-poster:last-customization-photo-shape";
+
+function isKnownPhotoShape(value: string): value is PhotoShape {
+  return PHOTO_SHAPE_GROUPS.some((group) =>
+    group.options.some((option) => option.value === value),
+  );
+}
+
+function readLastPhotoShape(): PhotoShape | null {
+  if (typeof window === "undefined") return null;
+  const saved = window.localStorage.getItem(LAST_PHOTO_SHAPE_STORAGE_KEY);
+  return saved && isKnownPhotoShape(saved) ? saved : null;
+}
+
+function rememberPhotoShape(shape: PhotoShape) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LAST_PHOTO_SHAPE_STORAGE_KEY, shape);
+}
+
+function createDefaultPersonalizationConfig(): PersonalizationConfig {
+  const lastShape = readLastPhotoShape();
+  return {
+    ...defaultPersonalizationConfig,
+    photoShape: lastShape ?? defaultPersonalizationConfig.photoShape,
+    videoExtraPhotoShape:
+      lastShape ?? defaultPersonalizationConfig.videoExtraPhotoShape,
+    politicalProtocolSlots:
+      defaultPersonalizationConfig.politicalProtocolSlots.map((slot) => ({
+        ...slot,
+      })),
+  };
+}
+
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
 
@@ -338,8 +371,11 @@ function triggerBrowserDownload(url: string, fileName: string) {
 function normalizePersonalization(
   raw?: Partial<PersonalizationConfig> | null,
 ): PersonalizationConfig {
+  const fallback = raw
+    ? defaultPersonalizationConfig
+    : createDefaultPersonalizationConfig();
   const merged = {
-    ...defaultPersonalizationConfig,
+    ...fallback,
     ...(raw ?? {}),
   };
   return {
@@ -745,14 +781,16 @@ function CustomizationModal({
                     ? value.videoExtraPhotoShape
                     : value.photoShape
                 }
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextShape = e.target.value as PhotoShape;
+                  rememberPhotoShape(nextShape);
                   onChange({
                     ...value,
                     ...(selectedPhotoTarget === "videoExtraPhoto"
-                      ? { videoExtraPhotoShape: e.target.value as PhotoShape }
-                      : { photoShape: e.target.value as PhotoShape }),
-                  })
-                }
+                      ? { videoExtraPhotoShape: nextShape }
+                      : { photoShape: nextShape }),
+                  });
+                }}
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
               >
                 {PHOTO_SHAPE_GROUPS.map((group) => (

@@ -179,6 +179,37 @@ const defaultPersonalization: PersonalizationConfig = {
   sampleDesignation: PERSONALIZATION_SAMPLE.designation,
 };
 
+const LAST_PHOTO_SHAPE_STORAGE_KEY = "mana-poster:last-customization-photo-shape";
+
+function isKnownPhotoShape(value: string): value is PhotoShape {
+  return PHOTO_SHAPE_GROUPS.some((group) =>
+    group.options.some((option) => option.value === value),
+  );
+}
+
+function readLastPhotoShape(): PhotoShape | null {
+  if (typeof window === "undefined") return null;
+  const saved = window.localStorage.getItem(LAST_PHOTO_SHAPE_STORAGE_KEY);
+  return saved && isKnownPhotoShape(saved) ? saved : null;
+}
+
+function rememberPhotoShape(shape: PhotoShape) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LAST_PHOTO_SHAPE_STORAGE_KEY, shape);
+}
+
+function createDefaultPersonalization(): PersonalizationConfig {
+  const lastShape = readLastPhotoShape();
+  return {
+    ...defaultPersonalization,
+    photoShape: lastShape ?? defaultPersonalization.photoShape,
+    videoExtraPhotoShape: lastShape ?? defaultPersonalization.videoExtraPhotoShape,
+    politicalProtocolSlots: defaultPersonalization.politicalProtocolSlots.map(
+      (slot) => ({ ...slot }),
+    ),
+  };
+}
+
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_IMAGE_UPLOAD_LABEL = "500 KB";
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -520,15 +551,16 @@ function protocolSlotCenterPercent(value: number, sidePercent: number): number {
 function parsePersonalizationConfig(
   input: Partial<PersonalizationConfig> | null | undefined,
 ): PersonalizationConfig {
+  const fallback = input ? defaultPersonalization : createDefaultPersonalization();
   return clampPhotoSafeArea(
     {
-      ...defaultPersonalization,
+      ...fallback,
       ...input,
       stripLayoutStyle:
         input?.stripLayoutStyle === "split" ||
         input?.stripLayoutStyle === "badge"
           ? input.stripLayoutStyle
-          : defaultPersonalization.stripLayoutStyle,
+          : fallback.stripLayoutStyle,
       politicalProtocolSlots: input?.politicalProtocolSlots ?? [],
       photoAnimation: parseVideoPhotoAnimation(input?.photoAnimation),
       videoExtraPhotoAnimation: parseVideoPhotoAnimation(
@@ -578,7 +610,7 @@ export default function CreatorUploadStudioPage() {
   const [videoPreviewStarted, setVideoPreviewStarted] = useState(false);
   const [videoPreviewCycle, setVideoPreviewCycle] = useState(0);
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(
-    defaultPersonalization,
+    createDefaultPersonalization,
   );
   const [selectedPhotoTarget, setSelectedPhotoTarget] = useState<
     "photo" | "videoExtraPhoto"
@@ -1352,7 +1384,7 @@ export default function CreatorUploadStudioPage() {
   function cancelEditPoster() {
     setEditingPoster(null);
     setFile(null);
-    setPersonalization(defaultPersonalization);
+    setPersonalization(createDefaultPersonalization());
     setUploadMessage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -2116,19 +2148,20 @@ export default function CreatorUploadStudioPage() {
                             ? personalization.videoExtraPhotoShape
                             : personalization.photoShape
                         }
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const nextShape = event.target.value as PhotoShape;
+                          rememberPhotoShape(nextShape);
                           setPersonalization((prev) => ({
                             ...prev,
                             ...(selectedPhotoTarget === "videoExtraPhoto"
                               ? {
-                                  videoExtraPhotoShape: event.target
-                                    .value as PhotoShape,
+                                  videoExtraPhotoShape: nextShape,
                                 }
                               : {
-                                  photoShape: event.target.value as PhotoShape,
+                                  photoShape: nextShape,
                                 }),
-                          }))
-                        }
+                          }));
+                        }}
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none"
                       >
                         {PHOTO_SHAPE_GROUPS.map((group) => (

@@ -20,6 +20,7 @@ interface AppBannerItem {
   targetCity?: string;
   active: boolean;
   sortOrder: number;
+  viewCount?: number;
 }
 
 interface LocationInsightRow {
@@ -49,9 +50,13 @@ const HOME_BANNER_SIZE_LABEL = `${HOME_BANNER_WIDTH} x ${HOME_BANNER_HEIGHT} px`
 const PROMO_CARD_WIDTH = 1080;
 const PROMO_CARD_HEIGHT = 560;
 const PROMO_CARD_SIZE_LABEL = `${PROMO_CARD_WIDTH} x ${PROMO_CARD_HEIGHT} px`;
+const FULLSCREEN_POPUP_WIDTH = 1080;
+const FULLSCREEN_POPUP_HEIGHT = 1920;
+const FULLSCREEN_POPUP_SIZE_LABEL = `${FULLSCREEN_POPUP_WIDTH} x ${FULLSCREEN_POPUP_HEIGHT} px`;
 const BANNER_PLACEMENTS = [
   { value: "home_category_banner", label: "Home top banner", sizeLabel: HOME_BANNER_SIZE_LABEL, aspectRatio: "1080 / 190" },
   { value: "home_promo_card_carousel", label: "Promo card carousel", sizeLabel: PROMO_CARD_SIZE_LABEL, aspectRatio: "1080 / 560" },
+  { value: "home_fullscreen_popup", label: "Home full screen popup", sizeLabel: FULLSCREEN_POPUP_SIZE_LABEL, aspectRatio: "1080 / 1920" },
 ] as const;
 const RELIGION_OPTIONS = [
   { value: "all", label: "All religions" },
@@ -81,6 +86,16 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
     };
     image.src = objectUrl;
   });
+}
+
+function placementSize(placement: string) {
+  if (placement === "home_promo_card_carousel") {
+    return { width: PROMO_CARD_WIDTH, height: PROMO_CARD_HEIGHT, label: PROMO_CARD_SIZE_LABEL };
+  }
+  if (placement === "home_fullscreen_popup") {
+    return { width: FULLSCREEN_POPUP_WIDTH, height: FULLSCREEN_POPUP_HEIGHT, label: FULLSCREEN_POPUP_SIZE_LABEL };
+  }
+  return { width: HOME_BANNER_WIDTH, height: HOME_BANNER_HEIGHT, label: HOME_BANNER_SIZE_LABEL };
 }
 
 export default function AdminAppBannersPage() {
@@ -250,11 +265,9 @@ export default function AdminAppBannersPage() {
     if (selectedFile) {
       try {
         const dimensions = await readImageDimensions(selectedFile);
-        const expectedWidth = placement === "home_promo_card_carousel" ? PROMO_CARD_WIDTH : HOME_BANNER_WIDTH;
-        const expectedHeight = placement === "home_promo_card_carousel" ? PROMO_CARD_HEIGHT : HOME_BANNER_HEIGHT;
-        const expectedLabel = placement === "home_promo_card_carousel" ? PROMO_CARD_SIZE_LABEL : HOME_BANNER_SIZE_LABEL;
-        if (dimensions.width !== expectedWidth || dimensions.height !== expectedHeight) {
-          const warning = `Recommended size is ${expectedLabel}. Selected image is ${dimensions.width} x ${dimensions.height} px; preview below shows the app fit.`;
+        const expected = placementSize(placement);
+        if (dimensions.width !== expected.width || dimensions.height !== expected.height) {
+          const warning = `Recommended size is ${expected.label}. Selected image is ${dimensions.width} x ${dimensions.height} px; preview below shows the app fit.`;
           setMessage(warning);
           setFile(selectedFile);
           return;
@@ -501,7 +514,7 @@ export default function AdminAppBannersPage() {
           Upload and manage mobile app home banners and promo card carousel images from here.
         </p>
         <p className="mt-2 text-xs font-semibold text-slate-500">
-          Home top banner: {HOME_BANNER_SIZE_LABEL}. Promo card carousel: {PROMO_CARD_SIZE_LABEL}. Other image sizes are allowed; use the preview to confirm the app fit.
+          Home top banner: {HOME_BANNER_SIZE_LABEL}. Promo card carousel: {PROMO_CARD_SIZE_LABEL}. Full screen popup: {FULLSCREEN_POPUP_SIZE_LABEL} vertical. Other image sizes are allowed; use the preview to confirm the app fit.
         </p>
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <label className="block space-y-2 text-sm font-semibold text-slate-800">
@@ -764,18 +777,26 @@ export default function AdminAppBannersPage() {
                       <p className="mt-2 text-xs text-slate-500">
                         Placement: {BANNER_PLACEMENTS.find((placement) => placement.value === item.placement)?.label ?? item.placement} | Position: {bannerPositionLabel(item.sortOrder)}
                       </p>
+                      <div className="mt-3 inline-flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-600 px-5 py-3 text-white shadow-[0_10px_22px_rgba(5,150,105,0.18)]">
+                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-100">Views</span>
+                        <span className="text-2xl font-black leading-none">{item.viewCount ?? 0}</span>
+                      </div>
                       {item.placement === "home_promo_card_carousel" ? (
                         <p className="mt-1 text-xs font-semibold text-sky-700">
                           Promo Card: {item.promoCardGroup ?? 1}
                         </p>
                       ) : null}
                       <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        Area: {item.targetRegionIds?.length
-                          ? regions
-                              .filter((candidate) => item.targetRegionIds?.includes(candidate.id))
-                              .map((candidate) => candidate.name)
-                              .join(", ")
-                          : [item.targetCity, item.targetDistrict, item.targetState].filter(Boolean).join(", ") || "All areas"}
+                        Area: {item.targetRegionIds?.length === regions.length
+                          ? "All India"
+                          : item.targetRegionIds?.length
+                            ? item.targetRegionIds.length > 3
+                              ? `${item.targetRegionIds.length} States / UTs`
+                              : regions
+                                  .filter((candidate) => item.targetRegionIds?.includes(candidate.id))
+                                  .map((candidate) => candidate.name)
+                                  .join(", ")
+                            : [item.targetCity, item.targetDistrict, item.targetState].filter(Boolean).join(", ") || "All areas"}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-violet-700">
                         Religion: {item.targetReligions?.length

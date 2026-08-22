@@ -29,6 +29,7 @@ export interface AppBannerRecord {
   targetCity?: string;
   active: boolean;
   sortOrder: number;
+  viewCount?: number;
   createdAt: number;
   updatedAt: number;
 }
