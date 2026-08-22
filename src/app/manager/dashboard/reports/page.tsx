@@ -1,5 +1,5 @@
-import { CommunityReportsTable } from "@/components/reports/community-reports-table";
+import { notFound } from "next/navigation";
 
 export default function ManagerReportsPage() {
-  return <CommunityReportsTable role="manager" />;
+  notFound();
 }

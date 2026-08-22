@@ -33,19 +33,14 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
       shortLabel: isTelugu ? "రివ్యూ" : "Review",
     },
     {
-      href: "/manager/dashboard/user-uploads",
-      label: isTelugu ? "యూజర్ అప్‌లోడ్స్" : "User Uploads",
-      shortLabel: isTelugu ? "అప్‌లోడ్స్" : "Uploads",
-    },
-    {
-      href: "/manager/dashboard/reports",
-      label: isTelugu ? "రిపోర్ట్స్" : "Reports",
-      shortLabel: isTelugu ? "రిపోర్ట్స్" : "Reports",
-    },
-    {
       href: "/manager/dashboard/performance",
       label: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
       shortLabel: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
+    },
+    {
+      href: "/manager/dashboard/share-downloads",
+      label: "Share / Download",
+      shortLabel: "Engagement",
     },
   ] as const;
   const quickLinks: Array<{ href: string; label: string }> = [];
@@ -53,14 +48,14 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
   if (roles.includes("admin")) {
     quickLinks.push({
       href: "/admin/dashboard/managers",
-      label: isTelugu ? "ఓపెన్ అడ్మిన్ డాష్‌బోర్డ్" : "Open Admin Dashboard",
+      label: isTelugu ? "అడ్మిన్ డాష్బోర్డ్ తెరవండి" : "Open Admin Dashboard",
     });
   }
 
   if (roles.includes("creator")) {
     quickLinks.push({
       href: "/creator/dashboard/upload",
-      label: isTelugu ? "ఓపెన్ క్రియేటర్ డాష్‌బోర్డ్" : "Open Creator Dashboard",
+      label: isTelugu ? "క్రియేటర్ డాష్బోర్డ్ తెరవండి" : "Open Creator Dashboard",
     });
   }
 
@@ -68,7 +63,7 @@ export default function ManagerDashboardLayout({ children }: { children: ReactNo
     <RoleGate allowed={["admin", "manager"]}>
       <PortalDashboardShell
         badge={isTelugu ? "మేనేజర్ ప్యానెల్" : "Manager Panel"}
-        title={isTelugu ? "మేనేజర్ డాష్‌బోర్డ్" : "Manager Dashboard"}
+        title={isTelugu ? "మేనేజర్ డాష్బోర్డ్" : "Manager Dashboard"}
         description=""
         welcomeName={name}
         navItems={[...managerNavItems]}

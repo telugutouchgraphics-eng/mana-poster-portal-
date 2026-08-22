@@ -9,7 +9,26 @@ const ATTEMPT_COLLECTION = "dailyQuizAttempts";
 const LEADERBOARD_COLLECTION = "weeklyQuizLeaderboards";
 const WEEKLY_SCORE_COLLECTION = "weeklyQuizScores";
 const USER_QUIZ_STATS_COLLECTION = "userQuizStats";
+const QUIZ_PRIZE_PROFILE_COLLECTION = "quizPrizeProfiles";
+const APP_PRO_ENTITLEMENT_PATH = "entitlements/pro";
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const APP_MONTHLY_PRODUCT_ID = "mana_poster_premium_monthly_149";
+const APP_MONTHLY_BASE_PLAN_ID = "monthly-149";
+const EDITOR_BUNDLE_PRODUCT_ID = "mana_poster_editor_pro";
+const EDITOR_YEARLY_BASE_PLAN_ID = "yearly-699";
+const INELIGIBLE_PRIZE_PRODUCT_IDS = new Set([
+  "first150_trial",
+  "manual_lifetime_whitelist",
+  "referral_reward",
+]);
+const INELIGIBLE_PRIZE_SOURCES = new Set([
+  "first150_trial",
+  "manual_lifetime_whitelist",
+]);
+const INELIGIBLE_PRIZE_STATES = new Set([
+  "FIRST150_TRIAL",
+  "REFERRAL_REWARD",
+]);
 
 type LocalizedText = Record<string, string>;
 type QuizReportParticipant = {
@@ -23,6 +42,16 @@ type QuizReportParticipant = {
   effectiveDurationSeconds?: number;
   weeklyExpectedTotal?: number;
   missedQuestions?: number;
+  whatsappNumber?: string;
+  upiIdOrNumber?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIfscCode?: string;
+  prizeConsentAccepted?: boolean;
+  prizeDetailsUpdatedAtMillis?: number;
+  prizeEligible?: boolean;
+  prizeEligibilityReason?: string;
+  prizeSubscriptionProductId?: string;
   rank?: number;
 };
 
@@ -208,6 +237,152 @@ function userEmailFromQuizData(data: FirebaseFirestore.DocumentData): string {
   return String(data.userEmail ?? data.email ?? nestedEmail).trim().toLowerCase();
 }
 
+function readTimestampMillis(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+  return 0;
+}
+
+function hasActiveEntitlement(data: FirebaseFirestore.DocumentData | undefined, now = Date.now()) {
+  if (!data || data.isPro !== true) return false;
+  const expiryMillis = readTimestampMillis(data.expiryTime);
+  return expiryMillis <= 0 || expiryMillis > now;
+}
+
+function prizeEligibilityFromEntitlement(data: FirebaseFirestore.DocumentData | undefined, now = Date.now()) {
+  if (!data) {
+    return {
+      prizeEligible: false,
+      prizeEligibilityReason: "No active subscription",
+      prizeSubscriptionProductId: "",
+    };
+  }
+  const productId = String(data.productId ?? "").trim();
+  const basePlanId = String(data.basePlanId ?? "").trim();
+  const offerId = String(data.offerId ?? "").trim();
+  const source = String(data.source ?? "").trim();
+  const subscriptionState = String(data.subscriptionState ?? "").trim();
+  const accessScope = String(data.accessScope ?? "").trim();
+  const active = hasActiveEntitlement(data, now);
+  if (!active) {
+    return {
+      prizeEligible: false,
+      prizeEligibilityReason: "Subscription inactive or expired",
+      prizeSubscriptionProductId: productId,
+    };
+  }
+  if (
+    INELIGIBLE_PRIZE_PRODUCT_IDS.has(productId) ||
+    INELIGIBLE_PRIZE_SOURCES.has(source) ||
+    INELIGIBLE_PRIZE_STATES.has(subscriptionState) ||
+    data.referralRewardActive === true
+  ) {
+    return {
+      prizeEligible: false,
+      prizeEligibilityReason: "Trial, free, promo, or referral access",
+      prizeSubscriptionProductId: productId,
+    };
+  }
+  const marker = `${basePlanId} ${offerId}`.toLowerCase();
+  if (data.isTrialOrIntro === true || marker.includes("trial") || marker.includes("intro")) {
+    return {
+      prizeEligible: false,
+      prizeEligibilityReason: "Trial, free, promo, or referral access",
+      prizeSubscriptionProductId: productId,
+    };
+  }
+  const isPaidAppMonthly =
+    productId === APP_MONTHLY_PRODUCT_ID &&
+    data.appAccess === true &&
+    (basePlanId === APP_MONTHLY_BASE_PLAN_ID || basePlanId === "");
+  const isPaidYearlyBundle =
+    productId === EDITOR_BUNDLE_PRODUCT_ID &&
+    data.appAccess === true &&
+    data.editorAccess === true &&
+    accessScope === "bundle" &&
+    basePlanId === EDITOR_YEARLY_BASE_PLAN_ID;
+  if (!isPaidAppMonthly && !isPaidYearlyBundle) {
+    return {
+      prizeEligible: false,
+      prizeEligibilityReason: "Plan not eligible for prize payout",
+      prizeSubscriptionProductId: productId,
+    };
+  }
+  return {
+    prizeEligible: true,
+    prizeEligibilityReason: "Active paid plan",
+    prizeSubscriptionProductId: productId,
+  };
+}
+
+async function attachPrizeProfiles<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
+  const uidList = Array.from(new Set(participants.map((item) => String(item.uid ?? "").trim()).filter(Boolean)));
+  if (uidList.length === 0) return participants;
+  const refs = uidList.map((uid) => adminDb.collection(QUIZ_PRIZE_PROFILE_COLLECTION).doc(uid));
+  const snapshots: FirebaseFirestore.DocumentSnapshot[] = [];
+  for (let index = 0; index < refs.length; index += 100) {
+    const chunk = refs.slice(index, index + 100);
+    snapshots.push(...await adminDb.getAll(...chunk));
+  }
+  const byUid = new Map<string, FirebaseFirestore.DocumentData>();
+  for (const snapshot of snapshots) {
+    if (snapshot.exists) {
+      byUid.set(snapshot.id, snapshot.data() ?? {});
+    }
+  }
+  return participants.map((item) => {
+    const uid = String(item.uid ?? "").trim();
+    const data = byUid.get(uid);
+    if (!data) return item;
+    return {
+      ...item,
+      whatsappNumber: String(data.whatsappNumber ?? ""),
+      upiIdOrNumber: String(data.upiIdOrNumber ?? ""),
+      bankAccountName: String(data.bankAccountName ?? ""),
+      bankAccountNumber: String(data.bankAccountNumber ?? ""),
+      bankIfscCode: String(data.bankIfscCode ?? ""),
+      prizeConsentAccepted: data.consentAccepted === true,
+      prizeDetailsUpdatedAtMillis: Number(data.updatedAtMillis || 0),
+    };
+  });
+}
+
+async function attachPrizeEligibility<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
+  const uidList = Array.from(new Set(participants.map((item) => String(item.uid ?? "").trim()).filter(Boolean)));
+  if (uidList.length === 0) return participants;
+  const refs = uidList.map((uid) => adminDb.doc(`users/${uid}/${APP_PRO_ENTITLEMENT_PATH}`));
+  const snapshots: FirebaseFirestore.DocumentSnapshot[] = [];
+  for (let index = 0; index < refs.length; index += 100) {
+    const chunk = refs.slice(index, index + 100);
+    snapshots.push(...await adminDb.getAll(...chunk));
+  }
+  const byUid = new Map<string, FirebaseFirestore.DocumentData>();
+  for (const snapshot of snapshots) {
+    if (snapshot.exists) {
+      const uid = snapshot.ref.parent.parent?.id;
+      if (uid) byUid.set(uid, snapshot.data() ?? {});
+    }
+  }
+  const now = Date.now();
+  return participants.map((item) => {
+    const uid = String(item.uid ?? "").trim();
+    return {
+      ...item,
+      ...prizeEligibilityFromEntitlement(byUid.get(uid), now),
+    };
+  });
+}
+
+async function attachPrizeData<T extends QuizReportParticipant>(participants: T[]): Promise<T[]> {
+  return attachPrizeEligibility(await attachPrizeProfiles(participants));
+}
+
 async function countQuery(query: FirebaseFirestore.Query) {
   const snap = await query.count().get();
   return snap.data().count;
@@ -305,7 +480,7 @@ async function loadDailyReport(dateKey: string, regionId: string) {
       .limit(500)
       .get(),
   ]);
-  const participants = sortDailyParticipants(attemptSnap.docs.map((doc) => {
+  const participants = await attachPrizeData(sortDailyParticipants(attemptSnap.docs.map((doc) => {
     const data = doc.data();
     const correctCount = Number(data.correctCount || 0);
     const totalAnswered = Number(data.totalAnswered || 0);
@@ -326,7 +501,7 @@ async function loadDailyReport(dateKey: string, regionId: string) {
       effectiveDurationSeconds,
       completed: totalAnswered >= dailyExpectedTotal,
     };
-  })).map((item, index) => ({ ...item, rank: index + 1 }));
+  })).map((item, index) => ({ ...item, rank: index + 1 })));
   const totalAnswers = participants.reduce((sum, item) => sum + Number(item.totalAnswered || 0), 0);
   const totalCorrect = participants.reduce((sum, item) => sum + Number(item.correctCount || 0), 0);
   const participationRate = totalUsers > 0 ? Math.round((participatedUsers / totalUsers) * 10000) / 100 : 0;
@@ -360,7 +535,7 @@ async function loadWeeklyReport(weekKey: string, regionId: string, participants:
     countQuery(baseScoreQuery),
     countQuery(baseScoreQuery.where("totalAnswered", ">=", 1)),
   ]);
-  const topParticipants = participants.slice(0, 50).map((item, index) => ({
+  const topParticipants = await attachPrizeData(participants.slice(0, 50).map((item, index) => ({
     ...item,
     weeklyExpectedTotal,
     missedQuestions: Math.max(0, weeklyExpectedTotal - Number(item.totalAnswered || 0)),
@@ -370,7 +545,7 @@ async function loadWeeklyReport(weekKey: string, regionId: string, participants:
       weeklyExpectedTotal,
     }),
     rank: index + 1,
-  }));
+  })));
   const topAnswers = topParticipants.reduce((sum, item) => sum + Number(item.totalAnswered || 0), 0);
   const topCorrect = topParticipants.reduce((sum, item) => sum + Number(item.correctCount || 0), 0);
   const participationRate = totalUsers > 0 ? Math.round((participatedUsers / totalUsers) * 10000) / 100 : 0;
@@ -477,10 +652,10 @@ export async function GET(req: NextRequest) {
         }),
         userEmail: userEmailFromQuizData(doc.data()),
       }));
-      const sortedParticipants = sortWeeklyParticipants(participants).map((item, index) => ({
+      const sortedParticipants = await attachPrizeData(sortWeeklyParticipants(participants).map((item, index) => ({
         ...item,
         rank: index + 1,
-      }));
+      })));
       leaderboard = {
         ...(boardSnap.exists ? { id: boardSnap.id, ...boardSnap.data() } : {}),
         participants: sortedParticipants,

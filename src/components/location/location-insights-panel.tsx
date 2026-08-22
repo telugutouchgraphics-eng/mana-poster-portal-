@@ -10,7 +10,7 @@ interface LocationInsightRow {
   district: string;
   city: string;
   userCount: number;
-  statusCount: number;
+  activeUserCount: number;
   reportCount: number;
   latestActivityAt: number;
 }
@@ -18,7 +18,7 @@ interface LocationInsightRow {
 interface LocationInsights {
   generatedAt: number;
   totalLocationEnabledUsers: number;
-  lastSevenDaysStatusCount: number;
+  lastSevenDaysActiveUserCount: number;
   totalReportCountWithLocation: number;
   locations: LocationInsightRow[];
 }
@@ -107,10 +107,11 @@ export function LocationInsightsPanel() {
       (!cityFilter || row.city === cityFilter)
     );
   });
-  const maxStatusCount = Math.max(1, ...filteredRows.map((row) => row.statusCount));
+  const maxActiveUserCount = Math.max(1, ...filteredRows.map((row) => row.activeUserCount));
   const maxReportCount = Math.max(1, ...filteredRows.map((row) => row.reportCount));
-  const topStatusRows = [...filteredRows]
-    .sort((a, b) => b.statusCount - a.statusCount || b.latestActivityAt - a.latestActivityAt)
+  const topActiveRows = [...filteredRows]
+    .filter((row) => row.activeUserCount > 0)
+    .sort((a, b) => b.activeUserCount - a.activeUserCount || b.userCount - a.userCount || b.latestActivityAt - a.latestActivityAt)
     .slice(0, 8);
   const reportHotspots = [...filteredRows]
     .filter((row) => row.reportCount > 0)
@@ -129,7 +130,7 @@ export function LocationInsightsPanel() {
               User insights dashboard
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-600">
-              Shows approximate city/district/state activity only. Exact GPS latitude and longitude are not stored or displayed.
+              Shows approximate city/district/state user activity only. Exact GPS latitude and longitude are not stored or displayed.
             </p>
           </div>
           <button
@@ -150,7 +151,7 @@ export function LocationInsightsPanel() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Location-enabled users" value={insights?.totalLocationEnabledUsers ?? 0} />
-        <StatCard label="7-day statuses with area" value={insights?.lastSevenDaysStatusCount ?? 0} />
+        <StatCard label="7-day active area users" value={insights?.lastSevenDaysActiveUserCount ?? 0} />
         <StatCard label="Reports with area" value={insights?.totalReportCountWithLocation ?? 0} />
       </div>
 
@@ -220,24 +221,24 @@ export function LocationInsightsPanel() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black text-slate-950">Top status areas</h2>
+          <h2 className="text-lg font-black text-slate-950">Top active areas</h2>
           <div className="mt-4 space-y-3">
-            {topStatusRows.map((row) => (
-              <div key={`status-${row.key}`}>
+            {topActiveRows.map((row) => (
+              <div key={`active-${row.key}`}>
                 <div className="flex justify-between gap-3 text-sm font-bold text-slate-700">
                   <span>{[row.city, row.district, row.state].filter(Boolean).join(", ")}</span>
-                  <span>{row.statusCount}</span>
+                  <span>{row.activeUserCount}</span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-emerald-500"
-                    style={{ width: `${Math.max(5, (row.statusCount / maxStatusCount) * 100)}%` }}
+                    style={{ width: `${Math.max(5, (row.activeUserCount / maxActiveUserCount) * 100)}%` }}
                   />
                 </div>
               </div>
             ))}
-            {topStatusRows.length === 0 ? (
-              <p className="text-sm font-semibold text-slate-500">No status activity for selected filters.</p>
+            {topActiveRows.length === 0 ? (
+              <p className="text-sm font-semibold text-slate-500">No recent area activity for selected filters.</p>
             ) : null}
           </div>
         </div>
@@ -280,7 +281,7 @@ export function LocationInsightsPanel() {
                 <th className="px-5 py-3">District</th>
                 <th className="px-5 py-3">City</th>
                 <th className="px-5 py-3 text-right">Users</th>
-                <th className="px-5 py-3 text-right">Statuses</th>
+                <th className="px-5 py-3 text-right">7-day active</th>
                 <th className="px-5 py-3 text-right">Reports</th>
                 <th className="px-5 py-3">Latest</th>
               </tr>
@@ -292,7 +293,7 @@ export function LocationInsightsPanel() {
                   <td className="px-5 py-4">{row.district}</td>
                   <td className="px-5 py-4">{row.city}</td>
                   <td className="px-5 py-4 text-right font-bold">{row.userCount}</td>
-                  <td className="px-5 py-4 text-right font-bold">{row.statusCount}</td>
+                  <td className="px-5 py-4 text-right font-bold">{row.activeUserCount}</td>
                   <td className="px-5 py-4 text-right font-bold">{row.reportCount}</td>
                   <td className="px-5 py-4">{formatDate(row.latestActivityAt)}</td>
                 </tr>

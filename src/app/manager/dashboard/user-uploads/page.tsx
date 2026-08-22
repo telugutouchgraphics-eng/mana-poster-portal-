@@ -1,5 +1,5 @@
-import { UserUploadReviewTable } from "@/components/posters/user-upload-review-table";
+import { notFound } from "next/navigation";
 
 export default function ManagerUserUploadsPage() {
-  return <UserUploadReviewTable />;
+  notFound();
 }

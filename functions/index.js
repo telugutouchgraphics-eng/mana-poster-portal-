@@ -17,8 +17,6 @@ const EXPIRY_MS = EXPIRY_HOURS * 60 * 60 * 1000;
 const DASHBOARD_POSTER_RETENTION_HOURS = 24;
 const DASHBOARD_POSTER_RETENTION_MS =
   DASHBOARD_POSTER_RETENTION_HOURS * 60 * 60 * 1000;
-const PUSH_HISTORY_EXPIRY_HOURS = 24;
-const PUSH_HISTORY_EXPIRY_MS = PUSH_HISTORY_EXPIRY_HOURS * 60 * 60 * 1000;
 const STORAGE_PAGE_SIZE = 1000;
 const FIRESTORE_PAGE_SIZE = 500;
 const DELETE_BATCH_SIZE = 25;
@@ -248,6 +246,7 @@ async function buildProtectedPathSet(bucketName) {
 }
 
 async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
+  const nowMs = Date.now();
   let lastDocumentId = null;
   let scanned = 0;
   let expired = 0;
@@ -264,6 +263,7 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
         "status",
         "approvedAt",
         "createdAt",
+        "eventEndAt",
         "imagePath",
         "videoPath",
         "reviewHistory",
@@ -293,14 +293,21 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
         continue;
       }
 
+      const eventEndAtMs = Number(data.eventEndAt ?? 0);
+      const hasEndedEvent =
+        Number.isFinite(eventEndAtMs) && eventEndAtMs > 0 && eventEndAtMs <= nowMs;
       const approvedAtMs = Number(data.approvedAt ?? data.createdAt ?? 0);
-      if (
-        !Number.isFinite(approvedAtMs) ||
-        approvedAtMs <= 0 ||
-        approvedAtMs > cutoffMs
-      ) {
+      const hasExpiredRetention =
+        Number.isFinite(approvedAtMs) && approvedAtMs > 0 && approvedAtMs <= cutoffMs;
+      if (!hasEndedEvent && !hasExpiredRetention) {
         continue;
       }
+      const expiryReason = hasEndedEvent
+        ? "auto_cleanup_after_event_end"
+        : "auto_cleanup_after_7_days";
+      const expiryComment = hasEndedEvent
+        ? "Poster media auto-expired after the event ended while preserving business records."
+        : "Poster media auto-expired after 7 days while preserving business records.";
 
       const pathsToDelete = [
         normalizePath(data.imagePath),
@@ -340,15 +347,14 @@ async function expireApprovedCreatorPosterContent(bucket, cutoffMs) {
             performanceWindowStartAt: 0,
             performanceWindowEndAt: 0,
             contentExpiredAt: Date.now(),
-            contentExpiryReason: "auto_cleanup_after_7_days",
+            contentExpiryReason: expiryReason,
             updatedAt: Date.now(),
             reviewHistory: FieldValue.arrayUnion({
               type: "expired",
               actorRole: "system",
               actorId: "cleanupExpiredStorageAssets",
               actorName: "Scheduled Cleanup",
-              comment:
-                "Poster media auto-expired after 7 days while preserving business records.",
+              comment: expiryComment,
               createdAt: Date.now(),
             }),
           },
@@ -605,68 +611,19 @@ async function flushDeletes(filesToDelete, stats) {
 }
 
 async function deletePushHistoryDocuments(documents) {
-  const bucket = storage.bucket();
-  let deleted = 0;
-  let imageDeletes = 0;
-  let imageDeleteErrors = 0;
-  let documentDeleteErrors = 0;
-
-  for (const document of documents) {
-    const data = document.data() || {};
-    const imagePath = normalizePath(data.imagePath);
-    if (imagePath) {
-      try {
-        await bucket.file(imagePath).delete({ ignoreNotFound: true });
-        imageDeletes += 1;
-      } catch (error) {
-        imageDeleteErrors += 1;
-        logger.error("Failed to delete expired push notification image.", {
-          notificationId: document.id,
-          imagePath,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    try {
-      await document.ref.delete();
-      deleted += 1;
-    } catch (error) {
-      documentDeleteErrors += 1;
-      logger.error("Failed to delete expired push notification history.", {
-        notificationId: document.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
+  void documents;
   return {
-    deleted,
-    imageDeletes,
-    imageDeleteErrors,
-    documentDeleteErrors,
+    deleted: 0,
+    imageDeletes: 0,
+    imageDeleteErrors: 0,
+    documentDeleteErrors: 0,
   };
 }
 
 async function loadExpiredPushHistoryDocuments(cutoffMs, limit) {
-  const byExpiresAt = await db
-    .collection("adminPushNotifications")
-    .where("expiresAt", "<=", Date.now())
-    .limit(limit)
-    .get();
-  const docsById = new Map();
-  byExpiresAt.docs.forEach((document) => docsById.set(document.id, document));
-
-  if (docsById.size < limit) {
-    const byCreatedAt = await db
-      .collection("adminPushNotifications")
-      .where("createdAt", "<=", cutoffMs)
-      .limit(limit - docsById.size)
-      .get();
-    byCreatedAt.docs.forEach((document) => docsById.set(document.id, document));
-  }
-
-  return Array.from(docsById.values());
+  void cutoffMs;
+  void limit;
+  return [];
 }
 
 exports.cleanupExpiredPushNotificationHistory = onSchedule(
@@ -679,14 +636,14 @@ exports.cleanupExpiredPushNotificationHistory = onSchedule(
   },
   async () => {
     const startedAt = Date.now();
-    const cutoffMs = startedAt - PUSH_HISTORY_EXPIRY_MS;
+    const cutoffMs = startedAt;
     const expiredDocuments = await loadExpiredPushHistoryDocuments(
       cutoffMs,
       FIRESTORE_PAGE_SIZE,
     );
     const deleteSummary = await deletePushHistoryDocuments(expiredDocuments);
     const summary = {
-      expiryHours: PUSH_HISTORY_EXPIRY_HOURS,
+      retention: "manual_delete_only",
       cutoffIso: new Date(cutoffMs).toISOString(),
       scanned: expiredDocuments.length,
       ...deleteSummary,

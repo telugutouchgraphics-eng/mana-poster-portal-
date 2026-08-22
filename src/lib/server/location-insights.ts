@@ -6,7 +6,7 @@ export interface LocationInsightRow {
   district: string;
   city: string;
   userCount: number;
-  statusCount: number;
+  activeUserCount: number;
   reportCount: number;
   latestActivityAt: number;
 }
@@ -58,7 +58,7 @@ function ensureRow(
     district: area.district || "Unknown District",
     city: area.city || "Unknown City",
     userCount: 0,
-    statusCount: 0,
+    activeUserCount: 0,
     reportCount: 0,
     latestActivityAt: 0,
   };
@@ -71,9 +71,8 @@ export async function getLocationInsights(allowedStateNames?: Set<string>) {
   const now = Date.now();
   const lastSevenDays = now - 7 * 24 * 60 * 60 * 1000;
 
-  const [usersSnap, statusesSnap, reportsSnap] = await Promise.all([
+  const [usersSnap, reportsSnap] = await Promise.all([
     adminDb.collection("users").get(),
-    adminDb.collection("communityStatuses").where("createdAt", ">=", lastSevenDays).get(),
     adminDb.collection("communityContentReports").get(),
   ]);
 
@@ -84,18 +83,12 @@ export async function getLocationInsights(allowedStateNames?: Set<string>) {
     if (!area.state && !area.district && !area.city) return;
     if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
+    const locationUpdatedAt = toNumber(data.locationUpdatedAt);
     row.userCount += 1;
-    row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.locationUpdatedAt));
-  });
-
-  statusesSnap.docs.forEach((doc) => {
-    const data = doc.data() as Record<string, unknown>;
-    const area = readArea(data);
-    if (!area.state && !area.district && !area.city) return;
-    if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
-    const row = ensureRow(rows, area);
-    row.statusCount += 1;
-    row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.createdAt));
+    if (locationUpdatedAt >= lastSevenDays) {
+      row.activeUserCount += 1;
+    }
+    row.latestActivityAt = Math.max(row.latestActivityAt, locationUpdatedAt);
   });
 
   reportsSnap.docs.forEach((doc) => {
@@ -108,19 +101,20 @@ export async function getLocationInsights(allowedStateNames?: Set<string>) {
     row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.reportedAt));
   });
 
-  const locations = [...rows.values()]
+  const allLocations = [...rows.values()];
+  const locations = [...allLocations]
     .sort((a, b) => {
       const activity = b.latestActivityAt - a.latestActivityAt;
       if (activity !== 0) return activity;
-      return b.statusCount + b.reportCount + b.userCount - (a.statusCount + a.reportCount + a.userCount);
+      return b.activeUserCount + b.reportCount + b.userCount - (a.activeUserCount + a.reportCount + a.userCount);
     })
     .slice(0, 200);
 
   return {
     generatedAt: now,
-    totalLocationEnabledUsers: locations.reduce((sum, item) => sum + item.userCount, 0),
-    lastSevenDaysStatusCount: locations.reduce((sum, item) => sum + item.statusCount, 0),
-    totalReportCountWithLocation: locations.reduce((sum, item) => sum + item.reportCount, 0),
+    totalLocationEnabledUsers: allLocations.reduce((sum, item) => sum + item.userCount, 0),
+    lastSevenDaysActiveUserCount: allLocations.reduce((sum, item) => sum + item.activeUserCount, 0),
+    totalReportCountWithLocation: allLocations.reduce((sum, item) => sum + item.reportCount, 0),
     locations,
   };
 }

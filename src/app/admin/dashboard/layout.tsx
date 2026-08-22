@@ -115,6 +115,11 @@ export default function AdminDashboardLayout({
       shortLabel: isTelugu ? "రిపోర్ట్స్" : "Reports",
     },
     {
+      href: "/admin/dashboard/share-downloads",
+      label: "Share / Download",
+      shortLabel: "Engagement",
+    },
+    {
       href: "/admin/dashboard/location-insights",
       label: isTelugu ? "యూజర్ ఇన్‌సైట్స్" : "User Insights",
       shortLabel: isTelugu ? "యూజర్స్" : "Users",

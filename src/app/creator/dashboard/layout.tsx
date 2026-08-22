@@ -30,6 +30,11 @@ export default function CreatorDashboardLayout({ children }: { children: ReactNo
       shortLabel: isTelugu ? "పెర్ఫార్మెన్స్" : "Performance",
     },
     {
+      href: "/creator/dashboard/share-downloads",
+      label: "Share / Download",
+      shortLabel: "Engagement",
+    },
+    {
       href: "/creator/dashboard/leaderboard",
       label: isTelugu ? "లీడర్‌బోర్డ్" : "Leaderboard",
       shortLabel: isTelugu ? "లీడర్‌బోర్డ్" : "Leaderboard",

@@ -8,16 +8,16 @@ import {
   uploadAdminAsset,
 } from "@/lib/server/content-management";
 import {
-  cleanupExpiredPushHistory,
   countPushAudienceSegments,
   createPushHistoryRecord,
+  processScheduledPushNotifications,
   sendPushNotificationRecord,
   type PushAudience,
   type PushAudienceSegment,
 } from "@/lib/server/push-notifications";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
-const AUDIENCE_OPTIONS = new Set<PushAudience>(["area_users"]);
+const AUDIENCE_OPTIONS = new Set<PushAudience>(["area_users", "all_users"]);
 const AUDIENCE_SEGMENT_OPTIONS = new Set<PushAudienceSegment>([
   "all_area_users",
   "daily_active_users",
@@ -62,6 +62,9 @@ function notificationVisibleToActor(
   allowedRegionIds: string[],
   hasAllRegions: boolean,
 ) {
+  if (item.audience === "all_users") {
+    return hasAllRegions;
+  }
   if (item.audience !== "area_users") {
     return false;
   }
@@ -77,7 +80,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const { allowedRegionIds, hasAllRegions } = await actorRegionContext(actor);
-    await cleanupExpiredPushHistory();
+    await processScheduledPushNotifications(2);
     const notifications = (await loadAdminPushNotifications()).filter((item) =>
       notificationVisibleToActor(item, allowedRegionIds, hasAllRegions),
     );
@@ -106,7 +109,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       notifications,
-      audiences: ["area_users"],
+      audiences: hasAllRegions ? ["area_users", "all_users"] : ["area_users"],
       audienceCounts,
     });
   } catch (error) {
@@ -119,8 +122,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
-    const { allowedRegionIds } = await actorRegionContext(actor);
-    await cleanupExpiredPushHistory();
+    const { allowedRegionIds, hasAllRegions } = await actorRegionContext(actor);
     const formData = await req.formData();
     const title = String(formData.get("title") ?? "").trim();
     const message = String(formData.get("message") ?? "").trim();
@@ -162,7 +164,13 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
         { status: 400 },
       );
     }
-    if (audience !== "area_users") {
+    if (audience === "all_users" && !hasAllRegions) {
+      return NextResponse.json(
+        { ok: false, error: "Global push notifications require all-region admin access." },
+        { status: 403 },
+      );
+    }
+    if (audience !== "area_users" && audience !== "all_users") {
       return NextResponse.json(
         { ok: false, error: "Push notifications must target a selected State / UT." },
         { status: 403 },
@@ -182,20 +190,22 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
         { status: 400 },
       );
     }
-    if (targetRegions.length !== (requestedRegionIds.length || (fallbackTargetRegion ? 1 : 0))) {
+    if (audience === "area_users" && targetRegions.length !== (requestedRegionIds.length || (fallbackTargetRegion ? 1 : 0))) {
       return NextResponse.json(
         { ok: false, error: "One or more selected State / UT values are invalid." },
         { status: 400 },
       );
     }
-    const forbiddenRegion = targetRegions.find((targetRegion) => !allowedRegionIds.includes(targetRegion.id));
+    const forbiddenRegion = audience === "area_users"
+      ? targetRegions.find((targetRegion) => !allowedRegionIds.includes(targetRegion.id))
+      : null;
     if (forbiddenRegion) {
       return NextResponse.json(
         { ok: false, error: "Forbidden State / UT target." },
         { status: 403 },
       );
     }
-    if (targetRegions.length > 1 && (targetDistrict || targetCity)) {
+    if (audience === "area_users" && targetRegions.length > 1 && (targetDistrict || targetCity)) {
       return NextResponse.json(
         { ok: false, error: "District and city targeting is available only when one State / UT is selected." },
         { status: 400 },
@@ -212,8 +222,12 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
     const scheduledFor: number | null = null;
 
     const now = Date.now();
-    const targetRegionIds = targetRegions.map((targetRegion) => targetRegion.id);
-    const targetStateNames = targetRegions.map((targetRegion) => targetRegion.name).join(", ");
+    const targetRegionIds = audience === "area_users"
+      ? targetRegions.map((targetRegion) => targetRegion.id)
+      : [];
+    const targetStateNames = audience === "area_users"
+      ? targetRegions.map((targetRegion) => targetRegion.name).join(", ")
+      : "";
     let imageUrl = "";
     let imagePath = "";
     if (hasImage) {
@@ -243,8 +257,8 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
       audienceSegment,
       targetState: targetStateNames,
       targetRegionIds,
-      targetDistrict,
-      targetCity,
+      targetDistrict: audience === "area_users" ? targetDistrict : "",
+      targetCity: audience === "area_users" ? targetCity : "",
       targetReligion,
       category,
       scheduledFor,
@@ -252,9 +266,9 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
       createdByEmail: actor.email ?? "",
     });
 
-    if (!scheduledFor || scheduledFor <= now) {
-      await sendPushNotificationRecord(record);
-    }
+    const delivery = !scheduledFor || scheduledFor <= now
+      ? await sendPushNotificationRecord(record)
+      : null;
 
     await writeAuditLog({
       actorUid: actor.uid,
@@ -285,7 +299,12 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
       },
     });
 
-    return NextResponse.json({ ok: true, id: record.id });
+    return NextResponse.json({
+      ok: true,
+      id: record.id,
+      status: delivery ? "sent" : record.status,
+      delivery,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to send push notification.";

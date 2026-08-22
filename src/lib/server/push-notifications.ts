@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
 import { adminDb, adminMessaging } from "@/lib/firebase/admin";
-import { deleteAdminAsset } from "@/lib/server/content-management";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
 export type PushAudience = "all_users" | "creators_only" | "area_users";
@@ -14,7 +13,7 @@ export type PushAudienceSegment =
   | "non_subscribers";
 export type PushReligionTarget = "all" | "hindu" | "muslim" | "christian";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
-const PUSH_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PUSH_PROCESSING_RETRY_AFTER_MS = 2 * 60 * 1000;
 const DAILY_ACTIVE_USER_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_USER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MONTHLY_ACTIVE_USER_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -212,6 +211,21 @@ async function loadUserDeviceTokens(userIds: string[]) {
   return uniqueTokens(tokens);
 }
 
+async function loadPublicDeviceTokensForReligion(targetReligion: PushReligionTarget) {
+  const target = normalizeReligionTarget(targetReligion);
+  const tokens: Array<{ token: string; refPath?: string }> = [];
+  const snap = await adminDb.collection("publicDeviceTokens").get();
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+    const token = trimValue(data.token);
+    if (!token || !userReligionMatches(data, target)) {
+      continue;
+    }
+    tokens.push({ token, refPath: doc.ref.path });
+  }
+  return uniqueTokens(tokens);
+}
+
 function cleanLocationText(value: unknown) {
   return trimValue(value).toLowerCase();
 }
@@ -379,7 +393,11 @@ export async function countPushAudienceSegments(targetLocation: {
         .filter(Boolean),
     ),
   );
-  const [dailyActive, weeklyActive, monthlyActive, subscribed] = await Promise.all([
+  const [allAreaTargets, dailyActive, weeklyActive, monthlyActive, subscribed] = await Promise.all([
+    loadAreaPublicDeviceTokensForRegionIds({
+      ...targetLocation,
+      religion: normalizeReligionTarget(targetLocation.religion),
+    }),
     loadActiveUserUidSet(baseUserIds, DAILY_ACTIVE_USER_WINDOW_MS),
     loadActiveUserUidSet(baseUserIds, ACTIVE_USER_WINDOW_MS),
     loadActiveUserUidSet(baseUserIds, MONTHLY_ACTIVE_USER_WINDOW_MS),
@@ -387,7 +405,7 @@ export async function countPushAudienceSegments(targetLocation: {
   ]);
 
   return {
-    all_area_users: baseUserIds.length,
+    all_area_users: allAreaTargets.length,
     daily_active_users: dailyActive.size,
     active_users: weeklyActive.size,
     monthly_active_users: monthlyActive.size,
@@ -488,6 +506,83 @@ async function loadAreaUserUidsForRegionIds(target: {
   return ids;
 }
 
+async function loadAreaPublicDeviceTokensForRegionIds(target: {
+  state: string;
+  regionIds: string[];
+  district: string;
+  city: string;
+  religion: PushReligionTarget;
+}) {
+  const targetRegionId = regionIdForStateName(target.state);
+  const targetRegionIds = Array.from(
+    new Set(
+      (target.regionIds.length > 0 ? target.regionIds : [targetRegionId])
+        .map((item) => trimValue(item))
+        .filter(Boolean),
+    ),
+  );
+  const targetRegionNames = Array.from(
+    new Set(
+      targetRegionIds
+        .map((regionId) => regionNameForId(regionId))
+        .filter(Boolean),
+    ),
+  );
+  const targetReligion = normalizeReligionTarget(target.religion);
+  const needsLocalArea = Boolean(cleanLocationText(target.district) || cleanLocationText(target.city));
+  if (needsLocalArea) {
+    const userUids = await loadAreaUserUidsForRegionIds(target);
+    return loadUserDeviceTokens(userUids);
+  }
+
+  const snapshots: FirebaseFirestore.QuerySnapshot[] = [];
+  if (targetRegionIds.length > 0) {
+    for (const group of chunk(targetRegionIds, 30)) {
+      snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegion", "in", group).get());
+    }
+  } else {
+    snapshots.push(await adminDb.collection("publicDeviceTokens").get());
+  }
+  if (targetRegionId) {
+    snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegionName", "==", target.state).get());
+  }
+  if (targetRegionNames.length > 0) {
+    for (const group of chunk(targetRegionNames, 30)) {
+      snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegionName", "in", group).get());
+    }
+  }
+
+  const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  for (const snap of snapshots) {
+    for (const doc of snap.docs) {
+      docs.set(doc.id, doc);
+    }
+  }
+
+  const tokens: Array<{ token: string; refPath?: string }> = [];
+  for (const doc of docs.values()) {
+    const data = doc.data();
+    const token = trimValue(data.token);
+    if (!token) {
+      continue;
+    }
+    const matchedByRegionIds = targetRegionIds.length > 0
+      ? targetRegionIds.some((regionId) => selectedRegionMatches(data, regionId, regionNameForId(regionId)))
+      : selectedRegionMatches(data, targetRegionId, target.state);
+    const matchedByStateName = targetRegionId
+      ? selectedRegionMatches(data, targetRegionId, target.state)
+      : false;
+    if (!matchedByRegionIds && !matchedByStateName) {
+      continue;
+    }
+    if (!userReligionMatches(data, targetReligion)) {
+      continue;
+    }
+    tokens.push({ token, refPath: doc.ref.path });
+  }
+  return uniqueTokens(tokens);
+}
+
 async function resolveAudienceTargets(
   audience: PushAudience,
   targetLocation: {
@@ -502,19 +597,25 @@ async function resolveAudienceTargets(
   const targetReligion = normalizeReligionTarget(targetLocation.religion);
   const targetSegment = normalizeAudienceSegment(targetLocation.segment);
   if (audience === "all_users") {
-    if (targetReligion !== "all" || targetSegment !== "all_area_users") {
-      const userUids = await applyAudienceSegment(
-        await loadAllUserUidsForReligion(targetReligion),
-        targetSegment,
-      );
+    if (targetSegment === "all_area_users") {
+      const targets = await loadPublicDeviceTokensForReligion(targetReligion);
       return {
         mode: "tokens" as const,
         topic: "",
-        userCount: userUids.length,
-        targets: await loadUserDeviceTokens(userUids),
+        userCount: targets.length,
+        targets,
       };
     }
-    return { mode: "topic" as const, topic: "all_users", userCount: 0, targets: [] as Array<{ token: string; refPath?: string }> };
+    const userUids = await applyAudienceSegment(
+      await loadAllUserUidsForReligion(targetReligion),
+      targetSegment,
+    );
+    return {
+      mode: "tokens" as const,
+      topic: "",
+      userCount: userUids.length,
+      targets: await loadUserDeviceTokens(userUids),
+    };
   }
 
   if (audience === "creators_only") {
@@ -531,6 +632,15 @@ async function resolveAudienceTargets(
   }
 
   if (audience === "area_users") {
+    if (targetSegment === "all_area_users") {
+      const targets = await loadAreaPublicDeviceTokensForRegionIds(targetLocation);
+      return {
+        mode: "tokens" as const,
+        topic: "",
+        userCount: targets.length,
+        targets,
+      };
+    }
     const userUids = await applyAudienceSegment(
       await loadAreaUserUidsForRegionIds(targetLocation),
       targetSegment,
@@ -579,127 +689,124 @@ export function buildPushData(payload: {
 }
 
 export async function sendPushNotificationRecord(record: PushHistoryRecord) {
-  const dataPayload = buildPushData({
-    title: record.title,
-    message: record.message,
-    titleKey: record.titleKey,
-    bodyKey: record.bodyKey,
-    route: record.route,
-    category: record.category,
-    imageUrl: record.imageUrl,
-  });
   const ref = adminDb.collection("adminPushNotifications").doc(record.id);
-
-  await ref.set(
-    {
-      status: "processing",
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
-
-  const target = await resolveAudienceTargets(record.audience, {
-    state: record.targetState,
-    regionIds: record.targetRegionIds ?? [],
-    district: record.targetDistrict,
-    city: record.targetCity,
-    religion: normalizeReligionTarget(record.targetReligion),
-    segment: normalizeAudienceSegment(record.audienceSegment),
-  });
-
-  if (target.mode === "topic") {
-    const sentAt = Date.now();
-    await adminMessaging.send({
-      topic: target.topic,
-      data: dataPayload,
-      android: {
-        priority: "high",
-      },
+  try {
+    const dataPayload = buildPushData({
+      title: record.title,
+      message: record.message,
+      titleKey: record.titleKey,
+      bodyKey: record.bodyKey,
+      route: record.route,
+      category: record.category,
+      imageUrl: record.imageUrl,
     });
 
     await ref.set(
       {
-        status: "sent",
-        sentAt,
-        expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
-        updatedAt: sentAt,
-        matchedUserCount: target.userCount,
-        targetCount: 1,
-        deliveredCount: 1,
-        failedCount: 0,
-        errorMessage: "",
+        status: "processing",
+        updatedAt: Date.now(),
       },
       { merge: true },
     );
 
-    return { targetCount: 1, deliveredCount: 1, failedCount: 0 };
-  }
+    const target = await resolveAudienceTargets(record.audience, {
+      state: record.targetState,
+      regionIds: record.targetRegionIds ?? [],
+      district: record.targetDistrict,
+      city: record.targetCity,
+      religion: normalizeReligionTarget(record.targetReligion),
+      segment: normalizeAudienceSegment(record.audienceSegment),
+    });
 
-  const tokens = target.targets;
-  if (tokens.length === 0) {
+    const tokens = target.targets;
+    if (tokens.length === 0) {
+      const sentAt = Date.now();
+      await ref.set(
+        {
+          status: "failed",
+          sentAt,
+          expiresAt: null,
+          updatedAt: sentAt,
+          matchedUserCount: target.userCount,
+          targetCount: 0,
+          deliveredCount: 0,
+          failedCount: 0,
+          errorMessage: "No matching device tokens found for this audience.",
+        },
+        { merge: true },
+      );
+      return { targetCount: 0, deliveredCount: 0, failedCount: 0 };
+    }
+
+    let deliveredCount = 0;
+    let failedCount = 0;
+    const deliveryErrors = new Map<string, number>();
+
+    for (const group of chunk(tokens, 500)) {
+      const response = await adminMessaging.sendEachForMulticast({
+        tokens: group.map((item) => item.token),
+        data: dataPayload,
+        android: {
+          priority: "high",
+        },
+      });
+
+      deliveredCount += response.successCount;
+      failedCount += response.failureCount;
+
+      for (let index = 0; index < response.responses.length; index += 1) {
+        const result = response.responses[index];
+        const tokenItem = group[index];
+        if (result.success || !result.error) {
+          continue;
+        }
+        const message = result.error.message || result.error.code || "Unknown FCM error";
+        deliveryErrors.set(message, (deliveryErrors.get(message) ?? 0) + 1);
+        if (isInvalidTokenMessage(message)) {
+          await cleanupTokenPath(tokenItem?.refPath);
+        }
+      }
+    }
+
     const sentAt = Date.now();
+    const firstDeliveryError = Array.from(deliveryErrors.entries())
+      .map(([message, count]) => `${message} (${count})`)
+      .join("; ");
+    await ref.set(
+      {
+        status: failedCount > 0 && deliveredCount === 0 ? "failed" : "sent",
+        sentAt,
+        expiresAt: null,
+        updatedAt: sentAt,
+        matchedUserCount: target.userCount,
+        targetCount: tokens.length,
+        deliveredCount,
+        failedCount,
+        errorMessage:
+          failedCount > 0 && deliveredCount === 0
+            ? firstDeliveryError || "Push delivery failed for all matched devices."
+            : "",
+      },
+      { merge: true },
+    );
+
+    return { targetCount: tokens.length, deliveredCount, failedCount };
+  } catch (error) {
+    const failedAt = Date.now();
+    const message = error instanceof Error ? error.message : "Unable to send push notification.";
     await ref.set(
       {
         status: "failed",
-        sentAt,
-        expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
-        updatedAt: sentAt,
-        matchedUserCount: target.userCount,
-        targetCount: 0,
+        sentAt: failedAt,
+        expiresAt: null,
+        updatedAt: failedAt,
         deliveredCount: 0,
-        failedCount: 0,
-        errorMessage: "No matching device tokens found for this audience.",
+        errorMessage: message,
       },
       { merge: true },
     );
-    return { targetCount: 0, deliveredCount: 0, failedCount: 0 };
+    throw error;
   }
-
-  let deliveredCount = 0;
-  let failedCount = 0;
-
-  for (const group of chunk(tokens, 500)) {
-    const response = await adminMessaging.sendEachForMulticast({
-      tokens: group.map((item) => item.token),
-      data: dataPayload,
-      android: {
-        priority: "high",
-      },
-    });
-
-    deliveredCount += response.successCount;
-    failedCount += response.failureCount;
-
-    for (let index = 0; index < response.responses.length; index += 1) {
-      const result = response.responses[index];
-      const tokenItem = group[index];
-      if (result.success || !result.error) {
-        continue;
-      }
-      const message = result.error.message || "";
-      if (isInvalidTokenMessage(message)) {
-        await cleanupTokenPath(tokenItem?.refPath);
-      }
-    }
-  }
-
-  const sentAt = Date.now();
-  await ref.set(
-    {
-      status: failedCount > 0 && deliveredCount === 0 ? "failed" : "sent",
-      sentAt,
-      expiresAt: sentAt + PUSH_HISTORY_RETENTION_MS,
-      updatedAt: sentAt,
-      matchedUserCount: target.userCount,
-      targetCount: tokens.length,
-      deliveredCount,
-      failedCount,
-      errorMessage: failedCount > 0 && deliveredCount === 0 ? "Push delivery failed for all matched devices." : "",
-    },
-    { merge: true },
-  );
-
-  return { targetCount: tokens.length, deliveredCount, failedCount };
 }
 
 export async function createPushHistoryRecord(input: {
@@ -761,45 +868,36 @@ export async function createPushHistoryRecord(input: {
 }
 
 export async function cleanupExpiredPushHistory(limit = 50) {
-  const now = Date.now();
-  const snap = await adminDb
-    .collection("adminPushNotifications")
-    .where("expiresAt", "<=", now)
-    .limit(limit)
-    .get();
-
-  if (snap.empty) {
-    return [];
-  }
-
-  const deleted: string[] = [];
-  for (const doc of snap.docs) {
-    const data = doc.data() as Partial<PushHistoryRecord>;
-    const imagePath = trimValue(data.imagePath);
-    if (imagePath) {
-      try {
-        await deleteAdminAsset(imagePath);
-      } catch {}
-    }
-    await doc.ref.delete();
-    deleted.push(doc.id);
-  }
-
-  return deleted;
+  void limit;
+  return [];
 }
 
 export async function processScheduledPushNotifications(limit = 20) {
-  await cleanupExpiredPushHistory();
   const now = Date.now();
-  const snap = await adminDb
+  const scheduledSnap = await adminDb
     .collection("adminPushNotifications")
     .where("status", "==", "scheduled")
-    .where("scheduledFor", "<=", now)
-    .limit(limit)
+    .limit(Math.max(limit * 3, limit))
     .get();
+  const dueScheduledDocs = scheduledSnap.docs
+    .filter((doc) => readTimestampMillis(doc.data().scheduledFor) <= now)
+    .sort((a, b) => readTimestampMillis(a.data().scheduledFor) - readTimestampMillis(b.data().scheduledFor))
+    .slice(0, limit);
+  const remainingLimit = Math.max(0, limit - dueScheduledDocs.length);
+  const staleProcessingSnap = remainingLimit > 0
+    ? await adminDb
+        .collection("adminPushNotifications")
+        .where("status", "==", "processing")
+        .limit(Math.max(remainingLimit * 3, remainingLimit))
+        .get()
+    : null;
+  const staleProcessingDocs = (staleProcessingSnap?.docs ?? [])
+    .filter((doc) => readTimestampMillis(doc.data().updatedAt) <= now - PUSH_PROCESSING_RETRY_AFTER_MS)
+    .sort((a, b) => readTimestampMillis(a.data().updatedAt) - readTimestampMillis(b.data().updatedAt))
+    .slice(0, remainingLimit);
 
   const processed: string[] = [];
-  for (const doc of snap.docs) {
+  for (const doc of [...dueScheduledDocs, ...staleProcessingDocs]) {
     const record = doc.data() as PushHistoryRecord;
     await sendPushNotificationRecord({ ...record, id: doc.id });
     processed.push(doc.id);
