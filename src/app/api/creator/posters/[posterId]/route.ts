@@ -231,6 +231,25 @@ function clampPersonalizationSafeArea(
   };
 }
 
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
+}
+
+function forcePlainWatermarkPersonalization(
+  config: z.infer<typeof personalizationSchema>,
+): z.infer<typeof personalizationSchema> {
+  return {
+    ...config,
+    showBottomStrip: false,
+    showVideoExtraPhoto: false,
+    showSafeAreas: false,
+    showPoliticalProtocol: false,
+    politicalProtocolEnabledAtMillis: 0,
+    politicalProtocolSlots: [],
+  };
+}
+
 function sanitizeFileName(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -397,16 +416,15 @@ export async function PATCH(
 
     const now = Date.now();
     const media = formData.get("media") ?? formData.get("image");
-    const existingMediaType =
-      String(poster.mediaType ?? "").toLowerCase() === "video"
+    const replacementMediaKind =
+      media instanceof File && media.size > 0 ? getMediaKind(media) : null;
+    const existingMediaKind =
+      String(poster.mediaType ?? "").trim().toLowerCase() === "video" ||
+      String(poster.videoUrl ?? "").trim().length > 0
         ? "video"
         : "image";
-    const submittedMediaKind =
-      media instanceof File && media.size > 0 ? getMediaKind(media) : undefined;
-    const effectiveMediaKind = submittedMediaKind ?? existingMediaType;
-    const canUsePoliticalProtocol =
-      effectiveMediaKind === "image" &&
-      categoryAllowsPoliticalProtocol(category);
+    const effectiveMediaKind = replacementMediaKind ?? existingMediaKind;
+    const canUsePoliticalProtocol = categoryAllowsPoliticalProtocol(category);
     const existingPoliticalProtocolEnabledAt = Number(
       (poster.personalizationConfig as Record<string, unknown> | undefined)
         ?.politicalProtocolEnabledAtMillis ?? 0,
@@ -418,12 +436,18 @@ export async function PATCH(
       ...personalizationConfig,
       showPoliticalProtocol,
       politicalProtocolEnabledAtMillis:
-        showPoliticalProtocol &&
-        Number.isFinite(existingPoliticalProtocolEnabledAt) &&
-        existingPoliticalProtocolEnabledAt > 0
-          ? existingPoliticalProtocolEnabledAt
+        showPoliticalProtocol
+          ? Number.isFinite(existingPoliticalProtocolEnabledAt) &&
+            existingPoliticalProtocolEnabledAt > 0
+            ? existingPoliticalProtocolEnabledAt
+            : now
           : 0,
     };
+    if (effectiveMediaKind === "image" && isJokesCategoryId(categoryId)) {
+      personalizationConfig = forcePlainWatermarkPersonalization(
+        personalizationConfig,
+      );
+    }
     const requestedPublishAtRaw = parsed.requestedPublishDate
       ? parseIstDateKeyToEpoch(parsed.requestedPublishDate)
       : null;
@@ -511,7 +535,7 @@ export async function PATCH(
     };
 
     if (media instanceof File && media.size > 0) {
-      const mediaKind = submittedMediaKind;
+      const mediaKind = getMediaKind(media);
       if (!mediaKind) {
         return NextResponse.json(
           {

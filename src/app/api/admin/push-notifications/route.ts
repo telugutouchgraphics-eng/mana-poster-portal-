@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     const message = String(formData.get("message") ?? "").trim();
     const requestedRoute = String(formData.get("route") ?? "home").trim() || "home";
     const audience = String(formData.get("audience") ?? "area_users").trim() as PushAudience;
-const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_area_users").trim() as PushAudienceSegment;
+    const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_area_users").trim() as PushAudienceSegment;
     const audienceSegment = AUDIENCE_SEGMENT_OPTIONS.has(requestedAudienceSegment)
       ? requestedAudienceSegment
       : "all_area_users";
@@ -176,7 +176,8 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
         { status: 403 },
       );
     }
-    const fallbackTargetRegion = audience === "area_users" && targetState ? regionForStateName(targetState) : null;
+    const usesRegionTargeting = audience === "area_users" || requestedRegionIds.length > 0;
+    const fallbackTargetRegion = usesRegionTargeting && targetState ? regionForStateName(targetState) : null;
     const targetRegions = regionsForIds(
       requestedRegionIds.length > 0
         ? requestedRegionIds
@@ -190,13 +191,13 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
         { status: 400 },
       );
     }
-    if (audience === "area_users" && targetRegions.length !== (requestedRegionIds.length || (fallbackTargetRegion ? 1 : 0))) {
+    if (usesRegionTargeting && targetRegions.length !== (requestedRegionIds.length || (fallbackTargetRegion ? 1 : 0))) {
       return NextResponse.json(
         { ok: false, error: "One or more selected State / UT values are invalid." },
         { status: 400 },
       );
     }
-    const forbiddenRegion = audience === "area_users"
+    const forbiddenRegion = usesRegionTargeting
       ? targetRegions.find((targetRegion) => !allowedRegionIds.includes(targetRegion.id))
       : null;
     if (forbiddenRegion) {
@@ -222,10 +223,10 @@ const requestedAudienceSegment = String(formData.get("audienceSegment") ?? "all_
     const scheduledFor: number | null = null;
 
     const now = Date.now();
-    const targetRegionIds = audience === "area_users"
+    const targetRegionIds = usesRegionTargeting
       ? targetRegions.map((targetRegion) => targetRegion.id)
       : [];
-    const targetStateNames = audience === "area_users"
+    const targetStateNames = usesRegionTargeting
       ? targetRegions.map((targetRegion) => targetRegion.name).join(", ")
       : "";
     let imageUrl = "";

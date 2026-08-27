@@ -111,7 +111,7 @@ export default function AdminPushNotificationsPage() {
 
   async function loadAudienceCounts() {
     const token = await user?.getIdToken();
-    if (!token || audience !== "area_users") {
+    if (!token || (audience !== "area_users" && audience !== "all_users")) {
       setAudienceCounts({});
       return;
     }
@@ -168,8 +168,8 @@ export default function AdminPushNotificationsPage() {
       setStatusMessage("Enter notification title and message.");
       return;
     }
-    if (audience === "area_users" && targetRegionIds.length === 0) {
-      setStatusMessage("Select at least one State / UT for area targeting.");
+    if ((audience === "area_users" || sendTo === "all_users") && targetRegionIds.length === 0) {
+      setStatusMessage("Select at least one State / UT for push targeting.");
       return;
     }
     if (audience === "area_users" && targetRegionIds.length > 1 && (targetDistrict.trim() || targetCity.trim())) {
@@ -197,7 +197,12 @@ export default function AdminPushNotificationsPage() {
       formData.set("audience", resolvedAudience);
       formData.set("audienceSegment", resolvedSegment);
       formData.set("category", "");
-      formData.set("targetState", resolvedAudience === "area_users" ? selectedRegionNames.join(", ") : "");
+      formData.set(
+        "targetState",
+        resolvedAudience === "area_users" || targetRegionIds.length > 0
+          ? selectedRegionNames.join(", ")
+          : "",
+      );
       targetRegionIds.forEach((regionId) => {
         formData.append("targetRegionIds", regionId);
       });
@@ -356,6 +361,8 @@ export default function AdminPushNotificationsPage() {
   }
 
   const selectedRegions = regions.filter((item) => targetRegionIds.includes(item.id));
+  const stateTargetingEnabled = audience === "area_users" || sendTo === "all_users";
+  const localAreaTargetingEnabled = audience === "area_users";
   const singleSelectedRegion = selectedRegions.length === 1 ? selectedRegions[0] : null;
   const selectedStateName = singleSelectedRegion?.name ?? "";
   const districtOptions = Array.from(
@@ -377,7 +384,7 @@ export default function AdminPushNotificationsPage() {
   ).sort((a, b) => a.localeCompare(b));
 
   useEffect(() => {
-    if (audience !== "area_users") {
+    if (!stateTargetingEnabled) {
       return;
     }
     if (targetRegionIds.length > 0) {
@@ -386,7 +393,7 @@ export default function AdminPushNotificationsPage() {
     setTargetRegionIds([region.id]);
     setTargetDistrict("");
     setTargetCity("");
-  }, [audience, region.id, targetRegionIds.length]);
+  }, [stateTargetingEnabled, region.id, targetRegionIds.length]);
 
   useEffect(() => {
     if (targetRegionIds.length <= 1) {
@@ -518,15 +525,32 @@ export default function AdminPushNotificationsPage() {
                 ) : null}
               </select>
             </label>
+            <label className="space-y-2 text-sm text-slate-700">
+              <span className="font-semibold">Religion</span>
+              <select
+                value={targetReligion}
+                onChange={(event) =>
+                  setTargetReligion(event.target.value as "all" | "hindu" | "muslim" | "christian")
+                }
+                className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+              >
+                <option value="all">All religions</option>
+                <option value="hindu">Hindu only</option>
+                <option value="muslim">Muslim only</option>
+                <option value="christian">Christian only</option>
+              </select>
+            </label>
           </div>
 
-          {audience === "area_users" ? (
+          {stateTargetingEnabled ? (
           <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4">
             <p className="text-sm font-bold text-emerald-900">State and local area targeting</p>
             <p className="mt-1 text-xs leading-6 text-emerald-700">
-              State targeting uses the user&apos;s selected app state. District and city filters use saved local area when available.
+              {localAreaTargetingEnabled
+                ? "State targeting uses the user's selected app state. District and city filters use saved local area when available."
+                : "All installed app devices will be limited to the selected States / UTs."}
             </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm text-emerald-950">
                 <span className="font-semibold">States / UTs</span>
                 <RegionMultiSelectDropdown
@@ -540,6 +564,8 @@ export default function AdminPushNotificationsPage() {
                   label="Add State / UT"
                 />
               </label>
+              {localAreaTargetingEnabled ? (
+                <>
               <label className="space-y-2 text-sm text-emerald-950">
                 <span className="font-semibold">District</span>
                 <select
@@ -571,21 +597,8 @@ export default function AdminPushNotificationsPage() {
                   ))}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-emerald-950">
-                <span className="font-semibold">Religion</span>
-                <select
-                  value={targetReligion}
-                  onChange={(event) =>
-                    setTargetReligion(event.target.value as "all" | "hindu" | "muslim" | "christian")
-                  }
-                  className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none"
-                >
-                  <option value="all">All religions</option>
-                  <option value="hindu">Hindu only</option>
-                  <option value="muslim">Muslim only</option>
-                  <option value="christian">Christian only</option>
-                </select>
-              </label>
+                </>
+              ) : null}
             </div>
           </div>
           ) : null}

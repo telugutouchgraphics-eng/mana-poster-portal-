@@ -530,9 +530,7 @@ export async function PATCH(
     const submittedMediaKind =
       media instanceof File && media.size > 0 ? getMediaKind(media) : undefined;
     const effectiveMediaKind = submittedMediaKind ?? existingMediaType;
-    const canUsePoliticalProtocol =
-      effectiveMediaKind === "image" &&
-      categoryAllowsPoliticalProtocol(category);
+    const canUsePoliticalProtocol = categoryAllowsPoliticalProtocol(category);
     if (
       personalizationConfig != null &&
       typeof personalizationConfig === "object" &&
@@ -553,10 +551,11 @@ export async function PATCH(
         ...parsedPersonalization,
         showPoliticalProtocol,
         politicalProtocolEnabledAtMillis:
-          showPoliticalProtocol &&
-          Number.isFinite(existingPoliticalProtocolEnabledAt) &&
-          existingPoliticalProtocolEnabledAt > 0
-            ? existingPoliticalProtocolEnabledAt
+          showPoliticalProtocol
+            ? Number.isFinite(existingPoliticalProtocolEnabledAt) &&
+              existingPoliticalProtocolEnabledAt > 0
+              ? existingPoliticalProtocolEnabledAt
+              : updatedAt
             : 0,
       };
     } else if (!canUsePoliticalProtocol) {

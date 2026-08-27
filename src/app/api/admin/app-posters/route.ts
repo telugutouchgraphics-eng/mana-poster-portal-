@@ -297,7 +297,75 @@ function resolveFileExtension(file: File): string {
   return "png";
 }
 
+function stablePosterHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash & 0x7fffffff;
+}
+
+function defaultPosterDisplayViewCount(posterId: string): number {
+  return 120 + (stablePosterHash(`default-view:${posterId}`) % 121);
+}
+
+function defaultPosterDisplayShareCount(posterId: string): number {
+  const views = defaultPosterDisplayViewCount(posterId);
+  const percentage = 62 + (stablePosterHash(`default-share:${posterId}`) % 14);
+  return Math.min(views - 1, Math.round((views * percentage) / 100));
+}
+
+function boostedPosterDisplayCount(
+  posterId: string,
+  kind: "view" | "share" | "download",
+  realCount: number,
+): number {
+  const real = Math.max(0, Number(realCount) || 0);
+  if (real <= 0) {
+    if (kind === "view") return defaultPosterDisplayViewCount(posterId);
+    if (kind === "share") return defaultPosterDisplayShareCount(posterId);
+    return 0;
+  }
+  const baseCount =
+    kind === "view"
+      ? defaultPosterDisplayViewCount(posterId)
+      : kind === "share"
+        ? defaultPosterDisplayShareCount(posterId)
+        : 0;
+  const ranges = {
+    view: [25, 60],
+    share: [8, 20],
+    download: [10, 25],
+  } as const;
+  const [min, max] = ranges[kind];
+  const multiplier = min + (stablePosterHash(`${kind}:${posterId}`) % (max - min + 1));
+  return baseCount + real * multiplier;
+}
+
+function boostedPosterDisplayEngagementCount(
+  posterId: string,
+  shareCount: number,
+  downloadCount: number,
+): number {
+  const real = Math.max(0, Number(shareCount || 0) + Number(downloadCount || 0));
+  const base = defaultPosterDisplayShareCount(posterId);
+  if (real <= 0) return base;
+  const multiplier = 2 + (stablePosterHash(`engagement:${posterId}`) % 4);
+  return base + real * multiplier;
+}
+
 function mapPoster(id: string, data: Record<string, unknown>) {
+  const viewCount = Number(data.viewCount ?? 0);
+  const shareCount = Number(data.shareCount ?? 0);
+  const downloadCount = Number(data.downloadCount ?? 0);
+  const displayViewCount =
+    Number(data.displayViewCount ?? 0) || boostedPosterDisplayCount(id, "view", viewCount);
+  const displayShareCount =
+    Number(data.displayShareCount ?? 0) || boostedPosterDisplayCount(id, "share", shareCount);
+  const displayDownloadCount =
+    Number(data.displayDownloadCount ?? 0) ||
+    boostedPosterDisplayCount(id, "download", downloadCount);
   return {
     id,
     creatorPublicId: String(data.creatorPublicId ?? ""),
@@ -322,8 +390,17 @@ function mapPoster(id: string, data: Record<string, unknown>) {
       data.engagementCount ??
         Number(data.shareCount ?? 0) + Number(data.downloadCount ?? 0),
     ),
-    shareCount: Number(data.shareCount ?? 0),
-    downloadCount: Number(data.downloadCount ?? 0),
+    displayEngagementCount: boostedPosterDisplayEngagementCount(
+      id,
+      shareCount,
+      downloadCount,
+    ),
+    viewCount,
+    shareCount,
+    downloadCount,
+    displayViewCount,
+    displayShareCount,
+    displayDownloadCount,
     createdBySurface: String(data.createdBySurface ?? ""),
     storageFolderKey: String(data.storageFolderKey ?? ""),
     createdAt: Number(data.createdAt ?? 0),
@@ -721,8 +798,7 @@ export async function POST(req: NextRequest) {
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const now = Date.now();
-    const canUsePoliticalProtocol =
-      mediaKind === "image" && categoryAllowsPoliticalProtocol(category);
+    const canUsePoliticalProtocol = categoryAllowsPoliticalProtocol(category);
     personalizationConfig = {
       ...personalizationConfig,
       showPoliticalProtocol:
@@ -857,9 +933,14 @@ export async function POST(req: NextRequest) {
       personalizationConfig,
       creatorIdLabel: "ADMIN",
       grossAmount: 0,
+      viewCount: 0,
       shareCount: 0,
       downloadCount: 0,
       engagementCount: 0,
+      displayViewCount: 0,
+      displayShareCount: 0,
+      displayDownloadCount: 0,
+      displayEngagementCount: 0,
       creatorEarnings: 0,
       platformEarnings: 0,
       payoutStatus: "not_applicable",

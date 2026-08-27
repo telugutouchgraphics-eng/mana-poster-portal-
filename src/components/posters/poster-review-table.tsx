@@ -83,8 +83,13 @@ interface PosterRow {
   }>;
   saleCount: number;
   engagementCount: number;
+  displayEngagementCount: number;
+  viewCount: number;
   shareCount: number;
   downloadCount: number;
+  displayViewCount: number;
+  displayShareCount: number;
+  displayDownloadCount: number;
   grossAmount: number;
   creatorEarnings: number;
   platformEarnings: number;
@@ -919,7 +924,11 @@ export function PosterReviewTable() {
                         {row.platformEarnings}
                       </p>
                       <p className="text-xs font-semibold text-slate-700">
-                        Share/Download Count: {row.engagementCount}
+                        Display: {row.displayViewCount} views | {row.displayShareCount} shares |{" "}
+                        {row.displayDownloadCount} downloads
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Real: {row.viewCount} views | {row.shareCount} shares | {row.downloadCount} downloads
                       </p>
                       <p className="text-xs text-slate-600">
                         Duplicate check:{" "}

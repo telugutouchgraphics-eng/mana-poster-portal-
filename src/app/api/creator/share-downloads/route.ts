@@ -18,7 +18,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         rows: [],
-        summary: {posterCount: 0, shareCount: 0, downloadCount: 0, totalEngagement: 0},
+        summary: {
+          posterCount: 0,
+          shareCount: 0,
+          downloadCount: 0,
+          displayShareCount: 0,
+          displayDownloadCount: 0,
+          totalEngagement: 0,
+          displayTotalEngagement: 0,
+        },
       });
     }
     const result = await loadShareDownloadReport({

@@ -215,6 +215,25 @@ function clampPersonalizationSafeArea(
   };
 }
 
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
+}
+
+function forcePlainWatermarkPersonalization(
+  config: z.infer<typeof personalizationSchema>,
+): z.infer<typeof personalizationSchema> {
+  return {
+    ...config,
+    showBottomStrip: false,
+    showVideoExtraPhoto: false,
+    showSafeAreas: false,
+    showPoliticalProtocol: false,
+    politicalProtocolEnabledAtMillis: 0,
+    politicalProtocolSlots: [],
+  };
+}
+
 function sanitizeFileName(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -400,8 +419,7 @@ export async function POST(req: NextRequest) {
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);
     const title = creator.creatorPublicId;
     const now = Date.now();
-    const canUsePoliticalProtocol =
-      mediaKind === "image" && categoryAllowsPoliticalProtocol(category);
+    const canUsePoliticalProtocol = categoryAllowsPoliticalProtocol(category);
     personalizationConfig = {
       ...personalizationConfig,
       showPoliticalProtocol:
@@ -413,6 +431,11 @@ export async function POST(req: NextRequest) {
           ? now
           : 0,
     };
+    if (mediaKind === "image" && isJokesCategoryId(categoryId)) {
+      personalizationConfig = forcePlainWatermarkPersonalization(
+        personalizationConfig,
+      );
+    }
     const uploadWindow = buildCreatorUploadWindow(now);
     if (!uploadWindow.isOpen) {
       return NextResponse.json(

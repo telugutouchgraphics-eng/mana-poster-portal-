@@ -65,6 +65,7 @@ export default function AdminSettingsPage() {
   const [thanksVideoFileName, setThanksVideoFileName] = useState("");
   const [videoUploading, setVideoUploading] = useState<"exit" | "thanks" | null>(null);
   const [videoDeleting, setVideoDeleting] = useState<"exit" | "thanks" | null>(null);
+  const [subscriptionVideoTargetStates, setSubscriptionVideoTargetStates] = useState<string[]>([region.id]);
   const [morningEnabled, setMorningEnabled] = useState(true);
   const [afternoonEnabled, setAfternoonEnabled] = useState(true);
   const [nightEnabled, setNightEnabled] = useState(true);
@@ -136,6 +137,7 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     setAdTargetStates([region.id]);
+    setSubscriptionVideoTargetStates([region.id]);
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, region.id]);
@@ -206,6 +208,10 @@ export default function AdminSettingsPage() {
       body.set("video", file);
       body.set("type", type);
       body.set("regionId", region.id);
+      body.set(
+        "targetRegionIds",
+        (subscriptionVideoTargetStates.length ? subscriptionVideoTargetStates : [region.id]).join(","),
+      );
       const response = await fetch("/api/admin/settings/subscription-video", {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
@@ -232,7 +238,7 @@ export default function AdminSettingsPage() {
         setSubscriptionVideoActive(Boolean(data.subscriptionVideo.active));
         setSubscriptionVideoFileName(data.subscriptionVideo.fileName || file.name);
       }
-      setMessage("Subscription video uploaded successfully.");
+      setMessage(`Subscription video uploaded successfully to ${subscriptionVideoTargetStates.length || 1} state(s).`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to upload subscription video.");
     } finally {
@@ -246,8 +252,12 @@ export default function AdminSettingsPage() {
     setVideoDeleting(type);
     setMessage(null);
     try {
+      const params = new URLSearchParams({ type, regionId: region.id });
+      for (const item of subscriptionVideoTargetStates.length ? subscriptionVideoTargetStates : [region.id]) {
+        params.append("targetRegionIds", item);
+      }
       const response = await fetch(
-        `/api/admin/settings/subscription-video?type=${type}&regionId=${encodeURIComponent(region.id)}`,
+        `/api/admin/settings/subscription-video?${params.toString()}`,
         {
         method: "DELETE",
         headers: { authorization: `Bearer ${token}` },
@@ -266,7 +276,7 @@ export default function AdminSettingsPage() {
         setSubscriptionVideoActive(false);
         setSubscriptionVideoFileName("");
       }
-      setMessage("Subscription video deleted successfully.");
+      setMessage(`Subscription video deleted successfully from ${subscriptionVideoTargetStates.length || 1} state(s).`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to delete subscription video.");
     } finally {
@@ -486,6 +496,18 @@ export default function AdminSettingsPage() {
           </div>
 
           <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Apply subscription videos to states</p>
+              <RegionMultiSelectDropdown
+                regions={regions}
+                selectedRegionIds={subscriptionVideoTargetStates}
+                onChange={(items) => setSubscriptionVideoTargetStates(items.length ? items : [region.id])}
+                label="Add state / UT"
+              />
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Upload or delete applies the selected exit/thanks video to all selected states. The preview below shows the currently selected dashboard state.
+              </p>
+            </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-bold text-slate-950">Subscription exit video</p>

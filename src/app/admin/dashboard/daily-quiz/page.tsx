@@ -7,46 +7,11 @@ import { RegionMultiSelectDropdown } from "@/components/regions/region-multi-sel
 
 const QUIZ_LANGUAGES = [
   { key: "telugu", label: "Telugu" },
-  { key: "hindi", label: "Hindi" },
   { key: "english", label: "English" },
-  { key: "tamil", label: "Tamil" },
-  { key: "kannada", label: "Kannada" },
-  { key: "malayalam", label: "Malayalam" },
-  { key: "assamese", label: "Assamese" },
-  { key: "konkani", label: "Konkani" },
-  { key: "gujarati", label: "Gujarati" },
-  { key: "marathi", label: "Marathi" },
-  { key: "meitei", label: "Meitei" },
-  { key: "mizo", label: "Mizo" },
-  { key: "odia", label: "Odia" },
-  { key: "punjabi", label: "Punjabi" },
-  { key: "nepali", label: "Nepali" },
-  { key: "bengali", label: "Bengali" },
-  { key: "kashmiri", label: "Kashmiri" },
-  { key: "ladakhi", label: "Ladakhi" },
 ] as const;
 
 type QuizLanguageKey = typeof QUIZ_LANGUAGES[number]["key"];
 type LocalizedTextForm = Record<QuizLanguageKey, string>;
-type TranslateTargetCode =
-  | "te"
-  | "hi"
-  | "en"
-  | "ta"
-  | "kn"
-  | "ml"
-  | "as"
-  | "gom"
-  | "gu"
-  | "mr"
-  | "mni-Mtei"
-  | "lus"
-  | "or"
-  | "pa"
-  | "ne"
-  | "bn"
-  | "ur"
-  | "bo";
 
 type QuizQuestionForm = {
   text: LocalizedTextForm;
@@ -116,27 +81,6 @@ type QuizHistoryItem = {
   createdAt?: number;
   updatedAt?: number;
   canEdit?: boolean;
-};
-
-const QUIZ_TRANSLATE_TARGETS: Record<QuizLanguageKey, TranslateTargetCode> = {
-  telugu: "te",
-  hindi: "hi",
-  english: "en",
-  tamil: "ta",
-  kannada: "kn",
-  malayalam: "ml",
-  assamese: "as",
-  konkani: "gom",
-  gujarati: "gu",
-  marathi: "mr",
-  meitei: "mni-Mtei",
-  mizo: "lus",
-  odia: "or",
-  punjabi: "pa",
-  nepali: "ne",
-  bengali: "bn",
-  kashmiri: "ur",
-  ladakhi: "bo",
 };
 
 const QUESTION_STYLES = [
@@ -214,16 +158,6 @@ function compactLocalizedText(text: LocalizedTextForm) {
   );
 }
 
-function firstAvailableText(text: LocalizedTextForm, preferredLanguage: QuizLanguageKey) {
-  const preferred = text[preferredLanguage].trim();
-  if (preferred) return preferred;
-  for (const language of QUIZ_LANGUAGES) {
-    const value = text[language.key].trim();
-    if (value) return value;
-  }
-  return "";
-}
-
 function formatDuration(totalSeconds: number | undefined) {
   const safeSeconds = Math.max(0, Number(totalSeconds || 0));
   const minutes = Math.floor(safeSeconds / 60);
@@ -270,23 +204,15 @@ function PrizeEligibilityCell({ row }: { row: LeaderboardRow }) {
   );
 }
 
-function replaceLocalizedText(
-  text: LocalizedTextForm,
-  language: QuizLanguageKey,
-  value: string,
-) {
-  return { ...text, [language]: value } satisfies LocalizedTextForm;
-}
-
 export default function AdminDailyQuizPage() {
   const { user } = useAuth();
   const { region, regions } = useDashboardRegion();
   const [dateKey, setDateKey] = useState(todayKey());
   const [targetStates, setTargetStates] = useState<string[]>([region.id]);
-  const editingLanguage: QuizLanguageKey = "english";
   const [title, setTitle] = useState<LocalizedTextForm>(
     () => emptyLocalizedText({
       english: "Daily Quiz",
+      telugu: "రోజువారీ క్విజ్",
     }),
   );
   const [questions, setQuestions] = useState<QuizQuestionForm[]>(
@@ -343,85 +269,6 @@ export default function AdminDailyQuizPage() {
     setStatus(data.error ?? "Unable to load reports.");
   }
 
-  async function translateMissingQuizContent() {
-    let translatedTitle = { ...title };
-    let translatedQuestions = questions.map((question) => ({
-      ...question,
-      text: { ...question.text },
-      options: question.options.map((option) => ({ ...option })),
-    }));
-
-    for (const language of QUIZ_LANGUAGES) {
-      const targetLanguage = language.key;
-      const texts: string[] = [];
-      const applyTranslation: Array<(value: string) => void> = [];
-
-      const queueText = (
-        localizedText: LocalizedTextForm,
-        apply: (next: LocalizedTextForm) => void,
-      ) => {
-        const source = firstAvailableText(localizedText, editingLanguage);
-        if (!source) return;
-        texts.push(source);
-        applyTranslation.push((value) => {
-          apply(replaceLocalizedText(localizedText, targetLanguage, value));
-        });
-      };
-
-      queueText(translatedTitle, (next) => {
-        translatedTitle = next;
-      });
-
-      translatedQuestions.forEach((question, questionIndex) => {
-        queueText(question.text, (next) => {
-          translatedQuestions = translatedQuestions.map((item, index) =>
-            index === questionIndex ? { ...item, text: next } : item,
-          );
-        });
-        question.options.forEach((option, optionIndex) => {
-          queueText(option, (next) => {
-            translatedQuestions = translatedQuestions.map((item, index) => {
-              if (index !== questionIndex) return item;
-              return {
-                ...item,
-                options: item.options.map((currentOption, currentOptionIndex) =>
-                  currentOptionIndex === optionIndex ? next : currentOption,
-                ),
-              };
-            });
-          });
-        });
-      });
-
-      if (texts.length === 0) continue;
-
-      const translatedTexts: string[] = [];
-      for (let index = 0; index < texts.length; index += 200) {
-        const batch = texts.slice(index, index + 200);
-        const response = await fetch("/api/i18n/translate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            targetLanguage: QUIZ_TRANSLATE_TARGETS[targetLanguage],
-            texts: batch,
-            mode: "translate",
-          }),
-        });
-        const data = await response.json() as { ok: boolean; translations?: string[]; error?: string };
-        if (!response.ok || !data.ok || !Array.isArray(data.translations)) {
-          throw new Error(data.error ?? `Unable to translate ${language.label}.`);
-        }
-        translatedTexts.push(...data.translations);
-      }
-
-      translatedTexts.forEach((value, index) => {
-        applyTranslation[index]?.(value);
-      });
-    }
-
-    return { translatedTitle, translatedQuestions };
-  }
-
   useEffect(() => {
     void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -457,22 +304,27 @@ export default function AdminDailyQuizPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!title.telugu.trim() || !title.english.trim()) {
+      setStatus("Enter quiz title in Telugu and English.");
+      return;
+    }
+    const missingQuestionLanguageIndex = questions.findIndex((question) =>
+      !question.text.telugu.trim() || !question.text.english.trim(),
+    );
+    if (missingQuestionLanguageIndex >= 0) {
+      setStatus(`Question ${missingQuestionLanguageIndex + 1}: enter Telugu and English question text.`);
+      return;
+    }
+    const missingOptionLanguageIndex = questions.findIndex((question) =>
+      question.options.some((option) => !option.telugu.trim() || !option.english.trim()),
+    );
+    if (missingOptionLanguageIndex >= 0) {
+      setStatus(`Question ${missingOptionLanguageIndex + 1}: enter all options in Telugu and English.`);
+      return;
+    }
     const missingCorrectIndex = questions.findIndex((question) => question.correctOptionIndex == null);
     if (missingCorrectIndex >= 0) {
       setStatus(`Question ${missingCorrectIndex + 1}: select correct answer.`);
-      return;
-    }
-    setStatus("Auto-translating quiz...");
-    let translatedTitle = title;
-    let translatedQuestions = questions;
-    try {
-      const translated = await translateMissingQuizContent();
-      translatedTitle = translated.translatedTitle;
-      translatedQuestions = translated.translatedQuestions;
-      setTitle(translatedTitle);
-      setQuestions(translatedQuestions);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to translate quiz.");
       return;
     }
     setStatus(editingQuizId ? "Updating quiz..." : "Saving quiz...");
@@ -480,9 +332,9 @@ export default function AdminDailyQuizPage() {
       id: editingQuizId,
       dateKey,
       targetStates,
-      title: compactLocalizedText(translatedTitle),
+      title: compactLocalizedText(title),
       active: true,
-      questions: translatedQuestions.map((question, index) => ({
+      questions: questions.map((question, index) => ({
         id: `q${index + 1}`,
         text: compactLocalizedText(question.text),
         options: question.options.map((option, optionIndex) => ({
@@ -528,7 +380,7 @@ export default function AdminDailyQuizPage() {
     setEditingQuizId(null);
     setDateKey(todayKey());
     setTargetStates([region.id]);
-    setTitle(emptyLocalizedText({ english: "Daily Quiz" }));
+    setTitle(emptyLocalizedText({ english: "Daily Quiz", telugu: "రోజువారీ క్విజ్" }));
     setQuestions(Array.from({ length: 10 }, () => emptyQuestion()));
     setStatus(null);
   }
@@ -627,7 +479,7 @@ export default function AdminDailyQuizPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">Daily Quiz</p>
         <h2 className="mt-2 text-2xl font-bold text-slate-950">Create state-wise daily quiz</h2>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Type quiz content once. It is auto-translated for every app language during save.
+          Add quiz content in Telugu and English. Telugu app users see Telugu; all other app languages see English.
         </p>
         {editingQuizId ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -640,7 +492,8 @@ export default function AdminDailyQuizPage() {
         <form onSubmit={handleSubmit} className="mt-5 space-y-5">
           <div className="grid gap-4 lg:grid-cols-2">
             <input type="date" value={dateKey} onChange={(event) => setDateKey(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold outline-none" />
-            <input value={title[editingLanguage]} onChange={(event) => setTitle((prev) => ({ ...prev, [editingLanguage]: event.target.value }))} placeholder="Quiz title" className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none" />
+            <input value={title.english} onChange={(event) => setTitle((prev) => ({ ...prev, english: event.target.value }))} placeholder="Quiz title - English" className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none" />
+            <input value={title.telugu} onChange={(event) => setTitle((prev) => ({ ...prev, telugu: event.target.value }))} placeholder="Quiz title - Telugu" className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none lg:col-span-2" />
           </div>
           <RegionMultiSelectDropdown regions={regions} selectedRegionIds={targetStates} onChange={setTargetStates} />
           <div className="space-y-4">
@@ -650,7 +503,10 @@ export default function AdminDailyQuizPage() {
                   <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-white shadow-sm ${QUESTION_STYLES[index % QUESTION_STYLES.length].chip}`}>
                     {index + 1}
                   </span>
-                  <input value={question.text[editingLanguage]} onChange={(event) => updateQuestionText(index, editingLanguage, event.target.value)} placeholder="Question" className="min-h-12 w-full rounded-2xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none placeholder:text-slate-400" />
+                  <div className="grid min-w-0 flex-1 gap-3 lg:grid-cols-2">
+                    <input value={question.text.english} onChange={(event) => updateQuestionText(index, "english", event.target.value)} placeholder="Question - English" className="min-h-12 w-full rounded-2xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none placeholder:text-slate-400" />
+                    <input value={question.text.telugu} onChange={(event) => updateQuestionText(index, "telugu", event.target.value)} placeholder="Question - Telugu" className="min-h-12 w-full rounded-2xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none placeholder:text-slate-400" />
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   {[0, 1, 2, 3].map((optionIndex) => (
@@ -663,7 +519,10 @@ export default function AdminDailyQuizPage() {
                           {String.fromCharCode(65 + optionIndex)}
                         </span>
                         <input type="radio" className="sr-only" checked={question.correctOptionIndex === optionIndex} onChange={() => updateCorrectOption(index, optionIndex)} />
-                        <input value={question.options[optionIndex][editingLanguage]} onChange={(event) => updateOption(index, optionIndex, editingLanguage, event.target.value)} placeholder={`Option ${optionIndex + 1}`} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm font-semibold outline-none placeholder:text-slate-400" />
+                        <div className="grid min-w-0 flex-1 gap-2">
+                          <input value={question.options[optionIndex].english} onChange={(event) => updateOption(index, optionIndex, "english", event.target.value)} placeholder={`Option ${optionIndex + 1} - English`} className="min-w-0 bg-transparent px-1 py-1 text-sm font-semibold outline-none placeholder:text-slate-400" />
+                          <input value={question.options[optionIndex].telugu} onChange={(event) => updateOption(index, optionIndex, "telugu", event.target.value)} placeholder={`Option ${optionIndex + 1} - Telugu`} className="min-w-0 bg-transparent px-1 py-1 text-sm font-semibold outline-none placeholder:text-slate-400" />
+                        </div>
                         {question.correctOptionIndex === optionIndex ? (
                           <span className="rounded-full bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]">
                             Correct

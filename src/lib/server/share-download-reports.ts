@@ -11,7 +11,14 @@ export interface ShareDownloadHistoryItem {
   dateKey: string;
   shares: number;
   downloads: number;
+  subscriberShares: number;
+  nonSubscriberShares: number;
+  subscriberDownloads: number;
+  nonSubscriberDownloads: number;
+  displayShares: number;
+  displayDownloads: number;
   total: number;
+  displayTotal: number;
 }
 
 export interface ShareDownloadReportRow {
@@ -28,7 +35,14 @@ export interface ShareDownloadReportRow {
   mediaType: string;
   shareCount: number;
   downloadCount: number;
+  subscriberShareCount: number;
+  nonSubscriberShareCount: number;
+  subscriberDownloadCount: number;
+  nonSubscriberDownloadCount: number;
+  displayShareCount: number;
+  displayDownloadCount: number;
   totalEngagement: number;
+  displayTotalEngagement: number;
   firstDateKey: string;
   lastDateKey: string;
   history: ShareDownloadHistoryItem[];
@@ -40,7 +54,14 @@ export interface ShareDownloadReportResult {
     posterCount: number;
     shareCount: number;
     downloadCount: number;
+    subscriberShareCount: number;
+    nonSubscriberShareCount: number;
+    subscriberDownloadCount: number;
+    nonSubscriberDownloadCount: number;
+    displayShareCount: number;
+    displayDownloadCount: number;
     totalEngagement: number;
+    displayTotalEngagement: number;
   };
 }
 
@@ -62,6 +83,23 @@ function normalizeDateKey(value: unknown): string {
 
 function normalizeString(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function stablePosterHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash;
+}
+
+function boostedPosterDisplayCount(posterId: string, kind: "share" | "download", realCount: number): number {
+  const real = Math.max(0, realCount);
+  if (real <= 0) return 0;
+  const [min, max] = kind === "share" ? [8, 20] : [10, 25];
+  const multiplier = min + (stablePosterHash(`${kind}:${posterId}`) % (max - min + 1));
+  return real * multiplier;
 }
 
 function istDateKeyFromMillis(epochMillis: number): string {
@@ -134,7 +172,27 @@ export async function loadShareDownloadReport({
       const dateKey = normalizeDateKey(data.dateKey || data.dayKey);
       const shareCount = readNumber(data.shareCount ?? data.shares ?? data.totalShares);
       const downloadCount = readNumber(data.downloadCount ?? data.downloads ?? data.totalDownloads);
-      return {posterId, dateKey, shareCount, downloadCount, data};
+      const subscriberShareCount = readNumber(data.subscriberShareCount);
+      const nonSubscriberShareCount = readNumber(data.nonSubscriberShareCount);
+      const subscriberDownloadCount = readNumber(data.subscriberDownloadCount);
+      const nonSubscriberDownloadCount = readNumber(data.nonSubscriberDownloadCount);
+      const displayShareCount =
+        readNumber(data.displayShareCount) || boostedPosterDisplayCount(posterId, "share", shareCount);
+      const displayDownloadCount =
+        readNumber(data.displayDownloadCount) || boostedPosterDisplayCount(posterId, "download", downloadCount);
+      return {
+        posterId,
+        dateKey,
+        shareCount,
+        downloadCount,
+        subscriberShareCount,
+        nonSubscriberShareCount,
+        subscriberDownloadCount,
+        nonSubscriberDownloadCount,
+        displayShareCount,
+        displayDownloadCount,
+        data,
+      };
     })
     .filter(
       (item) =>
@@ -147,7 +205,19 @@ export async function loadShareDownloadReport({
   if (posterIds.length === 0) {
     return {
       rows: [],
-      summary: {posterCount: 0, shareCount: 0, downloadCount: 0, totalEngagement: 0},
+      summary: {
+        posterCount: 0,
+        shareCount: 0,
+        downloadCount: 0,
+        subscriberShareCount: 0,
+        nonSubscriberShareCount: 0,
+        subscriberDownloadCount: 0,
+        nonSubscriberDownloadCount: 0,
+        displayShareCount: 0,
+        displayDownloadCount: 0,
+        totalEngagement: 0,
+        displayTotalEngagement: 0,
+      },
     };
   }
 
@@ -209,6 +279,12 @@ export async function loadShareDownloadReport({
     const dateKey = stat.dateKey;
     const shareCount = stat.shareCount;
     const downloadCount = stat.downloadCount;
+    const subscriberShareCount = stat.subscriberShareCount;
+    const nonSubscriberShareCount = stat.nonSubscriberShareCount;
+    const subscriberDownloadCount = stat.subscriberDownloadCount;
+    const nonSubscriberDownloadCount = stat.nonSubscriberDownloadCount;
+    const displayShareCount = stat.displayShareCount;
+    const displayDownloadCount = stat.displayDownloadCount;
     const posterCreatorId = normalizeString(poster.creatorPublicId || data.creatorPublicId);
     const creator = creators.get(posterCreatorId);
     const categoryId = normalizeString(poster.categoryId || data.categoryId);
@@ -235,14 +311,28 @@ export async function loadShareDownloadReport({
     if (existing) {
       existing.shareCount += shareCount;
       existing.downloadCount += downloadCount;
+      existing.subscriberShareCount += subscriberShareCount;
+      existing.nonSubscriberShareCount += nonSubscriberShareCount;
+      existing.subscriberDownloadCount += subscriberDownloadCount;
+      existing.nonSubscriberDownloadCount += nonSubscriberDownloadCount;
+      existing.displayShareCount += displayShareCount;
+      existing.displayDownloadCount += displayDownloadCount;
       existing.totalEngagement += shareCount + downloadCount;
+      existing.displayTotalEngagement += displayShareCount + displayDownloadCount;
       existing.firstDateKey = existing.firstDateKey < dateKey ? existing.firstDateKey : dateKey;
       existing.lastDateKey = existing.lastDateKey > dateKey ? existing.lastDateKey : dateKey;
       existing.history.push({
         dateKey,
         shares: shareCount,
         downloads: downloadCount,
+        subscriberShares: subscriberShareCount,
+        nonSubscriberShares: nonSubscriberShareCount,
+        subscriberDownloads: subscriberDownloadCount,
+        nonSubscriberDownloads: nonSubscriberDownloadCount,
+        displayShares: displayShareCount,
+        displayDownloads: displayDownloadCount,
         total: shareCount + downloadCount,
+        displayTotal: displayShareCount + displayDownloadCount,
       });
       continue;
     }
@@ -261,7 +351,14 @@ export async function loadShareDownloadReport({
       mediaType: normalizeString(poster.mediaType || poster.type) || "image",
       shareCount,
       downloadCount,
+      subscriberShareCount,
+      nonSubscriberShareCount,
+      subscriberDownloadCount,
+      nonSubscriberDownloadCount,
+      displayShareCount,
+      displayDownloadCount,
       totalEngagement: shareCount + downloadCount,
+      displayTotalEngagement: displayShareCount + displayDownloadCount,
       firstDateKey: dateKey,
       lastDateKey: dateKey,
       history: [
@@ -269,7 +366,14 @@ export async function loadShareDownloadReport({
           dateKey,
           shares: shareCount,
           downloads: downloadCount,
+          subscriberShares: subscriberShareCount,
+          nonSubscriberShares: nonSubscriberShareCount,
+          subscriberDownloads: subscriberDownloadCount,
+          nonSubscriberDownloads: nonSubscriberDownloadCount,
+          displayShares: displayShareCount,
+          displayDownloads: displayDownloadCount,
           total: shareCount + downloadCount,
+          displayTotal: displayShareCount + displayDownloadCount,
         },
       ],
     });
@@ -288,7 +392,14 @@ export async function loadShareDownloadReport({
       posterCount: rows.length,
       shareCount: rows.reduce((sum, row) => sum + row.shareCount, 0),
       downloadCount: rows.reduce((sum, row) => sum + row.downloadCount, 0),
+      subscriberShareCount: rows.reduce((sum, row) => sum + row.subscriberShareCount, 0),
+      nonSubscriberShareCount: rows.reduce((sum, row) => sum + row.nonSubscriberShareCount, 0),
+      subscriberDownloadCount: rows.reduce((sum, row) => sum + row.subscriberDownloadCount, 0),
+      nonSubscriberDownloadCount: rows.reduce((sum, row) => sum + row.nonSubscriberDownloadCount, 0),
+      displayShareCount: rows.reduce((sum, row) => sum + row.displayShareCount, 0),
+      displayDownloadCount: rows.reduce((sum, row) => sum + row.displayDownloadCount, 0),
       totalEngagement: rows.reduce((sum, row) => sum + row.totalEngagement, 0),
+      displayTotalEngagement: rows.reduce((sum, row) => sum + row.displayTotalEngagement, 0),
     },
   };
 }

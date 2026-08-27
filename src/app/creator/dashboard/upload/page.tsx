@@ -347,6 +347,11 @@ function categoryAllowsPoliticalProtocol(
   );
 }
 
+function isJokesCategoryId(categoryId: string): boolean {
+  const normalized = categoryId.trim().toLowerCase();
+  return ["jokes", "funny", "humor", "comedy"].includes(normalized);
+}
+
 function supportsManualPublishDate(category: CreatorCategory | null): boolean {
   if (!category) return false;
   return !category.isDynamic || categoryWeekday(category.id) != null;
@@ -1158,24 +1163,27 @@ export default function CreatorUploadStudioPage() {
     (file && isVideoFile(file)) ||
     (activeEditPoster && isVideoPoster(activeEditPoster)),
   );
+  const isJokesCustomization =
+    !isVideoPreview && isJokesCategoryId(categoryId);
   const canUsePoliticalProtocol =
-    categoryAllowsPoliticalProtocol(activeCategory) && !isVideoPreview;
+    categoryAllowsPoliticalProtocol(activeCategory) && !isJokesCustomization;
   const stripSafeZoneHeight = nameStripSafeZoneHeightPercent(personalization);
   const posterAspectRatio = posterAspect(fileMeta);
   const stripOverlapWarning =
-    isPhotoInNameStripSafeZone({
-      config: personalization,
-      posterAspectRatio,
-      photoY: safePersonalization.photoY,
-      photoScale: safePersonalization.photoScale,
-    }) ||
-    (safePersonalization.showVideoExtraPhoto &&
-      isPhotoInNameStripSafeZone({
+    !isJokesCustomization &&
+    (isPhotoInNameStripSafeZone({
         config: personalization,
         posterAspectRatio,
-        photoY: safePersonalization.videoExtraPhotoY,
-        photoScale: safePersonalization.videoExtraPhotoScale,
-      }));
+        photoY: safePersonalization.photoY,
+        photoScale: safePersonalization.photoScale,
+      }) ||
+      (safePersonalization.showVideoExtraPhoto &&
+        isPhotoInNameStripSafeZone({
+          config: personalization,
+          posterAspectRatio,
+          photoY: safePersonalization.videoExtraPhotoY,
+          photoScale: safePersonalization.videoExtraPhotoScale,
+        })));
   async function startVideoPreviewPlayback() {
     if (!isVideoPreview) return;
     setVideoPreviewCycle((prev) => prev + 1);
@@ -2076,7 +2084,15 @@ export default function CreatorUploadStudioPage() {
               </div>
 
               <div className="mt-5 space-y-4 text-sm">
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                {isJokesCustomization ? (
+                  <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">
+                    Jokes posters are watermark-only. User photo, name, and
+                    name strip controls are disabled for this category.
+                  </div>
+                ) : null}
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-4`}
+                >
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-200">
                     Photo Controls
                   </p>
@@ -2367,11 +2383,15 @@ export default function CreatorUploadStudioPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300">
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-white/6 p-3 text-xs leading-5 text-slate-300`}
+                >
                   {customizationCopy.dragHelp}
                 </div>
 
-                <label className="flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90">
+                <label
+                  className={`${isJokesCustomization ? "hidden " : ""}flex items-center justify-between rounded-full border border-white/10 bg-slate-900/50 px-4 py-3 text-sm text-white/90`}
+                >
                   <span className="font-medium">
                     {customizationCopy.showGradientStrip}
                   </span>
@@ -2397,7 +2417,9 @@ export default function CreatorUploadStudioPage() {
                   </span>
                 </label>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/90">
+                <div
+                  className={`${isJokesCustomization ? "hidden " : ""}rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/90`}
+                >
                   <label className="flex items-center justify-between">
                     <span className="font-medium">
                       Political protocol photos
@@ -2540,41 +2562,46 @@ export default function CreatorUploadStudioPage() {
                             )
                           : null}
 
-                        <div
-                          key={`main-photo-${personalization.photoAnimation}-${videoPreviewCycle}`}
-                          onPointerDown={startPhotoDrag}
-                          onWheel={onPhotoWheel}
-                          className={`absolute touch-none overflow-hidden ${
-                            isPhotoDragging ? "cursor-grabbing" : "cursor-grab"
-                          }`}
-                          style={{
-                            left: `${safePersonalization.photoX}%`,
-                            top: `${safePersonalization.photoY}%`,
-                            width: `${safePersonalization.photoScale}%`,
-                            zIndex: 1,
-                            aspectRatio: photoShapeAspectRatio(
-                              safePersonalization.photoShape,
-                            ),
-                            ...photoShapeFrameStyle(
-                              safePersonalization.photoShape,
-                            ),
-                            ...resolveVideoPhotoAnimationStyle(
-                              safePersonalization.photoAnimation,
-                              isVideoPreview && videoPreviewStarted,
-                            ),
-                          }}
-                        >
-                          {renderPosterPhotoPreview({
-                            shape: safePersonalization.photoShape,
-                            renderMode: safePersonalization.photoRenderMode,
-                            edgeStyle: safePersonalization.edgeStyle,
-                            frameStyle: safePersonalization.photoFrameStyle,
-                            src: PERSONALIZATION_SAMPLE.photoUrl,
-                            alt: "Sample user",
-                          })}
-                        </div>
+                        {!isJokesCustomization ? (
+                          <div
+                            key={`main-photo-${personalization.photoAnimation}-${videoPreviewCycle}`}
+                            onPointerDown={startPhotoDrag}
+                            onWheel={onPhotoWheel}
+                            className={`absolute touch-none overflow-hidden ${
+                              isPhotoDragging
+                                ? "cursor-grabbing"
+                                : "cursor-grab"
+                            }`}
+                            style={{
+                              left: `${safePersonalization.photoX}%`,
+                              top: `${safePersonalization.photoY}%`,
+                              width: `${safePersonalization.photoScale}%`,
+                              zIndex: 1,
+                              aspectRatio: photoShapeAspectRatio(
+                                safePersonalization.photoShape,
+                              ),
+                              ...photoShapeFrameStyle(
+                                safePersonalization.photoShape,
+                              ),
+                              ...resolveVideoPhotoAnimationStyle(
+                                safePersonalization.photoAnimation,
+                                isVideoPreview && videoPreviewStarted,
+                              ),
+                            }}
+                          >
+                            {renderPosterPhotoPreview({
+                              shape: safePersonalization.photoShape,
+                              renderMode: safePersonalization.photoRenderMode,
+                              edgeStyle: safePersonalization.edgeStyle,
+                              frameStyle: safePersonalization.photoFrameStyle,
+                              src: PERSONALIZATION_SAMPLE.photoUrl,
+                              alt: "Sample user",
+                            })}
+                          </div>
+                        ) : null}
 
-                        {personalization.showVideoExtraPhoto ? (
+                        {personalization.showVideoExtraPhoto &&
+                        !isJokesCustomization ? (
                           <div
                             key={`extra-photo-${personalization.videoExtraPhotoAnimation}-${videoPreviewCycle}`}
                             onPointerDown={startVideoExtraPhotoDrag}
@@ -2637,7 +2664,8 @@ export default function CreatorUploadStudioPage() {
                             heightPercent={stripSafeZoneHeight}
                           />
                         ) : null}
-                        {!personalization.showBottomStrip ? (
+                        {!isJokesCustomization &&
+                        !personalization.showBottomStrip ? (
                           <div
                             onPointerDown={startNameDrag}
                             className={`absolute max-w-[92%] -translate-x-1/2 -translate-y-1/2 select-none ${
@@ -2664,7 +2692,8 @@ export default function CreatorUploadStudioPage() {
                             </p>
                           </div>
                         ) : null}
-                        {personalization.showBottomStrip ? (
+                        {!isJokesCustomization &&
+                        personalization.showBottomStrip ? (
                           <div
                             className="absolute z-[3] touch-none"
                             style={{

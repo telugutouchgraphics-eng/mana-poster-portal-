@@ -597,6 +597,27 @@ async function resolveAudienceTargets(
   const targetReligion = normalizeReligionTarget(targetLocation.religion);
   const targetSegment = normalizeAudienceSegment(targetLocation.segment);
   if (audience === "all_users") {
+    if (targetLocation.regionIds.length > 0) {
+      if (targetSegment === "all_area_users") {
+        const targets = await loadAreaPublicDeviceTokensForRegionIds(targetLocation);
+        return {
+          mode: "tokens" as const,
+          topic: "",
+          userCount: targets.length,
+          targets,
+        };
+      }
+      const userUids = await applyAudienceSegment(
+        await loadAreaUserUidsForRegionIds(targetLocation),
+        targetSegment,
+      );
+      return {
+        mode: "tokens" as const,
+        topic: "",
+        userCount: userUids.length,
+        targets: await loadUserDeviceTokens(userUids),
+      };
+    }
     if (targetSegment === "all_area_users") {
       const targets = await loadPublicDeviceTokensForReligion(targetReligion);
       return {

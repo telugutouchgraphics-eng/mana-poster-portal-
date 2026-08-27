@@ -24,6 +24,24 @@ function resolveExtension(file: File): string {
   return "mp4";
 }
 
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function targetRegionsFor(
+  actor: Awaited<ReturnType<typeof requireRole>>,
+  regionId: string,
+  targetRegionIds: string[],
+) {
+  const fallbackRegion = await assertActorCanAccessRegion(actor, regionId);
+  if (!targetRegionIds.length) {
+    return [fallbackRegion];
+  }
+  return Promise.all(
+    Array.from(new Set(targetRegionIds)).map((id) => assertActorCanAccessRegion(actor, id)),
+  );
+}
+
 function resolveVideoTarget(type: FormDataEntryValue | null) {
   const normalized = String(type ?? "exit").trim();
   if (normalized === "thanks") {
@@ -50,7 +68,12 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const form = await req.formData();
-    const region = await assertActorCanAccessRegion(actor, String(form.get("regionId") ?? "").trim());
+    const regionId = stringValue(form.get("regionId"));
+    const targetRegionIds = stringValue(form.get("targetRegionIds"))
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const targetRegions = await targetRegionsFor(actor, regionId, targetRegionIds);
     const video = form.get("video");
     const target = resolveVideoTarget(form.get("type"));
     if (!(video instanceof File)) {
@@ -64,15 +87,10 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
+    const primaryRegion = targetRegions[0];
     const originalName = sanitizeFileName(video.name || `subscription-video.${resolveExtension(video)}`);
-    const path = `${target.folderName}/${region.id}/${now}-${originalName}`;
+    const path = `${target.folderName}/${primaryRegion.id}/${now}-${originalName}`;
     const buffer = Buffer.from(await video.arrayBuffer());
-    const settingsDocId = scopedSettingsDocId(region.id);
-    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
-    const existingSnap = await settingsRef.get();
-    const existingVideo = existingSnap.data()?.[target.fieldName] as
-      | { path?: string }
-      | undefined;
     const uploaded = await uploadAdminAsset(buffer, video.type, path);
 
     const subscriptionVideo = {
@@ -86,28 +104,45 @@ export async function POST(req: NextRequest) {
       updatedByEmail: actor.email ?? "",
     };
 
-    await settingsRef.set(
-      {
-        regionId: region.id,
-        regionName: region.name,
-        [target.fieldName]: subscriptionVideo,
-        updatedAt: now,
-        updatedByUid: actor.uid,
-        updatedByEmail: actor.email ?? "",
-      },
-      { merge: true },
+    const pathsToDelete = new Set<string>();
+    await Promise.all(
+      targetRegions.map(async (region) => {
+        const settingsDocId = scopedSettingsDocId(region.id);
+        const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
+        const existingSnap = await settingsRef.get();
+        const existingVideo = existingSnap.data()?.[target.fieldName] as
+          | { path?: string }
+          | undefined;
+        if (existingVideo?.path) {
+          pathsToDelete.add(existingVideo.path);
+        }
+        await settingsRef.set(
+          {
+            regionId: region.id,
+            regionName: region.name,
+            [target.fieldName]: subscriptionVideo,
+            updatedAt: now,
+            updatedByUid: actor.uid,
+            updatedByEmail: actor.email ?? "",
+          },
+          { merge: true },
+        );
+      }),
     );
-    await deleteAdminAsset(existingVideo?.path);
+    await Promise.all(Array.from(pathsToDelete).map((item) => deleteAdminAsset(item)));
 
     await writeAuditLog({
       actorUid: actor.uid,
       actorRole: actor.role,
       actorEmail: actor.email,
       action: target.action,
-      targetId: settingsDocId,
+      targetId: scopedSettingsDocId(primaryRegion.id),
       targetType: "websiteConfig",
       message: target.message,
-      metadata: { regionId: region.id, regionName: region.name },
+      metadata: {
+        regionIds: targetRegions.map((region) => region.id),
+        regionNames: targetRegions.map((region) => region.name),
+      },
     });
 
     return NextResponse.json({ ok: true, subscriptionVideo, type: target.fieldName });
@@ -121,17 +156,13 @@ export async function DELETE(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const url = new URL(req.url);
-    const region = await assertActorCanAccessRegion(actor, url.searchParams.get("regionId"));
+    const regionId = stringValue(url.searchParams.get("regionId"));
+    const targetRegionIds = url.searchParams
+      .getAll("targetRegionIds")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const targetRegions = await targetRegionsFor(actor, regionId, targetRegionIds);
     const target = resolveVideoTarget(url.searchParams.get("type"));
-    const settingsDocId = scopedSettingsDocId(region.id);
-    const settingsRef = adminDb.collection("websiteConfig").doc(settingsDocId);
-    const settingsSnap = await settingsRef.get();
-    const existingVideo = settingsSnap.data()?.[target.fieldName] as
-      | { path?: string; url?: string; fileName?: string }
-      | undefined;
-
-    await deleteAdminAsset(existingVideo?.path);
-
     const now = Date.now();
     const clearedVideo = {
       active: false,
@@ -144,27 +175,41 @@ export async function DELETE(req: NextRequest) {
       updatedByEmail: actor.email ?? "",
     };
 
-    await settingsRef.set(
-      {
-        regionId: region.id,
-        regionName: region.name,
-        [target.fieldName]: clearedVideo,
-        updatedAt: now,
-        updatedByUid: actor.uid,
-        updatedByEmail: actor.email ?? "",
-      },
-      { merge: true },
+    const pathsToDelete = new Set<string>();
+    await Promise.all(
+      targetRegions.map(async (region) => {
+        const settingsRef = adminDb.collection("websiteConfig").doc(scopedSettingsDocId(region.id));
+        const settingsSnap = await settingsRef.get();
+        const existingVideo = settingsSnap.data()?.[target.fieldName] as
+          | { path?: string; url?: string; fileName?: string }
+          | undefined;
+        if (existingVideo?.path) {
+          pathsToDelete.add(existingVideo.path);
+        }
+        await settingsRef.set(
+          {
+            regionId: region.id,
+            regionName: region.name,
+            [target.fieldName]: clearedVideo,
+            updatedAt: now,
+            updatedByUid: actor.uid,
+            updatedByEmail: actor.email ?? "",
+          },
+          { merge: true },
+        );
+      }),
     );
+    await Promise.all(Array.from(pathsToDelete).map((item) => deleteAdminAsset(item)));
 
     await writeAuditLog({
       actorUid: actor.uid,
       actorRole: actor.role,
       actorEmail: actor.email,
       action: target.deleteAction,
-      targetId: settingsDocId,
+      targetId: scopedSettingsDocId(targetRegions[0].id),
       targetType: "websiteConfig",
       message: target.deleteMessage,
-      metadata: { regionId: region.id, regionName: region.name },
+      metadata: { regionIds: targetRegions.map((region) => region.id) },
     });
 
     return NextResponse.json({ ok: true, subscriptionVideo: clearedVideo, type: target.fieldName });

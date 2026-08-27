@@ -56,23 +56,7 @@ type QuizDoc = FirebaseFirestore.DocumentData & {
 };
 const QUIZ_LANGUAGE_KEYS = [
   "telugu",
-  "hindi",
   "english",
-  "tamil",
-  "kannada",
-  "malayalam",
-  "assamese",
-  "konkani",
-  "gujarati",
-  "marathi",
-  "meitei",
-  "mizo",
-  "odia",
-  "punjabi",
-  "nepali",
-  "bengali",
-  "kashmiri",
-  "ladakhi",
 ] as const;
 
 function normalizeRegionId(value: unknown): string {
@@ -530,6 +514,10 @@ function cleanLocalizedText(input: unknown): LocalizedText {
   return out;
 }
 
+function hasTeluguAndEnglishText(input: LocalizedText): boolean {
+  return Boolean(String(input.telugu ?? "").trim() && String(input.english ?? "").trim());
+}
+
 function cleanQuestions(input: unknown) {
   const rows = Array.isArray(input) ? input : [];
   return rows.slice(0, 10).map((row, index) => {
@@ -551,8 +539,8 @@ function cleanQuestions(input: unknown) {
       correctOptionIndex: hasValidCorrectOption ? rawCorrectOptionIndex : null,
     };
   }).filter((question) => {
-    const hasQuestion = Object.keys(question.text).length > 0;
-    const hasOptions = question.options.length === 4 && question.options.every((item) => Object.keys(item.text).length > 0);
+    const hasQuestion = hasTeluguAndEnglishText(question.text);
+    const hasOptions = question.options.length === 4 && question.options.every((item) => hasTeluguAndEnglishText(item.text));
     return hasQuestion && hasOptions && question.correctOptionIndex != null;
   });
 }
@@ -639,9 +627,13 @@ export async function POST(req: NextRequest) {
     if (targetStates.length === 0) {
       return NextResponse.json({ ok: false, error: "Select at least one state." }, { status: 400 });
     }
+    const title = cleanLocalizedText(body.title);
+    if (!hasTeluguAndEnglishText(title)) {
+      return NextResponse.json({ ok: false, error: "Quiz title is required in Telugu and English." }, { status: 400 });
+    }
     const questions = cleanQuestions(body.questions);
     if (questions.length < 10) {
-      return NextResponse.json({ ok: false, error: "At least 10 valid questions are required." }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "At least 10 valid Telugu and English questions are required." }, { status: 400 });
     }
     const now = Date.now();
     await deleteOverlappingQuizzes(dateKey, targetStates);
@@ -650,7 +642,7 @@ export async function POST(req: NextRequest) {
       id: ref.id,
       dateKey,
       weekKey: weekKeyForDateKey(dateKey),
-      title: cleanLocalizedText(body.title),
+      title,
       targetStates,
       questions,
       active: body.active !== false,
@@ -691,9 +683,13 @@ export async function PUT(req: NextRequest) {
     if (targetStates.length === 0) {
       return NextResponse.json({ ok: false, error: "Select at least one state." }, { status: 400 });
     }
+    const title = cleanLocalizedText(body.title);
+    if (!hasTeluguAndEnglishText(title)) {
+      return NextResponse.json({ ok: false, error: "Quiz title is required in Telugu and English." }, { status: 400 });
+    }
     const questions = cleanQuestions(body.questions);
     if (questions.length < 10) {
-      return NextResponse.json({ ok: false, error: "At least 10 valid questions are required." }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "At least 10 valid Telugu and English questions are required." }, { status: 400 });
     }
     await deleteQuizAndResults(quizId);
     await deleteOverlappingQuizzes(dateKey, targetStates, quizId);
@@ -701,7 +697,7 @@ export async function PUT(req: NextRequest) {
       id: quizId,
       dateKey,
       weekKey: weekKeyForDateKey(dateKey),
-      title: cleanLocalizedText(body.title),
+      title,
       targetStates,
       questions,
       active: body.active !== false,
