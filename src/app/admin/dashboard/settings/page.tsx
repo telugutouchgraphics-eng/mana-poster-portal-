@@ -43,6 +43,22 @@ interface SettingsResponse {
       appBannersVisible: boolean;
       creatorBannersVisible: boolean;
     };
+    profilePhotoGuide?: {
+      goodImage?: {
+        active: boolean;
+        url: string;
+        contentType: string;
+        fileName: string;
+        updatedAt: number;
+      };
+      badImage?: {
+        active: boolean;
+        url: string;
+        contentType: string;
+        fileName: string;
+        updatedAt: number;
+      };
+    };
     landingPageTitle: string;
     landingPageSubtitle: string;
   };
@@ -77,6 +93,12 @@ export default function AdminSettingsPage() {
   const [manualAdUploading, setManualAdUploading] = useState(false);
   const [manualAdDeleting, setManualAdDeleting] = useState(false);
   const [adTargetStates, setAdTargetStates] = useState<string[]>([region.id]);
+  const [profileGuideGoodUrl, setProfileGuideGoodUrl] = useState("");
+  const [profileGuideGoodFileName, setProfileGuideGoodFileName] = useState("");
+  const [profileGuideBadUrl, setProfileGuideBadUrl] = useState("");
+  const [profileGuideBadFileName, setProfileGuideBadFileName] = useState("");
+  const [profileGuideUploading, setProfileGuideUploading] = useState<"good" | "bad" | null>(null);
+  const [profileGuideTargetStates, setProfileGuideTargetStates] = useState<string[]>([region.id]);
   const [landingPageTitle, setLandingPageTitle] = useState("");
   const [landingPageSubtitle, setLandingPageSubtitle] = useState("");
   const [appBannersVisible, setAppBannersVisible] = useState(true);
@@ -93,6 +115,8 @@ export default function AdminSettingsPage() {
   const exitVideoInputRef = useRef<HTMLInputElement | null>(null);
   const thanksVideoInputRef = useRef<HTMLInputElement | null>(null);
   const manualAdInputRef = useRef<HTMLInputElement | null>(null);
+  const profileGuideGoodInputRef = useRef<HTMLInputElement | null>(null);
+  const profileGuideBadInputRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     const token = await user?.getIdToken();
@@ -123,7 +147,12 @@ export default function AdminSettingsPage() {
       setHomeExportManualAdActive(Boolean(data.settings.ads?.homeExportManualAd?.active));
       setHomeExportManualAdFileName(data.settings.ads?.homeExportManualAd?.fileName || "");
       setHomeExportManualAdContentType(data.settings.ads?.homeExportManualAd?.contentType || "");
+      setProfileGuideGoodUrl(data.settings.profilePhotoGuide?.goodImage?.url || "");
+      setProfileGuideGoodFileName(data.settings.profilePhotoGuide?.goodImage?.fileName || "");
+      setProfileGuideBadUrl(data.settings.profilePhotoGuide?.badImage?.url || "");
+      setProfileGuideBadFileName(data.settings.profilePhotoGuide?.badImage?.fileName || "");
       setAdTargetStates((prev) => (prev.length > 0 ? prev : [region.id]));
+      setProfileGuideTargetStates((prev) => (prev.length > 0 ? prev : [region.id]));
       setLandingPageTitle(data.settings.landingPageTitle || "");
       setLandingPageSubtitle(data.settings.landingPageSubtitle || "");
       setAppBannersVisible(Boolean(data.settings.bannerVisibility?.appBannersVisible));
@@ -137,6 +166,7 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     setAdTargetStates([region.id]);
+    setProfileGuideTargetStates([region.id]);
     setSubscriptionVideoTargetStates([region.id]);
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,6 +388,57 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function handleProfileGuideUpload(file: File | null, slot: "good" | "bad") {
+    if (!file) return;
+    const token = await user?.getIdToken();
+    if (!token) return;
+    setProfileGuideUploading(slot);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.set("image", file);
+      body.set("slot", slot);
+      body.set("regionId", region.id);
+      body.set(
+        "targetRegionIds",
+        (profileGuideTargetStates.length ? profileGuideTargetStates : [region.id]).join(","),
+      );
+      const response = await fetch("/api/admin/settings/profile-photo-guide", {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+        body,
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        image?: { active: boolean; url: string; fileName: string; contentType: string };
+        error?: string;
+      };
+      if (!response.ok || !data.ok || !data.image) {
+        throw new Error(data.error ?? "Unable to upload profile guide image.");
+      }
+      if (slot === "good") {
+        setProfileGuideGoodUrl(data.image.url || "");
+        setProfileGuideGoodFileName(data.image.fileName || file.name);
+      } else {
+        setProfileGuideBadUrl(data.image.url || "");
+        setProfileGuideBadFileName(data.image.fileName || file.name);
+      }
+      setMessage(
+        `Profile photo guide image uploaded to ${profileGuideTargetStates.length || 1} state(s).`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to upload profile guide image.");
+    } finally {
+      setProfileGuideUploading(null);
+      if (slot === "good" && profileGuideGoodInputRef.current) {
+        profileGuideGoodInputRef.current.value = "";
+      }
+      if (slot === "bad" && profileGuideBadInputRef.current) {
+        profileGuideBadInputRef.current.value = "";
+      }
+    }
+  }
+
   return (
     <section className="space-y-6">
       <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
@@ -492,6 +573,82 @@ export default function AdminSettingsPage() {
                   Open uploaded ad
                 </a>
               ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-950">Profile photo upload guide</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  These two samples are shown in the mobile app before a user chooses a profile photo.
+                  Design size: <span className="font-bold text-slate-700">1080 x 1350 px</span>, JPG/PNG/WEBP, max 5 MB.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Apply guide photos to states</p>
+              <RegionMultiSelectDropdown
+                regions={regions}
+                selectedRegionIds={profileGuideTargetStates}
+                onChange={(items) => setProfileGuideTargetStates(items.length ? items : [region.id])}
+                label="Add state / UT"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {[
+                {
+                  slot: "good" as const,
+                  title: "Correct photo sample",
+                  helper: "Clear face, full head, shoulders visible. Green tick appears in app.",
+                  url: profileGuideGoodUrl,
+                  fileName: profileGuideGoodFileName,
+                  inputRef: profileGuideGoodInputRef,
+                },
+                {
+                  slot: "bad" as const,
+                  title: "Wrong photo sample",
+                  helper: "Use this to show cropped, blurred, or bad framing. Red cross appears in app.",
+                  url: profileGuideBadUrl,
+                  fileName: profileGuideBadFileName,
+                  inputRef: profileGuideBadInputRef,
+                },
+              ].map((item) => (
+                <div key={item.slot} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-950">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{item.helper}</p>
+                      {item.fileName ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-700">{item.fileName}</p>
+                      ) : (
+                        <p className="mt-2 text-xs font-semibold text-slate-500">No image uploaded.</p>
+                      )}
+                    </div>
+                    <input
+                      ref={item.inputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(event) => void handleProfileGuideUpload(event.target.files?.[0] ?? null, item.slot)}
+                    />
+                    <button
+                      type="button"
+                      disabled={profileGuideUploading !== null}
+                      onClick={() => item.inputRef.current?.click()}
+                      className="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {profileGuideUploading === item.slot ? "Uploading..." : item.url ? "Replace" : "Upload"}
+                    </button>
+                  </div>
+                  {item.url ? (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.url} alt={item.title} className="aspect-[4/5] w-full object-cover" />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
 

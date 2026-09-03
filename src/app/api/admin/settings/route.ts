@@ -48,6 +48,24 @@ interface PortalSettingsRecord {
     appBannersVisible: boolean;
     creatorBannersVisible: boolean;
   };
+  profilePhotoGuide: {
+    goodImage: {
+      active: boolean;
+      url: string;
+      path: string;
+      contentType: string;
+      fileName: string;
+      updatedAt: number;
+    };
+    badImage: {
+      active: boolean;
+      url: string;
+      path: string;
+      contentType: string;
+      fileName: string;
+      updatedAt: number;
+    };
+  };
   updatedAt: number;
   updatedByUid: string;
   updatedByEmail: string;
@@ -133,6 +151,24 @@ export async function GET(req: NextRequest) {
           settingsData.bannerVisibility?.creatorBannersVisible,
           true,
         ),
+      },
+      profilePhotoGuide: {
+        goodImage: {
+          active: boolValue(settingsData.profilePhotoGuide?.goodImage?.active, false),
+          url: stringValue(settingsData.profilePhotoGuide?.goodImage?.url),
+          path: stringValue(settingsData.profilePhotoGuide?.goodImage?.path),
+          contentType: stringValue(settingsData.profilePhotoGuide?.goodImage?.contentType),
+          fileName: stringValue(settingsData.profilePhotoGuide?.goodImage?.fileName),
+          updatedAt: Number(settingsData.profilePhotoGuide?.goodImage?.updatedAt || 0),
+        },
+        badImage: {
+          active: boolValue(settingsData.profilePhotoGuide?.badImage?.active, false),
+          url: stringValue(settingsData.profilePhotoGuide?.badImage?.url),
+          path: stringValue(settingsData.profilePhotoGuide?.badImage?.path),
+          contentType: stringValue(settingsData.profilePhotoGuide?.badImage?.contentType),
+          fileName: stringValue(settingsData.profilePhotoGuide?.badImage?.fileName),
+          updatedAt: Number(settingsData.profilePhotoGuide?.badImage?.updatedAt || 0),
+        },
       },
       landingPageTitle: stringValue(hero.title),
       landingPageSubtitle: stringValue(hero.subtitle),
