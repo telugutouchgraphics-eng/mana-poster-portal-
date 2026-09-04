@@ -661,6 +661,21 @@ async function resolveAudienceTargets(
       }
     }
 
+    if (
+      targetSegment === "non_subscribers" &&
+      !cleanLocationText(targetLocation.district) &&
+      !cleanLocationText(targetLocation.city) &&
+      targetLocation.regionIds.length === 0 &&
+      targetReligion === "all"
+    ) {
+      return {
+        mode: "topic" as const,
+        topic: "free_users",
+        userCount: 0,
+        targets: [],
+      };
+    }
+
     if (targetLocation.regionIds.length > 0) {
       if (targetSegment === "all_area_users") {
         const targets = await loadAreaPublicDeviceTokensForRegionIds(targetLocation);
