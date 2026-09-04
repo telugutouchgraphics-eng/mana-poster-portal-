@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/firebase/admin";
+import { Timestamp } from "firebase-admin/firestore";
 import { categoryLabelWithIcon } from "@/lib/category-display";
 import { CREATOR_ASSIGNABLE_CATEGORIES } from "@/lib/server/categories";
 import { roundCurrency } from "@/lib/server/earnings";
@@ -200,7 +201,8 @@ interface CachedSnapshot {
 }
 
 let memorySnapshotCache: CachedSnapshot | null = null;
-const SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes in-memory
+const FIRESTORE_SNAPSHOT_TTL_MS = 10 * 60 * 1000; // 10 minutes Firestore persistent cache
 
 export function invalidatePortalAnalyticsSnapshotCache(): void {
   memorySnapshotCache = null;
@@ -208,9 +210,31 @@ export function invalidatePortalAnalyticsSnapshotCache(): void {
 
 export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise<PortalAnalyticsSnapshot> {
   const now = Date.now();
+
+  // 1. In-memory cache — fastest, 0 Firestore reads
   if (!forceRefresh && memorySnapshotCache && now - memorySnapshotCache.cachedAt < SNAPSHOT_CACHE_TTL_MS) {
     return memorySnapshotCache.data;
   }
+
+  // 2. Firestore persistent cache — 1 read, works across all Cloud Run instances
+  if (!forceRefresh) {
+    try {
+      const fsCacheSnap = await adminDb.collection("system").doc("portalAnalyticsSnapshot").get();
+      if (fsCacheSnap.exists) {
+        const fsCacheData = fsCacheSnap.data() as Record<string, unknown>;
+        const cachedAt = typeof fsCacheData?.cachedAt === "number" ? fsCacheData.cachedAt : 0;
+        if (now - cachedAt < FIRESTORE_SNAPSHOT_TTL_MS && fsCacheData?.snapshot) {
+          const snapshot = fsCacheData.snapshot as PortalAnalyticsSnapshot;
+          memorySnapshotCache = { data: snapshot, cachedAt: now };
+          return snapshot;
+        }
+      }
+    } catch {
+      // Graceful fallback — continue to full Firestore read below
+    }
+  }
+
+  // 3. Full Firestore read — only runs when cache is stale or forceRefresh=true
   const [
     creatorSnap,
     posterSnap,
@@ -341,6 +365,14 @@ export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise
     data: snapshot,
     cachedAt: now,
   };
+
+  // 4. Write to Firestore persistent cache (fire-and-forget — does not block response)
+  // This allows ALL Cloud Run instances to reuse this snapshot for next 10 minutes (1 read instead of 11,000)
+  adminDb.collection("system").doc("portalAnalyticsSnapshot").set({
+    snapshot,
+    cachedAt: now,
+    updatedAt: Timestamp.now(),
+  }).catch(() => { /* ignore write errors — cache is best-effort */ });
 
   return snapshot;
 }
