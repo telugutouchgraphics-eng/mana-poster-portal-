@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/server/auth";
 import { assertPosterInScope } from "@/lib/server/manager-scope";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { deleteAdminAsset } from "@/lib/server/content-management";
+import { invalidatePortalAnalyticsSnapshotCache } from "@/lib/server/dashboard-metrics";
 import {
   CREATOR_ASSIGNABLE_CATEGORIES,
   canonicalCategoryId,
@@ -367,6 +368,8 @@ export async function POST(
         reviewComment: payload.reviewComment ?? "",
       },
     });
+
+    invalidatePortalAnalyticsSnapshotCache();
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -194,7 +194,23 @@ function isDashboardVisiblePoster(poster: PosterRecord, now: number): boolean {
   return baseTime <= 0 || baseTime + DASHBOARD_RETENTION_MS > now;
 }
 
-export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnapshot> {
+interface CachedSnapshot {
+  data: PortalAnalyticsSnapshot;
+  cachedAt: number;
+}
+
+let memorySnapshotCache: CachedSnapshot | null = null;
+const SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export function invalidatePortalAnalyticsSnapshotCache(): void {
+  memorySnapshotCache = null;
+}
+
+export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise<PortalAnalyticsSnapshot> {
+  const now = Date.now();
+  if (!forceRefresh && memorySnapshotCache && now - memorySnapshotCache.cachedAt < SNAPSHOT_CACHE_TTL_MS) {
+    return memorySnapshotCache.data;
+  }
   const [
     creatorSnap,
     posterSnap,
@@ -254,7 +270,6 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     };
   });
 
-  const now = Date.now();
   const posters = posterSnap.docs.map((doc) => {
     const data = doc.data();
     return {
@@ -288,7 +303,7 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     rejectedPosters: posters.filter((item) => item.status === "rejected").length,
   };
 
-  return {
+  const snapshot: PortalAnalyticsSnapshot = {
     overview,
     managers,
     creatorProfiles,
@@ -321,6 +336,13 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
       } satisfies PayoutRecord;
     }),
   };
+
+  memorySnapshotCache = {
+    data: snapshot,
+    cachedAt: now,
+  };
+
+  return snapshot;
 }
 
 export function buildCategoryPerformance(

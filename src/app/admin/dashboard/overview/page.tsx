@@ -272,26 +272,46 @@ export default function AdminOverviewPage() {
             </p>
           </div>
         </div>
-        <div className="mt-5 flex flex-col gap-2 sm:max-w-xs">
-          <label className="text-[11px] font-black uppercase tracking-[0.24em] text-white/75">
-            Overview Data
-          </label>
-          <select
-            value={overviewRegionId}
-            onChange={(event) => setOverviewRegionId(event.target.value)}
-            className="min-h-11 rounded-2xl border border-white/25 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none"
-            aria-label="Select overview state or union territory"
-          >
-            <option value="all">All States / UTs</option>
-            {regions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} - {item.primaryLanguage}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs font-semibold text-white/75">
-            Showing: {overviewRegionName}
-          </p>
+        <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-t border-white/15 pt-5">
+          <div className="flex flex-1 flex-col gap-2 sm:max-w-xs">
+            <label className="text-[11px] font-black uppercase tracking-[0.24em] text-white/75">
+              Overview Data
+            </label>
+            <select
+              value={overviewRegionId}
+              onChange={(event) => setOverviewRegionId(event.target.value)}
+              className="min-h-11 rounded-2xl border border-white/25 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none shadow-sm"
+              aria-label="Select overview state or union territory"
+            >
+              <option value="all">All States / UTs</option>
+              {regions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} - {item.primaryLanguage}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs font-semibold text-white/75">
+              Showing: {overviewRegionName}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void load(true)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-5 py-2.5 text-sm font-black text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-900 disabled:opacity-50"
+              disabled={loading}
+            >
+              🔄 {loading ? "Syncing..." : "Sync All Data"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void load(false)}
+              className="inline-flex min-h-11 items-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
+              disabled={loading}
+            >
+              {t("admin.overview.refresh", lang)}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -529,33 +549,13 @@ export default function AdminOverviewPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--portal-purple)]">
-                {t("admin.overview.uploadTrend", lang)}
-              </p>
-              <h3 className="mt-2 text-2xl font-bold text-slate-950">
-                {t("admin.overview.last7DaysUploads", lang)}
-              </h3>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void load(true)}
-                className="rounded-2xl border border-[var(--portal-purple)] bg-[var(--portal-purple)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-                disabled={loading}
-              >
-                🔄 {loading ? "Syncing..." : "Sync All Data"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void load(false)}
-                className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                disabled={loading}
-              >
-                {t("admin.overview.refresh", lang)}
-              </button>
-            </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--portal-purple)]">
+              {t("admin.overview.uploadTrend", lang)}
+            </p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-950">
+              {t("admin.overview.last7DaysUploads", lang)}
+            </h3>
           </div>
           <div className="mt-6 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-7 sm:gap-4 sm:overflow-visible sm:pb-0">
             {(data?.uploadsTrend ?? []).map((item) => (

@@ -301,7 +301,7 @@ function userReligionMatches(data: FirebaseFirestore.DocumentData, targetReligio
     return true;
   }
   const userReligion = cleanLocationText(data.religionPreference);
-  return userReligion === targetReligion || userReligion === "all";
+  return !userReligion || userReligion === targetReligion || userReligion === "all";
 }
 
 function hasActiveSubscriptionAccess(data: Record<string, unknown> | undefined, now = Date.now()) {
@@ -636,6 +636,31 @@ async function resolveAudienceTargets(
   const targetReligion = normalizeReligionTarget(targetLocation.religion);
   const targetSegment = normalizeAudienceSegment(targetLocation.segment);
   if (audience === "all_users") {
+    const isFullBroadcast =
+      targetSegment === "all_area_users" &&
+      !cleanLocationText(targetLocation.district) &&
+      !cleanLocationText(targetLocation.city);
+
+    if (isFullBroadcast) {
+      if (targetLocation.regionIds.length === 0) {
+        const topic = targetReligion === "all" ? "all_users" : `religion_${targetReligion}`;
+        return {
+          mode: "topic" as const,
+          topic,
+          userCount: 0,
+          targets: [],
+        };
+      }
+      if (targetLocation.regionIds.length === 1 && targetReligion === "all") {
+        return {
+          mode: "topic" as const,
+          topic: `region_${targetLocation.regionIds[0]}`,
+          userCount: 0,
+          targets: [],
+        };
+      }
+    }
+
     if (targetLocation.regionIds.length > 0) {
       if (targetSegment === "all_area_users") {
         const targets = await loadAreaPublicDeviceTokensForRegionIds(targetLocation);
@@ -777,6 +802,48 @@ export async function sendPushNotificationRecord(record: PushHistoryRecord) {
       religion: normalizeReligionTarget(record.targetReligion),
       segment: normalizeAudienceSegment(record.audienceSegment),
     });
+
+    if (target.mode === "topic") {
+      try {
+        await adminMessaging.send({
+          topic: target.topic,
+          data: dataPayload,
+          android: {
+            priority: "high",
+          },
+        });
+        const sentAt = Date.now();
+        await ref.set(
+          {
+            status: "sent",
+            sentAt,
+            expiresAt: null,
+            updatedAt: sentAt,
+            matchedUserCount: 1,
+            targetCount: 1,
+            deliveredCount: 1,
+            failedCount: 0,
+            errorMessage: "",
+          },
+          { merge: true },
+        );
+        return { targetCount: 1, deliveredCount: 1, failedCount: 0 };
+      } catch (error) {
+        const failedAt = Date.now();
+        const message = error instanceof Error ? error.message : "FCM topic broadcast failed.";
+        await ref.set(
+          {
+            status: "failed",
+            sentAt: failedAt,
+            expiresAt: null,
+            updatedAt: failedAt,
+            errorMessage: message,
+          },
+          { merge: true },
+        );
+        return { targetCount: 1, deliveredCount: 0, failedCount: 1 };
+      }
+    }
 
     const tokens = target.targets;
     if (tokens.length === 0) {

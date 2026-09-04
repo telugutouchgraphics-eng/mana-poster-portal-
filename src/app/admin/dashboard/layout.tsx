@@ -110,6 +110,11 @@ export default function AdminDashboardLayout({
       shortLabel: t("admin.nav.push", lang),
     },
     {
+      href: "/admin/dashboard/surveys",
+      label: isTelugu ? "యూజర్ సర్వేలు" : "User Surveys",
+      shortLabel: isTelugu ? "సర్వేలు" : "Surveys",
+    },
+    {
       href: "/admin/dashboard/reports",
       label: isTelugu ? "రిపోర్ట్స్" : "Reports",
       shortLabel: isTelugu ? "రిపోర్ట్స్" : "Reports",

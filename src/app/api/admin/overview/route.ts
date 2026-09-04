@@ -496,6 +496,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const now = Date.now();
+    const todayKey = dayKeyInIst(now);
+
+    // Read daily atomic install counter (1 single doc read = ₹0 cost)
+    try {
+      const dailyInstallSnap = await adminDb
+        .collection("system")
+        .doc("dailyInstallStats")
+        .collection("days")
+        .doc(todayKey)
+        .get();
+      if (dailyInstallSnap.exists) {
+        const atomicToday = Number(dailyInstallSnap.data()?.installs ?? 0);
+        if (atomicToday > (installMetrics?.todayInstalls ?? 0)) {
+          installMetrics = {
+            ...installMetrics,
+            todayInstalls: atomicToday,
+          };
+        }
+      }
+    } catch {
+      // Graceful fallback to cached install metrics
+    }
+
     const snapshot = await loadPortalAnalyticsSnapshot();
     const posters = showAllRegions
       ? snapshot.posters.filter((item) => allowedRegionIds.includes(item.regionId))
@@ -514,8 +538,6 @@ export async function GET(req: NextRequest) {
       : snapshot.managers.filter((item) =>
           assignedToRegion(item.assignedRegionIds, region?.id ?? ""),
         );
-    const now = Date.now();
-    const todayKey = dayKeyInIst(now);
     const banners = await loadAppBanners();
     const announcements = await loadCreatorAnnouncements();
     const activeAnnouncements = announcements.filter(
