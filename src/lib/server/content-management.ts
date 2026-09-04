@@ -74,7 +74,7 @@ export interface AdminPushNotificationRecord {
   imagePath: string;
   route: string;
   audience: "all_users" | "creators_only" | "area_users";
-  audienceSegment?: "all_area_users" | "daily_active_users" | "active_users" | "monthly_active_users" | "inactive_users" | "subscribers" | "non_subscribers";
+  audienceSegment?: "all_area_users" | "inactive_users" | "subscribers" | "non_subscribers";
   targetState?: string;
   targetRegionIds?: string[];
   targetDistrict?: string;

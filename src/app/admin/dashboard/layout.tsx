@@ -125,16 +125,6 @@ export default function AdminDashboardLayout({
       shortLabel: isTelugu ? "యూజర్స్" : "Users",
     },
     {
-      href: "/admin/dashboard/app-usage",
-      label: "App Usage",
-      shortLabel: "Usage",
-    },
-    {
-      href: "/admin/dashboard/app-users",
-      label: "Login Users",
-      shortLabel: "Logins",
-    },
-    {
       href: "/admin/dashboard/dashboard-access",
       label: t("admin.nav.dashboardAccess", lang),
       shortLabel: t("admin.nav.access", lang),

@@ -183,6 +183,8 @@ function buildCategoryLabelMap(): Record<string, string> {
 }
 
 const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DASHBOARD_METRICS_READ_LIMIT = 2000;
+const DASHBOARD_LEDGER_READ_LIMIT = 3000;
 
 function isDashboardVisiblePoster(poster: PosterRecord, now: number): boolean {
   if (poster.dashboardHiddenAt > 0) {
@@ -202,12 +204,12 @@ export async function loadPortalAnalyticsSnapshot(): Promise<PortalAnalyticsSnap
     multiRoleManagerSnap,
   ] =
     await Promise.all([
-      adminDb.collection("creatorProfiles").get(),
-      adminDb.collection("creatorPosters").get(),
-      adminDb.collection("creatorEarningLedger").get(),
-      adminDb.collection("creatorPayouts").get(),
-      adminDb.collection("users").where("role", "==", "manager").get(),
-      adminDb.collection("users").where("roles", "array-contains", "manager").get(),
+      adminDb.collection("creatorProfiles").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
+      adminDb.collection("creatorPosters").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
+      adminDb.collection("creatorEarningLedger").limit(DASHBOARD_LEDGER_READ_LIMIT).get(),
+      adminDb.collection("creatorPayouts").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
+      adminDb.collection("users").where("role", "==", "manager").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
+      adminDb.collection("users").where("roles", "array-contains", "manager").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
     ]);
 
   const managerIds = new Set<string>();

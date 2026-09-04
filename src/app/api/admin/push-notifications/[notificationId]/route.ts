@@ -15,9 +15,6 @@ function trimValue(value: unknown) {
 function normalizeAudienceSegment(value: unknown): PushAudienceSegment {
   const normalized = trimValue(value);
   if (
-    normalized === "daily_active_users" ||
-    normalized === "active_users" ||
-    normalized === "monthly_active_users" ||
     normalized === "inactive_users" ||
     normalized === "subscribers" ||
     normalized === "non_subscribers"

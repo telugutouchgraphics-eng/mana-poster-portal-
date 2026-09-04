@@ -20,9 +20,6 @@ const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const AUDIENCE_OPTIONS = new Set<PushAudience>(["area_users", "all_users"]);
 const AUDIENCE_SEGMENT_OPTIONS = new Set<PushAudienceSegment>([
   "all_area_users",
-  "daily_active_users",
-  "active_users",
-  "monthly_active_users",
   "inactive_users",
   "subscribers",
   "non_subscribers",

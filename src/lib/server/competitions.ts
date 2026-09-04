@@ -237,7 +237,7 @@ function buildLeaderboardRows(
 }
 
 export async function loadCompetitions(): Promise<CompetitionRecord[]> {
-  const snap = await adminDb.collection("competitions").get();
+  const snap = await adminDb.collection("competitions").limit(200).get();
   return snap.docs
     .map((doc) => {
       const data = doc.data();

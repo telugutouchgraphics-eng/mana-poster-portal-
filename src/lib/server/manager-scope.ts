@@ -6,6 +6,8 @@ import {
   sanitizeDashboardRegionIds,
 } from "@/lib/server/region-scope";
 
+const SCOPED_CREATOR_PROFILE_READ_LIMIT = 1000;
+
 function isAdmin(actor: RequestUser): boolean {
   return actor.roles.includes("admin");
 }
@@ -35,13 +37,24 @@ export async function loadScopedCreatorProfiles(actor: RequestUser) {
   };
 
   if (isAdmin(actor)) {
-    const snapshot = await adminDb.collection("creatorProfiles").get();
+    const snapshot = await adminDb
+      .collection("creatorProfiles")
+      .limit(SCOPED_CREATOR_PROFILE_READ_LIMIT)
+      .get();
     return filterByActorRegions(snapshot.docs);
   }
 
   const [directManagerSnap, assignedBySnap] = await Promise.all([
-    adminDb.collection("creatorProfiles").where("managerUid", "==", actor.uid).get(),
-    adminDb.collection("creatorProfiles").where("assignedByUid", "==", actor.uid).get(),
+    adminDb
+      .collection("creatorProfiles")
+      .where("managerUid", "==", actor.uid)
+      .limit(SCOPED_CREATOR_PROFILE_READ_LIMIT)
+      .get(),
+    adminDb
+      .collection("creatorProfiles")
+      .where("assignedByUid", "==", actor.uid)
+      .limit(SCOPED_CREATOR_PROFILE_READ_LIMIT)
+      .get(),
   ]);
   const docs = new Map<string, (typeof directManagerSnap.docs)[number]>();
   for (const doc of directManagerSnap.docs) {

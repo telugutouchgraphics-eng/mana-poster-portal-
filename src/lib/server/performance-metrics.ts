@@ -2,6 +2,9 @@ import { adminDb } from "@/lib/firebase/admin";
 import { categoryLabelWithIcon } from "@/lib/category-display";
 import { getIstDayKey } from "@/lib/server/ist-schedule";
 
+const PERFORMANCE_STATS_READ_LIMIT = 3000;
+const PERFORMANCE_POSTERS_READ_LIMIT = 2000;
+
 export interface DailyPosterMetric {
   creatorPublicId: string;
   regionId: string;
@@ -93,8 +96,8 @@ export async function loadDailyPosterMetrics(
   }
 
   const [statsSnap, posterSnap] = await Promise.all([
-    adminDb.collection("creatorPosterDailyStats").get(),
-    adminDb.collection("creatorPosters").get(),
+    adminDb.collection("creatorPosterDailyStats").limit(PERFORMANCE_STATS_READ_LIMIT).get(),
+    adminDb.collection("creatorPosters").limit(PERFORMANCE_POSTERS_READ_LIMIT).get(),
   ]);
 
   const creatorSet = new Set(creatorPublicIds);
@@ -175,8 +178,8 @@ export async function loadActivePosterPerformanceMetrics(
   regionId?: string | null,
 ): Promise<RecentPosterPerformanceMetric[]> {
   const [statsSnap, posterSnap] = await Promise.all([
-    adminDb.collection("creatorPosterDailyStats").get(),
-    adminDb.collection("creatorPosters").get(),
+    adminDb.collection("creatorPosterDailyStats").limit(PERFORMANCE_STATS_READ_LIMIT).get(),
+    adminDb.collection("creatorPosters").limit(PERFORMANCE_POSTERS_READ_LIMIT).get(),
   ]);
 
   const selectedRegionId = String(regionId ?? "").trim();

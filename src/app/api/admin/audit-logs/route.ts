@@ -3,6 +3,8 @@ import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
+const AUDIT_LOG_READ_LIMIT = 500;
+
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
@@ -16,7 +18,11 @@ export async function GET(req: NextRequest) {
       Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20),
     );
 
-    const snap = await adminDb.collection("adminAuditLogs").get();
+    const snap = await adminDb
+      .collection("adminAuditLogs")
+      .orderBy("createdAt", "desc")
+      .limit(AUDIT_LOG_READ_LIMIT)
+      .get();
     const filteredRows = snap.docs
       .map((doc) => {
         const data = doc.data();

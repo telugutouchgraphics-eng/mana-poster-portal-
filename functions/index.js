@@ -23,8 +23,6 @@ const DELETE_BATCH_SIZE = 25;
 const SCHEDULE = process.env.STORAGE_CLEANUP_SCHEDULE || "0 3 * * *";
 const SCHEDULE_TIME_ZONE =
   process.env.STORAGE_CLEANUP_TIME_ZONE || "Asia/Kolkata";
-const PUSH_HISTORY_CLEANUP_SCHEDULE =
-  process.env.PUSH_HISTORY_CLEANUP_SCHEDULE || "every 60 minutes";
 
 function normalizePath(value) {
   if (typeof value !== "string") {
@@ -609,51 +607,6 @@ async function flushDeletes(filesToDelete, stats) {
     });
   });
 }
-
-async function deletePushHistoryDocuments(documents) {
-  void documents;
-  return {
-    deleted: 0,
-    imageDeletes: 0,
-    imageDeleteErrors: 0,
-    documentDeleteErrors: 0,
-  };
-}
-
-async function loadExpiredPushHistoryDocuments(cutoffMs, limit) {
-  void cutoffMs;
-  void limit;
-  return [];
-}
-
-exports.cleanupExpiredPushNotificationHistory = onSchedule(
-  {
-    schedule: PUSH_HISTORY_CLEANUP_SCHEDULE,
-    timeZone: SCHEDULE_TIME_ZONE,
-    region: "asia-south1",
-    memory: "256MiB",
-    timeoutSeconds: 300,
-  },
-  async () => {
-    const startedAt = Date.now();
-    const cutoffMs = startedAt;
-    const expiredDocuments = await loadExpiredPushHistoryDocuments(
-      cutoffMs,
-      FIRESTORE_PAGE_SIZE,
-    );
-    const deleteSummary = await deletePushHistoryDocuments(expiredDocuments);
-    const summary = {
-      retention: "manual_delete_only",
-      cutoffIso: new Date(cutoffMs).toISOString(),
-      scanned: expiredDocuments.length,
-      ...deleteSummary,
-      durationMs: Date.now() - startedAt,
-    };
-
-    logger.info("Push notification history cleanup completed.", summary);
-    return null;
-  },
-);
 
 async function scanPrefixForExpiredFiles(
   bucket,

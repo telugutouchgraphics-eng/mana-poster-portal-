@@ -21,14 +21,23 @@ interface RawDashboardAdminDoc {
   assignedRegionIds?: unknown;
 }
 
+const DASHBOARD_ACCESS_READ_LIMIT = 500;
+
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
     const actorAllowedRegionIds = await loadActorAllowedRegionIds(actor);
     const actorIsPermanent = isPermanentDashboardAdminEmail(actor.email);
-    const snapshot = await adminDb.collection("users").get();
+    const [roleAdminSnap, managedAdminSnap] = await Promise.all([
+      adminDb.collection("users").where("role", "==", "admin").limit(DASHBOARD_ACCESS_READ_LIMIT).get(),
+      adminDb.collection("users").where("dashboardAdminManaged", "==", true).limit(DASHBOARD_ACCESS_READ_LIMIT).get(),
+    ]);
+    const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const doc of [...roleAdminSnap.docs, ...managedAdminSnap.docs]) {
+      docs.set(doc.id, doc);
+    }
 
-    const admins = snapshot.docs
+    const admins = Array.from(docs.values())
       .map((doc) => ({
         uid: doc.id,
         ...(doc.data() as RawDashboardAdminDoc),

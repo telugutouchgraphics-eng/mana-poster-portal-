@@ -39,9 +39,6 @@ interface PushNotificationItem {
 
 type AudienceSegment =
   | "all_area_users"
-  | "daily_active_users"
-  | "active_users"
-  | "monthly_active_users"
   | "inactive_users"
   | "subscribers"
   | "non_subscribers";
@@ -419,18 +416,12 @@ export default function AdminPushNotificationsPage() {
       return "All installed app devices";
     }
     switch (segment) {
-      case "daily_active_users":
-        return "Daily active users";
-      case "active_users":
-        return "Weekly active users";
-      case "monthly_active_users":
-        return "Monthly active users";
-      case "inactive_users":
-        return "Non-active users";
       case "subscribers":
         return "Subscribers";
       case "non_subscribers":
         return "Non-subscribers";
+      case "inactive_users":
+        return "Inactive users";
       default:
         return "All selected users";
     }
@@ -493,10 +484,7 @@ export default function AdminPushNotificationsPage() {
                 className="w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
               >
                 <option value="area_users">Selected State / UT users</option>
-                <option value="daily_active_users">{audienceOptionLabel("daily_active_users", "Daily active users - last 24 hours")}</option>
-                <option value="active_users">{audienceOptionLabel("active_users", "Weekly active users - last 7 days")}</option>
-                <option value="monthly_active_users">{audienceOptionLabel("monthly_active_users", "Monthly active users - last 30 days")}</option>
-                <option value="inactive_users">{audienceOptionLabel("inactive_users", "Non-active users - not active in last 7 days")}</option>
+                <option value="inactive_users">{audienceOptionLabel("inactive_users", "Inactive users - last 7 days")}</option>
                 <option value="subscribers">{audienceOptionLabel("subscribers", "Subscribers only")}</option>
                 <option value="non_subscribers">{audienceOptionLabel("non_subscribers", "Non-subscribers only")}</option>
                 {audiences.includes("all_users") ? (
@@ -515,10 +503,7 @@ export default function AdminPushNotificationsPage() {
                 <option value="all_area_users">{audienceOptionLabel("all_area_users", "All selected State / UT devices")}</option>
                 {audience === "area_users" ? (
                   <>
-                    <option value="daily_active_users">{audienceOptionLabel("daily_active_users", "Daily active users - last 24 hours")}</option>
-                    <option value="active_users">{audienceOptionLabel("active_users", "Weekly active users - last 7 days")}</option>
-                    <option value="monthly_active_users">{audienceOptionLabel("monthly_active_users", "Monthly active users - last 30 days")}</option>
-                    <option value="inactive_users">{audienceOptionLabel("inactive_users", "Non-active users - not active in last 7 days")}</option>
+                    <option value="inactive_users">{audienceOptionLabel("inactive_users", "Inactive users - last 7 days")}</option>
                     <option value="subscribers">{audienceOptionLabel("subscribers", "Subscribers only")}</option>
                     <option value="non_subscribers">{audienceOptionLabel("non_subscribers", "Non-subscribers only")}</option>
                   </>

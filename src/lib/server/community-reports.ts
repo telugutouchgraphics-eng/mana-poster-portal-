@@ -4,6 +4,8 @@ import { sendPortalMail } from "@/lib/server/mail";
 import { RequestUser } from "@/lib/server/auth";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
 
+const COMMUNITY_REPORT_READ_LIMIT = 500;
+
 export type CommunityReportStatus = "open" | "closed";
 
 export interface CommunityReportRow {
@@ -98,7 +100,11 @@ export async function listCommunityReports(input: {
   const status = cleanStatus(input.status ?? "open");
   const q = (input.q ?? "").trim().toLowerCase();
   const regionId = String(input.regionId ?? "").trim();
-  const snap = await adminDb.collection("communityContentReports").get();
+  const snap = await adminDb
+    .collection("communityContentReports")
+    .orderBy("reportedAt", "desc")
+    .limit(COMMUNITY_REPORT_READ_LIMIT)
+    .get();
 
   return snap.docs
     .map(rowFromDoc)

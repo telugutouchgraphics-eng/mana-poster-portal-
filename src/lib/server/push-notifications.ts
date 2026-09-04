@@ -5,18 +5,15 @@ import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 export type PushAudience = "all_users" | "creators_only" | "area_users";
 export type PushAudienceSegment =
   | "all_area_users"
-  | "daily_active_users"
-  | "active_users"
-  | "monthly_active_users"
   | "inactive_users"
   | "subscribers"
   | "non_subscribers";
 export type PushReligionTarget = "all" | "hindu" | "muslim" | "christian";
 export type PushStatus = "scheduled" | "sent" | "failed" | "processing";
 const PUSH_PROCESSING_RETRY_AFTER_MS = 2 * 60 * 1000;
-const DAILY_ACTIVE_USER_WINDOW_MS = 24 * 60 * 60 * 1000;
-const ACTIVE_USER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const MONTHLY_ACTIVE_USER_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const INACTIVE_USER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const PUSH_AUDIENCE_USER_READ_LIMIT = 5000;
+const PUSH_AUDIENCE_TOKEN_READ_LIMIT = 5000;
 
 export interface PushTemplateOption {
   id: "morning" | "afternoon" | "night";
@@ -166,7 +163,7 @@ async function tokenBelongsToUid(token: string, uid: string) {
 
 async function loadAllUserUidsForReligion(targetReligion: PushReligionTarget): Promise<string[]> {
   const normalizedReligion = normalizeReligionTarget(targetReligion);
-  const snap = await adminDb.collection("users").get();
+  const snap = await adminDb.collection("users").limit(PUSH_AUDIENCE_USER_READ_LIMIT).get();
   return snap.docs
     .filter((doc) => userReligionMatches(doc.data(), normalizedReligion))
     .map((doc) => doc.id);
@@ -174,8 +171,8 @@ async function loadAllUserUidsForReligion(targetReligion: PushReligionTarget): P
 
 async function loadCreatorUids(targetReligion: PushReligionTarget = "all"): Promise<string[]> {
   const [primarySnap, rolesSnap] = await Promise.all([
-    adminDb.collection("users").where("role", "==", "creator").get(),
-    adminDb.collection("users").where("roles", "array-contains", "creator").get(),
+    adminDb.collection("users").where("role", "==", "creator").limit(PUSH_AUDIENCE_USER_READ_LIMIT).get(),
+    adminDb.collection("users").where("roles", "array-contains", "creator").limit(PUSH_AUDIENCE_USER_READ_LIMIT).get(),
   ]);
   const normalizedReligion = normalizeReligionTarget(targetReligion);
   const ids = new Set<string>();
@@ -190,8 +187,13 @@ async function loadCreatorUids(targetReligion: PushReligionTarget = "all"): Prom
 
 async function loadUserDeviceTokens(userIds: string[]) {
   const tokens: Array<{ token: string; refPath?: string }> = [];
-  for (const uid of userIds) {
-    const snap = await adminDb.collection("users").doc(uid).collection("deviceTokens").get();
+  for (const uid of userIds.slice(0, PUSH_AUDIENCE_USER_READ_LIMIT)) {
+    const snap = await adminDb
+      .collection("users")
+      .doc(uid)
+      .collection("deviceTokens")
+      .limit(10)
+      .get();
     for (const doc of snap.docs) {
       const data = doc.data() || {};
       const token = trimValue(data.token);
@@ -214,7 +216,10 @@ async function loadUserDeviceTokens(userIds: string[]) {
 async function loadPublicDeviceTokensForReligion(targetReligion: PushReligionTarget) {
   const target = normalizeReligionTarget(targetReligion);
   const tokens: Array<{ token: string; refPath?: string }> = [];
-  const snap = await adminDb.collection("publicDeviceTokens").get();
+  const snap = await adminDb
+    .collection("publicDeviceTokens")
+    .limit(PUSH_AUDIENCE_TOKEN_READ_LIMIT)
+    .get();
   for (const doc of snap.docs) {
     const data = doc.data() || {};
     const token = trimValue(data.token);
@@ -282,9 +287,6 @@ function normalizeReligionTarget(value: unknown): PushReligionTarget {
 function normalizeAudienceSegment(value: unknown): PushAudienceSegment {
   const normalized = cleanLocationText(value);
   if (
-    normalized === "daily_active_users" ||
-    normalized === "active_users" ||
-    normalized === "monthly_active_users" ||
     normalized === "inactive_users" ||
     normalized === "subscribers" ||
     normalized === "non_subscribers"
@@ -310,26 +312,35 @@ function hasActiveSubscriptionAccess(data: Record<string, unknown> | undefined, 
   return expiryMillis <= 0 || expiryMillis > now;
 }
 
-async function loadActiveUserUidSet(userIds: string[], windowMs = ACTIVE_USER_WINDOW_MS) {
-  if (userIds.length === 0) {
-    return new Set<string>();
-  }
-  const allowed = new Set(userIds);
-  const activeSince = Date.now() - windowMs;
-  const active = new Set<string>();
-  const snap = await adminDb.collectionGroup("activeSession").get();
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    const uid = trimValue(data.uid || doc.ref.parent.parent?.id);
-    if (!uid || !allowed.has(uid)) {
+function userActivityMillis(data: FirebaseFirestore.DocumentData) {
+  return Math.max(
+    readTimestampMillis(data.lastLoginAt),
+    readTimestampMillis(data.lastActiveAt),
+    readTimestampMillis(data.updatedAt),
+    readTimestampMillis(data.createdAt),
+  );
+}
+
+async function loadInactiveUserUidSet(userIds: string[]) {
+  const inactive = new Set<string>();
+  const uniqueIds = Array.from(new Set(userIds.map((uid) => trimValue(uid)).filter(Boolean)));
+  const inactiveBefore = Date.now() - INACTIVE_USER_WINDOW_MS;
+  for (let index = 0; index < uniqueIds.length; index += 300) {
+    const group = uniqueIds.slice(index, index + 300);
+    if (group.length === 0) {
       continue;
     }
-    const updatedAt = readTimestampMillis(data.updatedAt);
-    if (updatedAt >= activeSince) {
-      active.add(uid);
-    }
+    const refs = group.map((uid) => adminDb.collection("users").doc(uid));
+    const snaps = await adminDb.getAll(...refs);
+    snaps.forEach((snap, offset) => {
+      const uid = group[offset];
+      const lastActivity = userActivityMillis(snap.data() || {});
+      if (lastActivity <= 0 || lastActivity < inactiveBefore) {
+        inactive.add(uid);
+      }
+    });
   }
-  return active;
+  return inactive;
 }
 
 async function loadSubscribedUserUidSet(userIds: string[]) {
@@ -358,17 +369,9 @@ async function applyAudienceSegment(
   if (segment === "all_area_users") {
     return uniqueIds;
   }
-  if (segment === "daily_active_users" || segment === "active_users" || segment === "monthly_active_users" || segment === "inactive_users") {
-    const windowMs =
-      segment === "daily_active_users"
-        ? DAILY_ACTIVE_USER_WINDOW_MS
-        : segment === "monthly_active_users"
-          ? MONTHLY_ACTIVE_USER_WINDOW_MS
-          : ACTIVE_USER_WINDOW_MS;
-    const active = await loadActiveUserUidSet(uniqueIds, windowMs);
-    return uniqueIds.filter((uid) =>
-      segment === "inactive_users" ? !active.has(uid) : active.has(uid),
-    );
+  if (segment === "inactive_users") {
+    const inactive = await loadInactiveUserUidSet(uniqueIds);
+    return uniqueIds.filter((uid) => inactive.has(uid));
   }
   const subscribed = await loadSubscribedUserUidSet(uniqueIds);
   return uniqueIds.filter((uid) =>
@@ -393,23 +396,18 @@ export async function countPushAudienceSegments(targetLocation: {
         .filter(Boolean),
     ),
   );
-  const [allAreaTargets, dailyActive, weeklyActive, monthlyActive, subscribed] = await Promise.all([
+  const [allAreaTargets, inactive, subscribed] = await Promise.all([
     loadAreaPublicDeviceTokensForRegionIds({
       ...targetLocation,
       religion: normalizeReligionTarget(targetLocation.religion),
     }),
-    loadActiveUserUidSet(baseUserIds, DAILY_ACTIVE_USER_WINDOW_MS),
-    loadActiveUserUidSet(baseUserIds, ACTIVE_USER_WINDOW_MS),
-    loadActiveUserUidSet(baseUserIds, MONTHLY_ACTIVE_USER_WINDOW_MS),
+    loadInactiveUserUidSet(baseUserIds),
     loadSubscribedUserUidSet(baseUserIds),
   ]);
 
   return {
     all_area_users: allAreaTargets.length,
-    daily_active_users: dailyActive.size,
-    active_users: weeklyActive.size,
-    monthly_active_users: monthlyActive.size,
-    inactive_users: baseUserIds.filter((uid) => !weeklyActive.has(uid)).length,
+    inactive_users: inactive.size,
     subscribers: subscribed.size,
     non_subscribers: baseUserIds.filter((uid) => !subscribed.has(uid)).length,
   } satisfies Record<PushAudienceSegment, number>;
@@ -461,17 +459,35 @@ async function loadAreaUserUidsForRegionIds(target: {
   const snapshots: FirebaseFirestore.QuerySnapshot[] = [];
   if (targetRegionIds.length > 0) {
     for (const group of chunk(targetRegionIds, 30)) {
-      snapshots.push(await adminDb.collection("users").where("selectedRegion", "in", group).get());
+      snapshots.push(
+        await adminDb
+          .collection("users")
+          .where("selectedRegion", "in", group)
+          .limit(PUSH_AUDIENCE_USER_READ_LIMIT)
+          .get(),
+      );
     }
   } else {
-    snapshots.push(await adminDb.collection("users").get());
+    snapshots.push(await adminDb.collection("users").limit(PUSH_AUDIENCE_USER_READ_LIMIT).get());
   }
   if (targetRegionId) {
-    snapshots.push(await adminDb.collection("users").where("selectedRegionName", "==", target.state).get());
+    snapshots.push(
+      await adminDb
+        .collection("users")
+        .where("selectedRegionName", "==", target.state)
+        .limit(PUSH_AUDIENCE_USER_READ_LIMIT)
+        .get(),
+    );
   }
   if (targetRegionNames.length > 0) {
     for (const group of chunk(targetRegionNames, 30)) {
-      snapshots.push(await adminDb.collection("users").where("selectedRegionName", "in", group).get());
+      snapshots.push(
+        await adminDb
+          .collection("users")
+          .where("selectedRegionName", "in", group)
+          .limit(PUSH_AUDIENCE_USER_READ_LIMIT)
+          .get(),
+      );
     }
   }
   const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
@@ -538,17 +554,40 @@ async function loadAreaPublicDeviceTokensForRegionIds(target: {
   const snapshots: FirebaseFirestore.QuerySnapshot[] = [];
   if (targetRegionIds.length > 0) {
     for (const group of chunk(targetRegionIds, 30)) {
-      snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegion", "in", group).get());
+      snapshots.push(
+        await adminDb
+          .collection("publicDeviceTokens")
+          .where("selectedRegion", "in", group)
+          .limit(PUSH_AUDIENCE_TOKEN_READ_LIMIT)
+          .get(),
+      );
     }
   } else {
-    snapshots.push(await adminDb.collection("publicDeviceTokens").get());
+    snapshots.push(
+      await adminDb
+        .collection("publicDeviceTokens")
+        .limit(PUSH_AUDIENCE_TOKEN_READ_LIMIT)
+        .get(),
+    );
   }
   if (targetRegionId) {
-    snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegionName", "==", target.state).get());
+    snapshots.push(
+      await adminDb
+        .collection("publicDeviceTokens")
+        .where("selectedRegionName", "==", target.state)
+        .limit(PUSH_AUDIENCE_TOKEN_READ_LIMIT)
+        .get(),
+    );
   }
   if (targetRegionNames.length > 0) {
     for (const group of chunk(targetRegionNames, 30)) {
-      snapshots.push(await adminDb.collection("publicDeviceTokens").where("selectedRegionName", "in", group).get());
+      snapshots.push(
+        await adminDb
+          .collection("publicDeviceTokens")
+          .where("selectedRegionName", "in", group)
+          .limit(PUSH_AUDIENCE_TOKEN_READ_LIMIT)
+          .get(),
+      );
     }
   }
 

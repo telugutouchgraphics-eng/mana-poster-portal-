@@ -26,6 +26,8 @@ const regionRequestSchema = z.object({
   regionIds: z.array(z.string().trim()).min(1),
 });
 
+const DASHBOARD_ADMIN_CHECK_READ_LIMIT = 500;
+
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ adminUid: string }> },
@@ -217,8 +219,15 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "Dashboard admin access not found." }, { status: 404 });
     }
 
-    const allUsers = await adminDb.collection("users").get();
-    const activeAdminCount = allUsers.docs.filter((doc) => {
+    const [roleAdminSnap, rolesAdminSnap] = await Promise.all([
+      adminDb.collection("users").where("role", "==", "admin").limit(DASHBOARD_ADMIN_CHECK_READ_LIMIT).get(),
+      adminDb.collection("users").where("roles", "array-contains", "admin").limit(DASHBOARD_ADMIN_CHECK_READ_LIMIT).get(),
+    ]);
+    const adminDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const doc of [...roleAdminSnap.docs, ...rolesAdminSnap.docs]) {
+      adminDocs.set(doc.id, doc);
+    }
+    const activeAdminCount = Array.from(adminDocs.values()).filter((doc) => {
       const data = doc.data();
       const roles = mergeRoles(
         normalizeRoles(data.roles),

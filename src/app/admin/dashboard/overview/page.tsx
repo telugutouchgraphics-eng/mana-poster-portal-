@@ -150,16 +150,19 @@ export default function AdminOverviewPage() {
       ? "All States / UTs"
       : regions.find((item) => item.id === overviewRegionId)?.name ?? region.name;
 
-  async function load() {
+  async function load(forceRefresh = false) {
     const token = await user?.getIdToken();
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/overview?regionId=${encodeURIComponent(overviewRegionId)}`, {
-        headers: { authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/admin/overview?regionId=${encodeURIComponent(overviewRegionId)}${forceRefresh ? "&forceRefresh=true" : ""}`,
+        {
+          headers: { authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
+      );
       const payload = (await response.json()) as AdminOverviewResponse;
       if (!response.ok || !payload.ok || !payload.headline) {
         throw new Error(payload.error ?? t("admin.overview.unableLoad", lang));
@@ -535,12 +538,24 @@ export default function AdminOverviewPage() {
                 {t("admin.overview.last7DaysUploads", lang)}
               </h3>
             </div>
-            <button
-              onClick={() => void load()}
-              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              {t("admin.overview.refresh", lang)}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                className="rounded-2xl border border-[var(--portal-purple)] bg-[var(--portal-purple)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                disabled={loading}
+              >
+                🔄 {loading ? "Syncing..." : "Sync All Data"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void load(false)}
+                className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                disabled={loading}
+              >
+                {t("admin.overview.refresh", lang)}
+              </button>
+            </div>
           </div>
           <div className="mt-6 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-7 sm:gap-4 sm:overflow-visible sm:pb-0">
             {(data?.uploadsTrend ?? []).map((item) => (

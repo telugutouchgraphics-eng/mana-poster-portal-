@@ -50,3 +50,5 @@ next-env.d.ts
 
 # Local debug artifacts
 firebase-debug.log
+.codex_tmp/
+

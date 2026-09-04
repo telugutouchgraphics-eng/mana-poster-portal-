@@ -1,5 +1,8 @@
 import { adminDb } from "@/lib/firebase/admin";
 
+const LOCATION_INSIGHTS_USER_READ_LIMIT = 2000;
+const LOCATION_INSIGHTS_REPORT_READ_LIMIT = 1000;
+
 export interface LocationInsightRow {
   key: string;
   state: string;
@@ -72,8 +75,8 @@ export async function getLocationInsights(allowedStateNames?: Set<string>) {
   const lastSevenDays = now - 7 * 24 * 60 * 60 * 1000;
 
   const [usersSnap, reportsSnap] = await Promise.all([
-    adminDb.collection("users").get(),
-    adminDb.collection("communityContentReports").get(),
+    adminDb.collection("users").limit(LOCATION_INSIGHTS_USER_READ_LIMIT).get(),
+    adminDb.collection("communityContentReports").limit(LOCATION_INSIGHTS_REPORT_READ_LIMIT).get(),
   ]);
 
   usersSnap.docs.forEach((doc) => {
