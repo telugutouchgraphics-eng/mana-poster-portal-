@@ -238,7 +238,6 @@ export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise
   const [
     creatorSnap,
     posterSnap,
-    ledgerSnap,
     payoutSnap,
     primaryManagerSnap,
     multiRoleManagerSnap,
@@ -246,7 +245,7 @@ export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise
     await Promise.all([
       adminDb.collection("creatorProfiles").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
       adminDb.collection("creatorPosters").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
-      adminDb.collection("creatorEarningLedger").limit(DASHBOARD_LEDGER_READ_LIMIT).get(),
+      // creatorEarningLedger intentionally skipped — no route uses snapshot.ledger (saves 3000 reads)
       adminDb.collection("creatorPayouts").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
       adminDb.collection("users").where("role", "==", "manager").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
       adminDb.collection("users").where("roles", "array-contains", "manager").limit(DASHBOARD_METRICS_READ_LIMIT).get(),
@@ -332,22 +331,7 @@ export async function loadPortalAnalyticsSnapshot(forceRefresh = false): Promise
     managers,
     creatorProfiles,
     posters,
-    ledger: ledgerSnap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        type: String(data.type ?? "sale") === "payout" ? "payout" : "sale",
-        posterId: String(data.posterId ?? ""),
-        creatorPublicId: String(data.creatorPublicId ?? ""),
-        categoryId: String(data.categoryId ?? ""),
-        categoryLabel: String(data.categoryLabel ?? ""),
-        grossAmount: readNumber(data.grossAmount),
-        creatorAmount: readNumber(data.creatorAmount),
-        platformAmount: readNumber(data.platformAmount),
-        note: String(data.note ?? ""),
-        createdAt: readNumber(data.createdAt),
-      } satisfies LedgerRecord;
-    }),
+    ledger: [], // Not loaded in snapshot — query creatorEarningLedger directly when needed
     payouts: payoutSnap.docs.map((doc) => {
       const data = doc.data();
       return {
