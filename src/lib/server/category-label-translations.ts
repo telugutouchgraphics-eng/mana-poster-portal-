@@ -43,10 +43,13 @@ function sanitizeLabelsByLanguage(input: unknown): CategoryLabelsByLanguage {
 }
 
 async function translateLabel(label: string, targetLanguage: string): Promise<string> {
+  // Google GTX translation endpoint does not support 'ks' (Kashmiri) directly;
+  // Kashmiri uses the Perso-Arabic script in J&K, so fallback to 'ur' (Urdu).
+  const effectiveLang = targetLanguage === "ks" ? "ur" : targetLanguage;
   const url = new URL("https://translate.googleapis.com/translate_a/single");
   url.searchParams.set("client", "gtx");
   url.searchParams.set("sl", "auto");
-  url.searchParams.set("tl", targetLanguage);
+  url.searchParams.set("tl", effectiveLang);
   url.searchParams.set("dt", "t");
   url.searchParams.set("q", label);
 
