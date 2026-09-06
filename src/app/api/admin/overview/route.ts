@@ -149,30 +149,20 @@ function hasPaidSubscriptionHistory(data: Record<string, unknown> | undefined) {
 
 
 // Paginate through ALL users — no limit
-async function loadAllUserDocsForRegions(regionIds: string[]) {
-  const targetRegionIds = Array.from(new Set(regionIds.map((item) => item.trim()).filter(Boolean)));
-  if (targetRegionIds.length === 0) return [];
-
+async function loadAllUserDocsForRegions(_regionIds: string[]) {
   const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   const PAGE_SIZE = 500;
-
-  for (let i = 0; i < targetRegionIds.length; i += 10) {
-    const group = targetRegionIds.slice(i, i + 10);
-    if (group.length === 0) continue;
-
-    let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
-    while (true) {
-      let query = adminDb
-        .collection("users")
-        .where("selectedRegion", "in", group)
-        .orderBy("__name__")
-        .limit(PAGE_SIZE);
-      if (lastDoc) query = query.startAfter(lastDoc);
-      const snap = await query.get();
-      snap.docs.forEach((doc) => docs.set(doc.id, doc));
-      if (snap.docs.length < PAGE_SIZE) break;
-      lastDoc = snap.docs[snap.docs.length - 1];
-    }
+  let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  while (true) {
+    let query = adminDb
+      .collection("users")
+      .orderBy("__name__")
+      .limit(PAGE_SIZE);
+    if (lastDoc) query = query.startAfter(lastDoc);
+    const snap = await query.get();
+    snap.docs.forEach((doc) => docs.set(doc.id, doc));
+    if (snap.docs.length < PAGE_SIZE) break;
+    lastDoc = snap.docs[snap.docs.length - 1];
   }
   return Array.from(docs.values());
 }
@@ -209,12 +199,20 @@ function loadInstallMetrics(
     ]),
   );
 
+  const otherRow = {
+    regionId: "other",
+    regionName: "Other / General",
+    totalInstalls: 0,
+    todayInstalls: 0,
+    todayActive: 0,
+    last7DaysActive: 0,
+  };
+
   if (userDocs && userDocs.length > 0) {
     userDocs.forEach((doc) => {
       const data = doc.data();
       const regionId = String(data.selectedRegion ?? "").trim();
-      const row = byRegion.get(regionId);
-      if (!row) return;
+      const row = byRegion.get(regionId) ?? otherRow;
 
       row.totalInstalls += 1;
 
@@ -246,7 +244,12 @@ function loadInstallMetrics(
     });
   }
 
-  const rows = Array.from(byRegion.values()).sort((a, b) => b.totalInstalls - a.totalInstalls);
+  const rows = Array.from(byRegion.values());
+  if (otherRow.totalInstalls > 0) {
+    rows.push(otherRow);
+  }
+  rows.sort((a, b) => b.totalInstalls - a.totalInstalls);
+
   return {
     totalInstalls: rows.reduce((sum, r) => sum + r.totalInstalls, 0),
     todayInstalls: rows.reduce((sum, r) => sum + r.todayInstalls, 0),
