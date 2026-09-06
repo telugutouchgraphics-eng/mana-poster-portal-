@@ -272,15 +272,16 @@ async function loadSubscriptionMetrics(
       emptySubscriptionRow(item.id, item.name),
     ]),
   );
+
+  const otherRow = emptySubscriptionRow("other", "Other / General");
+
   // Full pagination — reuse loaded userDocs if available
   const userDocs = existingUserDocs ?? (await loadAllUserDocsForRegions(regionIds));
-  const users = userDocs
-    .map((doc) => {
-      const data = doc.data();
-      const regionId = String(data.selectedRegion ?? "").trim();
-      return { uid: doc.id, regionId };
-    })
-    .filter((item) => allowed.has(item.regionId));
+  const users = userDocs.map((doc) => {
+    const data = doc.data();
+    const regionId = String(data.selectedRegion ?? "").trim();
+    return { uid: doc.id, regionId: allowed.has(regionId) ? regionId : "other" };
+  });
 
   const entitlementRefs = users.map((item) =>
     adminDb.doc(`users/${item.uid}/entitlements/pro`),
@@ -294,15 +295,19 @@ async function loadSubscriptionMetrics(
   }
 
   users.forEach((user, index) => {
-    const row = byRegion.get(user.regionId);
-    if (!row) return;
+    const row = byRegion.get(user.regionId) ?? otherRow;
     row.totalUsers += 1;
     const data = entitlementSnaps[index]?.data() as Record<string, unknown> | undefined;
     const bucket = subscriptionBucket(data, now);
     row[bucket] += 1;
   });
 
-  const rows = Array.from(byRegion.values()).sort((a, b) => b.totalUsers - a.totalUsers);
+  const rows = Array.from(byRegion.values());
+  if (otherRow.totalUsers > 0) {
+    rows.push(otherRow);
+  }
+  rows.sort((a, b) => b.totalUsers - a.totalUsers);
+
   return {
     totalUsers: rows.reduce((sum, item) => sum + item.totalUsers, 0),
     subscribed: rows.reduce((sum, item) => sum + item.subscribed, 0),
@@ -332,58 +337,54 @@ async function loadSubscriptionMetrics(
   };
 }
 
-// Religion metrics — Firestore count() per religion per region
-async function loadReligionMetrics(regionIds: string[]) {
+// Religion metrics — in-memory calculation from loaded userDocs (₹0 cost, 1ms execution)
+function loadReligionMetrics(
+  regionIds: string[],
+  userDocs?: FirebaseFirestore.QueryDocumentSnapshot[],
+) {
   const allowed = new Set(regionIds);
   const allowedRegions = DASHBOARD_REGIONS.filter((item) => allowed.has(item.id));
   if (allowedRegions.length === 0) {
     return { totalUsers: 0, hindu: 0, muslim: 0, christian: 0, allReligions: 0, unknown: 0, byRegion: [] };
   }
 
-  const rows: Array<{
-    regionId: string;
-    regionName: string;
-    totalUsers: number;
-    hindu: number;
-    muslim: number;
-    christian: number;
-    allReligions: number;
-    unknown: number;
-  }> = [];
+  const byRegion = new Map(
+    allowedRegions.map((item) => [
+      item.id,
+      emptyReligionRow(item.id, item.name),
+    ]),
+  );
 
-  // 3 regions parallel — each region has 5 count queries
-  for (let i = 0; i < allowedRegions.length; i += 3) {
-    const batch = allowedRegions.slice(i, i + 3);
-    const results = await Promise.all(
-      batch.map(async (region) => {
-        const [totalSnap, hinduSnap, muslimSnap, christianSnap, allSnap] = await Promise.all([
-          adminDb.collection("users").where("selectedRegion", "==", region.id).count().get(),
-          adminDb.collection("users").where("selectedRegion", "==", region.id).where("religionPreference", "==", "hindu").count().get(),
-          adminDb.collection("users").where("selectedRegion", "==", region.id).where("religionPreference", "==", "muslim").count().get(),
-          adminDb.collection("users").where("selectedRegion", "==", region.id).where("religionPreference", "==", "christian").count().get(),
-          adminDb.collection("users").where("selectedRegion", "==", region.id).where("religionPreference", "==", "all").count().get(),
-        ]);
-        const total = totalSnap.data().count;
-        const hindu = hinduSnap.data().count;
-        const muslim = muslimSnap.data().count;
-        const christian = christianSnap.data().count;
-        const allReligions = allSnap.data().count;
-        return {
-          regionId: region.id,
-          regionName: region.name,
-          totalUsers: total,
-          hindu,
-          muslim,
-          christian,
-          allReligions,
-          unknown: Math.max(0, total - hindu - muslim - christian - allReligions),
-        };
-      }),
-    );
-    rows.push(...results);
+  const otherRow = emptyReligionRow("other", "Other / General");
+
+  if (userDocs && userDocs.length > 0) {
+    userDocs.forEach((doc) => {
+      const data = doc.data();
+      const regionId = String(data.selectedRegion ?? "").trim();
+      const row = byRegion.get(regionId) ?? otherRow;
+      row.totalUsers += 1;
+
+      const religion = String(data.religionPreference ?? "").trim().toLowerCase();
+      if (religion === "hindu") {
+        row.hindu += 1;
+      } else if (religion === "muslim") {
+        row.muslim += 1;
+      } else if (religion === "christian") {
+        row.christian += 1;
+      } else if (religion === "all") {
+        row.allReligions += 1;
+      } else {
+        row.unknown += 1;
+      }
+    });
   }
 
+  const rows = Array.from(byRegion.values());
+  if (otherRow.totalUsers > 0) {
+    rows.push(otherRow);
+  }
   rows.sort((a, b) => b.totalUsers - a.totalUsers);
+
   return {
     totalUsers: rows.reduce((sum, item) => sum + item.totalUsers, 0),
     hindu: rows.reduce((sum, item) => sum + item.hindu, 0),
@@ -476,7 +477,7 @@ export async function GET(req: NextRequest) {
       const fullInstalls = loadInstallMetrics(allIds, userDocs);
       const [fullSubs, fullRels] = await Promise.all([
         loadSubscriptionMetrics(allIds, userDocs),
-        loadReligionMetrics(allIds),
+        loadReligionMetrics(allIds, userDocs),
       ]);
 
       await summaryRef.set(
