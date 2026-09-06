@@ -219,11 +219,14 @@ function loadInstallMetrics(
       row.totalInstalls += 1;
 
       const created = data.createdAt;
-      const createdMs = created
+      let createdMs = created
         ? typeof created.toMillis === "function"
           ? created.toMillis()
           : ((created as any)._seconds ?? 0) * 1000
         : 0;
+      if (!createdMs && doc.createTime) {
+        createdMs = doc.createTime.toMillis();
+      }
       if (createdMs >= todayStartMs) {
         row.todayInstalls += 1;
       }
@@ -405,12 +408,21 @@ export async function GET(req: NextRequest) {
     const summaryRef = adminDb.collection("system").doc("analyticsSummary");
     const summarySnap = await summaryRef.get();
 
+    const now = Date.now();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now + istOffset);
+    const istMidnightUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+    const todayStartMs = istMidnightUtc.getTime() - istOffset;
+    const todayStartTimestamp = Timestamp.fromMillis(todayStartMs);
+
+    const summaryData = summarySnap.exists ? (summarySnap.data() as any) : null;
+    const isCacheStale = !summaryData?.lastCalculatedAt || (summaryData.lastCalculatedAt < todayStartMs);
+
     let installMetrics: any;
     let subscriptionMetrics: any;
     let religionMetrics: any;
 
-    if (summarySnap.exists && !forceRefresh) {
-      const summaryData = summarySnap.data() as any;
+    if (summarySnap.exists && !forceRefresh && !isCacheStale) {
       const allInstalls = summaryData.installMetrics;
       const allSubs = summaryData.subscriptionMetrics;
       const allRels = summaryData.religionMetrics;
@@ -496,10 +508,48 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const now = Date.now();
     const todayKey = dayKeyInIst(now);
 
-    // Read daily atomic install counter (1 single doc read = ₹0 cost)
+    // Real-time zero-cost live installs for today (reads only today's new user documents, e.g. 5-30 docs)
+    try {
+      const todayUsersSnap = await adminDb
+        .collection("users")
+        .where("createdAt", ">=", todayStartTimestamp)
+        .get();
+
+      const liveTodayByRegion = new Map<string, number>();
+      todayUsersSnap.forEach((doc) => {
+        const rId = String(doc.data().selectedRegion ?? "").trim();
+        if (rId) {
+          liveTodayByRegion.set(rId, (liveTodayByRegion.get(rId) ?? 0) + 1);
+        }
+      });
+
+      const liveTotalToday = todayUsersSnap.size;
+
+      if (installMetrics) {
+        if (showAllRegions) {
+          installMetrics.todayInstalls = liveTotalToday;
+          if (Array.isArray(installMetrics.byRegion)) {
+            installMetrics.byRegion.forEach((r: any) => {
+              r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
+            });
+          }
+        } else {
+          const rId = region?.id ?? "";
+          installMetrics.todayInstalls = liveTodayByRegion.get(rId) ?? 0;
+          if (Array.isArray(installMetrics.byRegion)) {
+            installMetrics.byRegion.forEach((r: any) => {
+              r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
+            });
+          }
+        }
+      }
+    } catch {
+      // Graceful fallback to cached install metrics
+    }
+
+    // Read daily atomic install counter if present (1 single doc read = ₹0 cost)
     try {
       const dailyInstallSnap = await adminDb
         .collection("system")
