@@ -59,6 +59,7 @@ interface ReportResponse {
   error?: string;
   creators?: CreatorOption[];
   selectedCreatorId?: string;
+  visitingCardCount?: number;
   rows?: ReportRow[];
   summary?: {
     posterCount: number;
@@ -111,6 +112,7 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [creators, setCreators] = useState<CreatorOption[]>([]);
   const [creatorPublicId, setCreatorPublicId] = useState("");
+  const [visitingCardCount, setVisitingCardCount] = useState<number>(0);
   const [selectedDate, setSelectedDate] = useState(defaultSelectedDate);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -203,6 +205,9 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
       }
       setRows(data.rows ?? []);
       setCreators(data.creators ?? []);
+      if (typeof data.visitingCardCount === "number") {
+        setVisitingCardCount(data.visitingCardCount);
+      }
       if (mode === "manager" && data.selectedCreatorId !== undefined) {
         setCreatorPublicId(data.selectedCreatorId);
       }
@@ -273,6 +278,10 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
       <div className="grid gap-3 md:grid-cols-4">
         {[
           { label: "Posters", displayValue: summary.posterCount },
+          {
+            label: "Visiting Cards (Downloads & Shares)",
+            displayValue: visitingCardCount,
+          },
           {
             label: "Display Shares",
             displayValue: summary.displayShareCount,
