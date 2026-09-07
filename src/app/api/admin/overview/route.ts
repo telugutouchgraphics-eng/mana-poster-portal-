@@ -420,7 +420,8 @@ export async function GET(req: NextRequest) {
     const todayStartTimestamp = Timestamp.fromMillis(todayStartMs);
 
     const summaryData = summarySnap.exists ? (summarySnap.data() as any) : null;
-    const isCacheStale = !summaryData?.lastCalculatedAt || (summaryData.lastCalculatedAt < todayStartMs);
+    const hasOtherRegionInCache = summaryData?.installMetrics?.byRegion?.some((r: any) => r.regionId === "other");
+    const isCacheStale = !summaryData?.lastCalculatedAt || (summaryData.lastCalculatedAt < todayStartMs) || !hasOtherRegionInCache;
 
     let installMetrics: any;
     let subscriptionMetrics: any;
@@ -432,7 +433,12 @@ export async function GET(req: NextRequest) {
       const allRels = summaryData.religionMetrics;
 
       if (showAllRegions) {
-        installMetrics = allInstalls;
+        installMetrics = {
+          ...allInstalls,
+          totalInstalls: Array.isArray(allInstalls?.byRegion)
+            ? allInstalls.byRegion.reduce((s: number, r: any) => s + (r.totalInstalls || 0), 0)
+            : (allInstalls?.totalInstalls || 0),
+        };
         subscriptionMetrics = allSubs;
         religionMetrics = allRels;
       } else {
@@ -514,37 +520,63 @@ export async function GET(req: NextRequest) {
 
     const todayKey = dayKeyInIst(now);
 
-    // Real-time zero-cost live installs for today (reads only today's new user documents, e.g. 5-30 docs)
+    // Real-time zero-cost live installs and active users for today (reads only today's active/created user documents, ~10-30 docs)
     try {
-      const todayUsersSnap = await adminDb
-        .collection("users")
-        .where("createdAt", ">=", todayStartTimestamp)
-        .get();
+      const [todayUpdatedSnap, todayCreatedSnap] = await Promise.all([
+        adminDb.collection("users").where("updatedAt", ">=", todayStartTimestamp).get(),
+        adminDb.collection("users").where("createdAt", ">=", todayStartTimestamp).get().catch(() => null),
+      ]);
+
+      const combinedDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+      todayUpdatedSnap.docs.forEach((doc) => combinedDocs.set(doc.id, doc));
+      if (todayCreatedSnap) {
+        todayCreatedSnap.docs.forEach((doc) => combinedDocs.set(doc.id, doc));
+      }
 
       const liveTodayByRegion = new Map<string, number>();
-      todayUsersSnap.forEach((doc) => {
-        const rId = String(doc.data().selectedRegion ?? "").trim();
-        if (rId) {
+      const liveActiveByRegion = new Map<string, number>();
+      let liveTotalToday = 0;
+      let liveTotalActive = combinedDocs.size;
+
+      combinedDocs.forEach((doc) => {
+        const data = doc.data();
+        const rId = String(data.selectedRegion ?? "").trim() || "other";
+        liveActiveByRegion.set(rId, (liveActiveByRegion.get(rId) ?? 0) + 1);
+
+        const created = data.createdAt;
+        let createdMs = created
+          ? typeof created.toMillis === "function"
+            ? created.toMillis()
+            : ((created as any)._seconds ?? 0) * 1000
+          : 0;
+        if (!createdMs && doc.createTime) {
+          createdMs = doc.createTime.toMillis();
+        }
+
+        if (createdMs >= todayStartMs) {
+          liveTotalToday += 1;
           liveTodayByRegion.set(rId, (liveTodayByRegion.get(rId) ?? 0) + 1);
         }
       });
 
-      const liveTotalToday = todayUsersSnap.size;
-
       if (installMetrics) {
         if (showAllRegions) {
           installMetrics.todayInstalls = liveTotalToday;
+          installMetrics.todayActive = liveTotalActive;
           if (Array.isArray(installMetrics.byRegion)) {
             installMetrics.byRegion.forEach((r: any) => {
               r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
+              r.todayActive = liveActiveByRegion.get(r.regionId) ?? 0;
             });
           }
         } else {
           const rId = region?.id ?? "";
           installMetrics.todayInstalls = liveTodayByRegion.get(rId) ?? 0;
+          installMetrics.todayActive = liveActiveByRegion.get(rId) ?? 0;
           if (Array.isArray(installMetrics.byRegion)) {
             installMetrics.byRegion.forEach((r: any) => {
               r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
+              r.todayActive = liveActiveByRegion.get(r.regionId) ?? 0;
             });
           }
         }
