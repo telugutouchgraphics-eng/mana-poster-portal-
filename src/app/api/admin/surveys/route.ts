@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function numberRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      Number(item) || 0,
+    ]),
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
@@ -15,52 +31,54 @@ export async function GET(req: NextRequest) {
       const data = doc.data();
       const rawQuestions = Array.isArray(data.questions) ? data.questions : [];
       let questions = rawQuestions
-        .map((q: any, idx: number) => ({
-          id: String(q?.id ?? `q_${idx}`).trim(),
-          question: String(q?.question ?? "").trim(),
-          options: Array.isArray(q?.options) ? q.options.map(String) : [],
-          voteCounts:
-            q?.voteCounts && typeof q.voteCounts === "object"
-              ? q.voteCounts
-              : {},
-        }))
-        .filter((q: any) => q.question.length > 0);
+        .map((item, idx) => {
+          const q = objectRecord(item);
+          return {
+            id: String(q.id ?? `q_${idx}`).trim(),
+            question: String(q.question ?? "").trim(),
+            options: Array.isArray(q.options) ? q.options.map(String) : [],
+            voteCounts: numberRecord(q.voteCounts),
+          };
+        })
+        .filter((q) => q.question.length > 0);
 
       if (questions.length === 0 && data.question) {
         questions = [
           {
             id: "q_0",
             question: String(data.question ?? "").trim(),
-            options: Array.isArray(data.options) ? data.options.map(String) : [],
-            voteCounts:
-              data.voteCounts && typeof data.voteCounts === "object"
-                ? data.voteCounts
-                : {},
+            options: Array.isArray(data.options)
+              ? data.options.map(String)
+              : [],
+            voteCounts: numberRecord(data.voteCounts),
           },
         ];
       }
 
       const recentComments = Array.isArray(data.recentComments)
         ? data.recentComments
-            .map((c: any) => ({
-              userId: String(c?.userId ?? ""),
-              comment: String(c?.comment ?? "").trim(),
-              createdAt: Number(c?.createdAt ?? 0),
-            }))
-            .filter((c: any) => c.comment.length > 0)
+            .map((item) => {
+              const c = objectRecord(item);
+              return {
+                userId: String(c.userId ?? ""),
+                comment: String(c.comment ?? "").trim(),
+                createdAt: Number(c.createdAt ?? 0),
+              };
+            })
+            .filter((c) => c.comment.length > 0)
         : [];
 
       return {
         id: doc.id,
         title: String(data.title ?? "").trim(),
-        question: String(data.question ?? (questions[0]?.question ?? "")).trim(),
+        question: String(data.question ?? questions[0]?.question ?? "").trim(),
         options: Array.isArray(data.options)
           ? data.options
           : (questions[0]?.options ?? []),
         questions,
         voteCounts:
           data.voteCounts && typeof data.voteCounts === "object"
-            ? data.voteCounts
+            ? numberRecord(data.voteCounts)
             : (questions[0]?.voteCounts ?? {}),
         totalVotes: Number(data.totalVotes ?? 0),
         status: String(data.status ?? "active").trim(),
@@ -83,13 +101,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
-    const body = await req.json();
+    const body = objectRecord(await req.json());
 
     const title = String(body.title ?? "").trim();
     const targetRegion = String(body.targetRegion ?? "all").trim();
     const allowedReligions = ["all", "hindu", "muslim", "christian"];
-    const rawReligion = String(body.targetReligion ?? "all").toLowerCase().trim();
-    const targetReligion = allowedReligions.includes(rawReligion) ? rawReligion : "all";
+    const rawReligion = String(body.targetReligion ?? "all")
+      .toLowerCase()
+      .trim();
+    const targetReligion = allowedReligions.includes(rawReligion)
+      ? rawReligion
+      : "all";
     const status = body.status === "closed" ? "closed" : "active";
 
     interface QuestionInput {
@@ -101,14 +123,15 @@ export async function POST(req: NextRequest) {
 
     let inputQuestions: QuestionInput[] = [];
     if (Array.isArray(body.questions) && body.questions.length > 0) {
-      inputQuestions = body.questions.map((q: any, idx: number) => {
-        const qText = String(q?.question ?? "").trim();
-        const rawOpts = Array.isArray(q?.options) ? q.options : [];
+      inputQuestions = body.questions.map((item, idx) => {
+        const q = objectRecord(item);
+        const qText = String(q.question ?? "").trim();
+        const rawOpts = Array.isArray(q.options) ? q.options : [];
         const opts = rawOpts
           .map((o: unknown) => String(o ?? "").trim())
           .filter((o: string) => o.length > 0);
         return {
-          id: String(q?.id ?? `q_${idx}`),
+          id: String(q.id ?? `q_${idx}`),
           question: qText,
           options: opts,
         };

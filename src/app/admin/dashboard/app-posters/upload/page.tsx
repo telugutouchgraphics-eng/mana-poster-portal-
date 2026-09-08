@@ -337,6 +337,9 @@ function categoryAllowsPoliticalProtocol(
 ): boolean {
   if (!category) return false;
   const normalized = normalizeCategoryKey(category.id);
+  if (categoryWeekday(normalized)) {
+    return false;
+  }
   if (
     category.allowPoliticalProtocol === false &&
     !normalized.startsWith("party_") &&

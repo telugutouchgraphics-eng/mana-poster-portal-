@@ -68,6 +68,10 @@ function slugifyCategoryId(value: string): string {
   return slug ? `perm_${slug.replace(/^perm_/, "")}` : "";
 }
 
+function isWeekdayCategoryId(categoryId: string) {
+  return categoryId.trim().toLowerCase().startsWith("weekday_");
+}
+
 export function PermanentCategoriesConsole() {
   const { user } = useAuth();
   const { regions } = useDashboardRegion();
@@ -83,6 +87,8 @@ export function PermanentCategoriesConsole() {
   const [allowPoliticalProtocol, setAllowPoliticalProtocol] = useState(false);
   const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const formCategoryId = editingId ?? slugifyCategoryId(label);
+  const protocolDisabled = isWeekdayCategoryId(formCategoryId);
 
   async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
     const token = await user?.getIdToken();
@@ -143,7 +149,9 @@ export function PermanentCategoriesConsole() {
         iconAssetPath,
         regionIds: selectedRegionIds,
         sortOrder: Number(sortOrder) || 0,
-        allowPoliticalProtocol,
+        allowPoliticalProtocol: protocolDisabled
+          ? false
+          : allowPoliticalProtocol,
       };
       const endpoint = editingId
         ? `/api/admin/permanent-categories/${encodeURIComponent(editingId)}`
@@ -220,7 +228,11 @@ export function PermanentCategoriesConsole() {
     setIconAssetPath(item.iconAssetPath ?? "");
     setLabelsByLanguage(item.labelsByLanguage ?? emptyLabels());
     setSortOrder(String(item.sortOrder ?? 0));
-    setAllowPoliticalProtocol(item.allowPoliticalProtocol === true);
+    setAllowPoliticalProtocol(
+      isWeekdayCategoryId(item.id)
+        ? false
+        : item.allowPoliticalProtocol === true,
+    );
     setSelectedRegionIds(item.regionIds ?? []);
   }
 
@@ -400,10 +412,13 @@ export function PermanentCategoriesConsole() {
           <input
             type="checkbox"
             checked={allowPoliticalProtocol}
+            disabled={protocolDisabled}
             onChange={(event) =>
-              setAllowPoliticalProtocol(event.target.checked)
+              setAllowPoliticalProtocol(
+                protocolDisabled ? false : event.target.checked,
+              )
             }
-            className="h-5 w-5 rounded border-slate-300 text-slate-950"
+            className="h-5 w-5 rounded border-slate-300 text-slate-950 disabled:opacity-40"
           />
         </label>
         <div className="flex items-end gap-2">
@@ -471,7 +486,11 @@ export function PermanentCategoriesConsole() {
                   </p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
                     Political protocol:{" "}
-                    {item.allowPoliticalProtocol ? "Allowed" : "Off"}
+                    {isWeekdayCategoryId(item.id)
+                      ? "Off"
+                      : item.allowPoliticalProtocol
+                        ? "Allowed"
+                        : "Off"}
                   </p>
                   {item.iconAssetPath ? (
                     <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">

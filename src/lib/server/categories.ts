@@ -144,6 +144,9 @@ export function categoryAllowsPoliticalProtocol(
     return false;
   }
   const normalized = canonicalCategoryId(category.id);
+  if (WEEKDAY_DYNAMIC_CATEGORIES.some((item) => item.id === normalized)) {
+    return false;
+  }
   if (
     category.allowPoliticalProtocol === false &&
     !normalized.startsWith("party_") &&
@@ -157,8 +160,7 @@ export function categoryAllowsPoliticalProtocol(
     category.allowPoliticalProtocol === true ||
     category.isDynamic === true ||
     EVENT_DYNAMIC_CATEGORY_IDS.has(normalized) ||
-    DYNAMIC_META_CATEGORIES.some((item) => item.id === normalized) ||
-    WEEKDAY_DYNAMIC_CATEGORIES.some((item) => item.id === normalized)
+    DYNAMIC_META_CATEGORIES.some((item) => item.id === normalized)
   );
 }
 

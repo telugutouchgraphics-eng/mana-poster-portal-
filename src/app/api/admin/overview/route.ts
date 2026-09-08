@@ -4,8 +4,14 @@ import { Timestamp } from "firebase-admin/firestore";
 import { requireRole } from "@/lib/server/auth";
 import { adminDb } from "@/lib/firebase/admin";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
-import { loadAppBanners, loadCreatorAnnouncements } from "@/lib/server/content-management";
-import { assertActorCanAccessRegion, loadActorAllowedRegionIds } from "@/lib/server/region-scope";
+import {
+  loadAppBanners,
+  loadCreatorAnnouncements,
+} from "@/lib/server/content-management";
+import {
+  assertActorCanAccessRegion,
+  loadActorAllowedRegionIds,
+} from "@/lib/server/region-scope";
 import {
   buildCategoryLeaderboards,
   buildCategoryPerformance,
@@ -18,8 +24,13 @@ function assignedToRegion(assignedRegionIds: string[], regionId: string) {
   return assignedRegionIds.map((item) => item.trim()).includes(regionId);
 }
 
-function assignedToAnyAllowedRegion(assignedRegionIds: string[], allowedRegionIds: string[]) {
-  return assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId));
+function assignedToAnyAllowedRegion(
+  assignedRegionIds: string[],
+  allowedRegionIds: string[],
+) {
+  return assignedRegionIds.some((regionId) =>
+    allowedRegionIds.includes(regionId),
+  );
 }
 
 function dayKeyInIst(epochMs: number) {
@@ -59,6 +70,10 @@ function readTimestampMillis(value: unknown): number {
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
+  if (typeof value === "object" && value !== null && "_seconds" in value) {
+    const seconds = Number((value as { _seconds?: unknown })._seconds ?? 0);
+    return Number.isFinite(seconds) ? seconds * 1000 : 0;
+  }
   if (typeof value === "object" && value !== null && "toMillis" in value) {
     const maybeTimestamp = value as { toMillis?: () => number };
     const millis = maybeTimestamp.toMillis?.();
@@ -94,27 +109,116 @@ function emptyReligionRow(regionId: string, regionName: string) {
   };
 }
 
-function hasActiveAccess(data: Record<string, unknown> | undefined, now = Date.now()) {
+type InstallMetricsRow = {
+  regionId: string;
+  regionName: string;
+  totalInstalls: number;
+  todayInstalls: number;
+  todayActive: number;
+  last7DaysActive: number;
+};
+type InstallMetrics = {
+  totalInstalls: number;
+  todayInstalls: number;
+  todayActive: number;
+  last7DaysActive: number;
+  byRegion: InstallMetricsRow[];
+};
+
+type SubscriptionMetrics = Awaited<ReturnType<typeof loadSubscriptionMetrics>>;
+type ReligionMetrics = ReturnType<typeof loadReligionMetrics>;
+
+type AnalyticsSummary = {
+  lastCalculatedAt?: number;
+  installMetrics?: InstallMetrics;
+  subscriptionMetrics?: SubscriptionMetrics;
+  religionMetrics?: ReligionMetrics;
+};
+
+function sumMetric<T extends Record<string, unknown>>(
+  rows: T[],
+  key: keyof T,
+): number {
+  return rows.reduce((sum, row) => {
+    const value = row[key];
+    return sum + (typeof value === "number" ? value : 0);
+  }, 0);
+}
+
+function emptyInstallMetrics(): InstallMetrics {
+  return {
+    totalInstalls: 0,
+    todayInstalls: 0,
+    todayActive: 0,
+    last7DaysActive: 0,
+    byRegion: [],
+  };
+}
+
+function emptySubscriptionMetrics(): SubscriptionMetrics {
+  return {
+    totalUsers: 0,
+    subscribed: 0,
+    trialActive: 0,
+    expired: 0,
+    notSubscribed: 0,
+    manualFree: 0,
+    referralReward: 0,
+    lifetimeSubscribers: 0,
+    todayNewSubscribers: 0,
+    byRegion: [],
+  };
+}
+
+function emptyReligionMetrics(): ReligionMetrics {
+  return {
+    totalUsers: 0,
+    hindu: 0,
+    muslim: 0,
+    christian: 0,
+    allReligions: 0,
+    unknown: 0,
+    byRegion: [],
+  };
+}
+
+function hasActiveAccess(
+  data: Record<string, unknown> | undefined,
+  now = Date.now(),
+) {
   if (!data) return false;
   if (data.isPro !== true) return false;
   const expiryMillis = readTimestampMillis(data.expiryTime);
   return expiryMillis <= 0 || expiryMillis > now;
 }
 
-function subscriptionBucket(data: Record<string, unknown> | undefined, now = Date.now()) {
+function subscriptionBucket(
+  data: Record<string, unknown> | undefined,
+  now = Date.now(),
+) {
   if (!data) return "notSubscribed" as const;
   const source = String(data.source ?? "").trim();
   const productId = String(data.productId ?? "").trim();
   const subscriptionState = String(data.subscriptionState ?? "").trim();
   const active = hasActiveAccess(data, now);
 
-  if (source === "manual_lifetime_whitelist" || productId === "manual_lifetime_whitelist") {
+  if (
+    source === "manual_lifetime_whitelist" ||
+    productId === "manual_lifetime_whitelist"
+  ) {
     return active ? "manualFree" : "expired";
   }
-  if (source === "first150_trial" || productId === "first150_trial" || subscriptionState === "FIRST150_TRIAL") {
+  if (
+    source === "first150_trial" ||
+    productId === "first150_trial" ||
+    subscriptionState === "FIRST150_TRIAL"
+  ) {
     return active ? "trialActive" : "expired";
   }
-  if (data.referralRewardActive === true || subscriptionState === "REFERRAL_REWARD") {
+  if (
+    data.referralRewardActive === true ||
+    subscriptionState === "REFERRAL_REWARD"
+  ) {
     return active ? "referralReward" : "expired";
   }
   if (active) {
@@ -140,16 +244,16 @@ function hasPaidSubscriptionHistory(data: Record<string, unknown> | undefined) {
   const productId = String(data.productId ?? "").trim();
   return Boolean(
     productId &&
-      productId !== "manual_lifetime_whitelist" &&
-      productId !== "first150_trial" &&
-      source !== "manual_lifetime_whitelist" &&
-      source !== "first150_trial",
+    productId !== "manual_lifetime_whitelist" &&
+    productId !== "first150_trial" &&
+    source !== "manual_lifetime_whitelist" &&
+    source !== "first150_trial",
   );
 }
 
-
 // Paginate through ALL users — no limit
-async function loadAllUserDocsForRegions(_regionIds: string[]) {
+async function loadAllUserDocsForRegions(regionIds?: string[]) {
+  void regionIds;
   const docs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   const PAGE_SIZE = 500;
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
@@ -173,15 +277,29 @@ function loadInstallMetrics(
   userDocs?: FirebaseFirestore.QueryDocumentSnapshot[],
 ) {
   const allowed = new Set(regionIds);
-  const allowedRegions = DASHBOARD_REGIONS.filter((item) => allowed.has(item.id));
+  const allowedRegions = DASHBOARD_REGIONS.filter((item) =>
+    allowed.has(item.id),
+  );
   if (allowedRegions.length === 0) {
-    return { totalInstalls: 0, todayInstalls: 0, todayActive: 0, last7DaysActive: 0, byRegion: [] };
+    return {
+      totalInstalls: 0,
+      todayInstalls: 0,
+      todayActive: 0,
+      last7DaysActive: 0,
+      byRegion: [],
+    };
   }
 
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(now.getTime() + istOffset);
-  const istMidnightUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+  const istMidnightUtc = new Date(
+    Date.UTC(
+      istNow.getUTCFullYear(),
+      istNow.getUTCMonth(),
+      istNow.getUTCDate(),
+    ),
+  );
   const todayStartMs = istMidnightUtc.getTime() - istOffset;
   const last7DaysStartMs = todayStartMs - 7 * 24 * 60 * 60 * 1000;
 
@@ -216,12 +334,7 @@ function loadInstallMetrics(
 
       row.totalInstalls += 1;
 
-      const created = data.createdAt;
-      let createdMs = created
-        ? typeof created.toMillis === "function"
-          ? created.toMillis()
-          : ((created as any)._seconds ?? 0) * 1000
-        : 0;
+      let createdMs = readTimestampMillis(data.createdAt);
       if (!createdMs && doc.createTime) {
         createdMs = doc.createTime.toMillis();
       }
@@ -229,12 +342,7 @@ function loadInstallMetrics(
         row.todayInstalls += 1;
       }
 
-      const updated = data.updatedAt;
-      const updatedMs = updated
-        ? typeof updated.toMillis === "function"
-          ? updated.toMillis()
-          : ((updated as any)._seconds ?? 0) * 1000
-        : 0;
+      const updatedMs = readTimestampMillis(data.updatedAt);
       if (updatedMs >= todayStartMs) {
         row.todayActive += 1;
       }
@@ -276,11 +384,15 @@ async function loadSubscriptionMetrics(
   const otherRow = emptySubscriptionRow("other", "Other / General");
 
   // Full pagination — reuse loaded userDocs if available
-  const userDocs = existingUserDocs ?? (await loadAllUserDocsForRegions(regionIds));
+  const userDocs =
+    existingUserDocs ?? (await loadAllUserDocsForRegions(regionIds));
   const users = userDocs.map((doc) => {
     const data = doc.data();
     const regionId = String(data.selectedRegion ?? "").trim();
-    return { uid: doc.id, regionId: allowed.has(regionId) ? regionId : "other" };
+    return {
+      uid: doc.id,
+      regionId: allowed.has(regionId) ? regionId : "other",
+    };
   });
 
   const entitlementRefs = users.map((item) =>
@@ -297,7 +409,8 @@ async function loadSubscriptionMetrics(
   users.forEach((user, index) => {
     const row = byRegion.get(user.regionId) ?? otherRow;
     row.totalUsers += 1;
-    const data = entitlementSnaps[index]?.data() as Record<string, unknown> | undefined;
+    const data = entitlementSnaps[index]?.data() as
+      Record<string, unknown> | undefined;
     const bucket = subscriptionBucket(data, now);
     row[bucket] += 1;
   });
@@ -318,7 +431,11 @@ async function loadSubscriptionMetrics(
         sum +
         Math.max(
           0,
-          item.totalUsers - item.subscribed - item.trialActive - item.manualFree - item.referralReward,
+          item.totalUsers -
+            item.subscribed -
+            item.trialActive -
+            item.manualFree -
+            item.referralReward,
         ),
       0,
     ),
@@ -329,9 +446,17 @@ async function loadSubscriptionMetrics(
       return sum + (hasPaidSubscriptionHistory(data) ? 1 : 0);
     }, 0),
     todayNewSubscribers: users.reduce((sum, user, index) => {
-      const data = entitlementSnaps[index]?.data() as Record<string, unknown> | undefined;
+      const data = entitlementSnaps[index]?.data() as
+        Record<string, unknown> | undefined;
       const startAt = subscriptionStartMillis(data);
-      return sum + (hasActiveAccess(data, now) && startAt > 0 && dayKeyInIst(startAt) === todayKey ? 1 : 0);
+      return (
+        sum +
+        (hasActiveAccess(data, now) &&
+        startAt > 0 &&
+        dayKeyInIst(startAt) === todayKey
+          ? 1
+          : 0)
+      );
     }, 0),
     byRegion: rows,
   };
@@ -343,9 +468,19 @@ function loadReligionMetrics(
   userDocs?: FirebaseFirestore.QueryDocumentSnapshot[],
 ) {
   const allowed = new Set(regionIds);
-  const allowedRegions = DASHBOARD_REGIONS.filter((item) => allowed.has(item.id));
+  const allowedRegions = DASHBOARD_REGIONS.filter((item) =>
+    allowed.has(item.id),
+  );
   if (allowedRegions.length === 0) {
-    return { totalUsers: 0, hindu: 0, muslim: 0, christian: 0, allReligions: 0, unknown: 0, byRegion: [] };
+    return {
+      totalUsers: 0,
+      hindu: 0,
+      muslim: 0,
+      christian: 0,
+      allReligions: 0,
+      unknown: 0,
+      byRegion: [],
+    };
   }
 
   const byRegion = new Map(
@@ -364,7 +499,9 @@ function loadReligionMetrics(
       const row = byRegion.get(regionId) ?? otherRow;
       row.totalUsers += 1;
 
-      const religion = String(data.religionPreference ?? "").trim().toLowerCase();
+      const religion = String(data.religionPreference ?? "")
+        .trim()
+        .toLowerCase();
       if (religion === "hindu") {
         row.hindu += 1;
       } else if (religion === "muslim") {
@@ -396,12 +533,14 @@ function loadReligionMetrics(
   };
 }
 
-
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
-    const requestedRegionId = String(req.nextUrl.searchParams.get("regionId") ?? "").trim();
-    const forceRefresh = req.nextUrl.searchParams.get("forceRefresh") === "true";
+    const requestedRegionId = String(
+      req.nextUrl.searchParams.get("regionId") ?? "",
+    ).trim();
+    const forceRefresh =
+      req.nextUrl.searchParams.get("forceRefresh") === "true";
     const showAllRegions = requestedRegionId === "all";
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
     const region = showAllRegions
@@ -415,71 +554,89 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const istOffset = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(now + istOffset);
-    const istMidnightUtc = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+    const istMidnightUtc = new Date(
+      Date.UTC(
+        istNow.getUTCFullYear(),
+        istNow.getUTCMonth(),
+        istNow.getUTCDate(),
+      ),
+    );
     const todayStartMs = istMidnightUtc.getTime() - istOffset;
     const todayStartTimestamp = Timestamp.fromMillis(todayStartMs);
 
-    const summaryData = summarySnap.exists ? (summarySnap.data() as any) : null;
-    const hasOtherRegionInCache = summaryData?.installMetrics?.byRegion?.some((r: any) => r.regionId === "other");
-    const isCacheStale = !summaryData?.lastCalculatedAt || (summaryData.lastCalculatedAt < todayStartMs) || !hasOtherRegionInCache;
+    const summaryData = summarySnap.exists
+      ? (summarySnap.data() as AnalyticsSummary)
+      : null;
+    const hasOtherRegionInCache =
+      summaryData?.installMetrics?.byRegion?.some(
+        (row) => row.regionId === "other",
+      ) ?? false;
+    const isCacheStale =
+      !summaryData?.lastCalculatedAt ||
+      summaryData.lastCalculatedAt < todayStartMs ||
+      !hasOtherRegionInCache;
 
-    let installMetrics: any;
-    let subscriptionMetrics: any;
-    let religionMetrics: any;
+    let installMetrics: InstallMetrics | undefined;
+    let subscriptionMetrics: SubscriptionMetrics | undefined;
+    let religionMetrics: ReligionMetrics | undefined;
 
     if (summarySnap.exists && !forceRefresh && !isCacheStale) {
-      const allInstalls = summaryData.installMetrics;
-      const allSubs = summaryData.subscriptionMetrics;
-      const allRels = summaryData.religionMetrics;
+      const allInstalls = summaryData?.installMetrics ?? emptyInstallMetrics();
+      const allSubs =
+        summaryData?.subscriptionMetrics ?? emptySubscriptionMetrics();
+      const allRels = summaryData?.religionMetrics ?? emptyReligionMetrics();
 
       if (showAllRegions) {
         installMetrics = {
           ...allInstalls,
-          totalInstalls: Array.isArray(allInstalls?.byRegion)
-            ? allInstalls.byRegion.reduce((s: number, r: any) => s + (r.totalInstalls || 0), 0)
-            : (allInstalls?.totalInstalls || 0),
+          totalInstalls: Array.isArray(allInstalls.byRegion)
+            ? sumMetric(allInstalls.byRegion, "totalInstalls")
+            : allInstalls.totalInstalls || 0,
         };
         subscriptionMetrics = allSubs;
         religionMetrics = allRels;
       } else {
         const rId = region?.id ?? "";
-        const rInstall = allInstalls?.byRegion?.filter((r: any) => r.regionId === rId) ?? [];
+        const rInstall =
+          allInstalls?.byRegion?.filter((row) => row.regionId === rId) ?? [];
         installMetrics = {
-          totalInstalls: rInstall.reduce((s: number, r: any) => s + (r.totalInstalls || 0), 0),
-          todayInstalls: rInstall.reduce((s: number, r: any) => s + (r.todayInstalls || 0), 0),
-          todayActive: rInstall.reduce((s: number, r: any) => s + (r.todayActive || 0), 0),
-          last7DaysActive: rInstall.reduce((s: number, r: any) => s + (r.last7DaysActive || 0), 0),
+          totalInstalls: sumMetric(rInstall, "totalInstalls"),
+          todayInstalls: sumMetric(rInstall, "todayInstalls"),
+          todayActive: sumMetric(rInstall, "todayActive"),
+          last7DaysActive: sumMetric(rInstall, "last7DaysActive"),
           byRegion: rInstall,
         };
 
-        const rSub = allSubs?.byRegion?.filter((r: any) => r.regionId === rId) ?? [];
+        const rSub =
+          allSubs?.byRegion?.filter((row) => row.regionId === rId) ?? [];
         subscriptionMetrics = {
           ...allSubs,
-          totalUsers: rSub.reduce((s: number, r: any) => s + (r.totalUsers || 0), 0),
-          subscribed: rSub.reduce((s: number, r: any) => s + (r.subscribed || 0), 0),
-          trialActive: rSub.reduce((s: number, r: any) => s + (r.trialActive || 0), 0),
-          expired: rSub.reduce((s: number, r: any) => s + (r.expired || 0), 0),
-          notSubscribed: rSub.reduce((s: number, r: any) => s + (r.notSubscribed || 0), 0),
-          manualFree: rSub.reduce((s: number, r: any) => s + (r.manualFree || 0), 0),
-          referralReward: rSub.reduce((s: number, r: any) => s + (r.referralReward || 0), 0),
+          totalUsers: sumMetric(rSub, "totalUsers"),
+          subscribed: sumMetric(rSub, "subscribed"),
+          trialActive: sumMetric(rSub, "trialActive"),
+          expired: sumMetric(rSub, "expired"),
+          notSubscribed: sumMetric(rSub, "notSubscribed"),
+          manualFree: sumMetric(rSub, "manualFree"),
+          referralReward: sumMetric(rSub, "referralReward"),
           byRegion: rSub,
         };
 
-        const rRel = allRels?.byRegion?.filter((r: any) => r.regionId === rId) ?? [];
+        const rRel =
+          allRels?.byRegion?.filter((row) => row.regionId === rId) ?? [];
         religionMetrics = {
-          totalUsers: rRel.reduce((s: number, r: any) => s + (r.totalUsers || 0), 0),
-          hindu: rRel.reduce((s: number, r: any) => s + (r.hindu || 0), 0),
-          muslim: rRel.reduce((s: number, r: any) => s + (r.muslim || 0), 0),
-          christian: rRel.reduce((s: number, r: any) => s + (r.christian || 0), 0),
-          allReligions: rRel.reduce((s: number, r: any) => s + (r.allReligions || 0), 0),
-          unknown: rRel.reduce((s: number, r: any) => s + (r.unknown || 0), 0),
+          totalUsers: sumMetric(rRel, "totalUsers"),
+          hindu: sumMetric(rRel, "hindu"),
+          muslim: sumMetric(rRel, "muslim"),
+          christian: sumMetric(rRel, "christian"),
+          allReligions: sumMetric(rRel, "allReligions"),
+          unknown: sumMetric(rRel, "unknown"),
           byRegion: rRel,
         };
       }
     } else {
       // Calculate fresh and cache into system/analyticsSummary for future zero-cost loads
       const allIds = DASHBOARD_REGIONS.map((item) => item.id);
-      const userDocs = await loadAllUserDocsForRegions(allIds);
+      const userDocs = await loadAllUserDocsForRegions();
       const fullInstalls = loadInstallMetrics(allIds, userDocs);
       const [fullSubs, fullRels] = await Promise.all([
         loadSubscriptionMetrics(allIds, userDocs),
@@ -523,11 +680,21 @@ export async function GET(req: NextRequest) {
     // Real-time zero-cost live installs and active users for today (reads only today's active/created user documents, ~10-30 docs)
     try {
       const [todayUpdatedSnap, todayCreatedSnap] = await Promise.all([
-        adminDb.collection("users").where("updatedAt", ">=", todayStartTimestamp).get(),
-        adminDb.collection("users").where("createdAt", ">=", todayStartTimestamp).get().catch(() => null),
+        adminDb
+          .collection("users")
+          .where("updatedAt", ">=", todayStartTimestamp)
+          .get(),
+        adminDb
+          .collection("users")
+          .where("createdAt", ">=", todayStartTimestamp)
+          .get()
+          .catch(() => null),
       ]);
 
-      const combinedDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+      const combinedDocs = new Map<
+        string,
+        FirebaseFirestore.QueryDocumentSnapshot
+      >();
       todayUpdatedSnap.docs.forEach((doc) => combinedDocs.set(doc.id, doc));
       if (todayCreatedSnap) {
         todayCreatedSnap.docs.forEach((doc) => combinedDocs.set(doc.id, doc));
@@ -536,19 +703,14 @@ export async function GET(req: NextRequest) {
       const liveTodayByRegion = new Map<string, number>();
       const liveActiveByRegion = new Map<string, number>();
       let liveTotalToday = 0;
-      let liveTotalActive = combinedDocs.size;
+      const liveTotalActive = combinedDocs.size;
 
       combinedDocs.forEach((doc) => {
         const data = doc.data();
         const rId = String(data.selectedRegion ?? "").trim() || "other";
         liveActiveByRegion.set(rId, (liveActiveByRegion.get(rId) ?? 0) + 1);
 
-        const created = data.createdAt;
-        let createdMs = created
-          ? typeof created.toMillis === "function"
-            ? created.toMillis()
-            : ((created as any)._seconds ?? 0) * 1000
-          : 0;
+        let createdMs = readTimestampMillis(data.createdAt);
         if (!createdMs && doc.createTime) {
           createdMs = doc.createTime.toMillis();
         }
@@ -564,9 +726,9 @@ export async function GET(req: NextRequest) {
           installMetrics.todayInstalls = liveTotalToday;
           installMetrics.todayActive = liveTotalActive;
           if (Array.isArray(installMetrics.byRegion)) {
-            installMetrics.byRegion.forEach((r: any) => {
-              r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
-              r.todayActive = liveActiveByRegion.get(r.regionId) ?? 0;
+            installMetrics.byRegion.forEach((row) => {
+              row.todayInstalls = liveTodayByRegion.get(row.regionId) ?? 0;
+              row.todayActive = liveActiveByRegion.get(row.regionId) ?? 0;
             });
           }
         } else {
@@ -574,9 +736,9 @@ export async function GET(req: NextRequest) {
           installMetrics.todayInstalls = liveTodayByRegion.get(rId) ?? 0;
           installMetrics.todayActive = liveActiveByRegion.get(rId) ?? 0;
           if (Array.isArray(installMetrics.byRegion)) {
-            installMetrics.byRegion.forEach((r: any) => {
-              r.todayInstalls = liveTodayByRegion.get(r.regionId) ?? 0;
-              r.todayActive = liveActiveByRegion.get(r.regionId) ?? 0;
+            installMetrics.byRegion.forEach((row) => {
+              row.todayInstalls = liveTodayByRegion.get(row.regionId) ?? 0;
+              row.todayActive = liveActiveByRegion.get(row.regionId) ?? 0;
             });
           }
         }
@@ -608,7 +770,9 @@ export async function GET(req: NextRequest) {
 
     const snapshot = await loadPortalAnalyticsSnapshot();
     const posters = showAllRegions
-      ? snapshot.posters.filter((item) => allowedRegionIds.includes(item.regionId))
+      ? snapshot.posters.filter((item) =>
+          allowedRegionIds.includes(item.regionId),
+        )
       : snapshot.posters.filter((item) => item.regionId === region?.id);
     const creators = showAllRegions
       ? snapshot.creatorProfiles.filter((item) =>
@@ -629,7 +793,10 @@ export async function GET(req: NextRequest) {
     const activeAnnouncements = announcements.filter(
       (item) => item.active && item.startAt <= now && item.endAt >= now,
     );
-    const totalEarnings = posters.reduce((sum, item) => sum + item.creatorEarnings, 0);
+    const totalEarnings = posters.reduce(
+      (sum, item) => sum + item.creatorEarnings,
+      0,
+    );
     const todayUploads = posters.filter(
       (item) => dayKeyInIst(item.createdAt) === todayKey,
     ).length;
@@ -639,16 +806,26 @@ export async function GET(req: NextRequest) {
       overview: {
         ...snapshot.overview,
         totalManagers: managers.length,
-        activeManagers: managers.filter((item) => item.status !== "inactive").length,
-        inactiveManagers: managers.filter((item) => item.status === "inactive").length,
+        activeManagers: managers.filter((item) => item.status !== "inactive")
+          .length,
+        inactiveManagers: managers.filter((item) => item.status === "inactive")
+          .length,
         totalCreators: creators.length,
-        activeCreators: creators.filter((item) => item.status === "active").length,
-        blockedCreators: creators.filter((item) => item.status === "blocked").length,
-        pendingInvites: creators.filter((item) => item.status === "pending_invite").length,
+        activeCreators: creators.filter((item) => item.status === "active")
+          .length,
+        blockedCreators: creators.filter((item) => item.status === "blocked")
+          .length,
+        pendingInvites: creators.filter(
+          (item) => item.status === "pending_invite",
+        ).length,
         totalPosters: posters.length,
-        pendingPosters: posters.filter((item) => item.status === "pending").length,
-        approvedPosters: posters.filter((item) => isApprovedEquivalentStatus(item.status)).length,
-        rejectedPosters: posters.filter((item) => item.status === "rejected").length,
+        pendingPosters: posters.filter((item) => item.status === "pending")
+          .length,
+        approvedPosters: posters.filter((item) =>
+          isApprovedEquivalentStatus(item.status),
+        ).length,
+        rejectedPosters: posters.filter((item) => item.status === "rejected")
+          .length,
       },
       headline: {
         totalCreators: creators.length,
@@ -660,7 +837,10 @@ export async function GET(req: NextRequest) {
         todayInstalls: installMetrics.todayInstalls,
         todayActiveUsers: installMetrics.todayActive,
         last7DaysActiveUsers: installMetrics.last7DaysActive,
-        nonActiveUsers: Math.max(0, installMetrics.totalInstalls - installMetrics.last7DaysActive),
+        nonActiveUsers: Math.max(
+          0,
+          installMetrics.totalInstalls - installMetrics.last7DaysActive,
+        ),
         subscribedUsers: subscriptionMetrics.subscribed,
         lifetimeSubscribers: subscriptionMetrics.lifetimeSubscribers,
         todayNewSubscribers: subscriptionMetrics.todayNewSubscribers,
@@ -685,19 +865,18 @@ export async function GET(req: NextRequest) {
             (item) =>
               item.status === "paid" &&
               (showAllRegions ||
-                creators.some((creator) => creator.creatorPublicId === item.creatorPublicId)),
+                creators.some(
+                  (creator) => creator.creatorPublicId === item.creatorPublicId,
+                )),
           )
           .reduce((sum, item) => sum + item.amount, 0),
       },
       categoryPerformance: buildCategoryPerformance(posters).slice(0, 8),
-      categoryLeaderboards: buildCategoryLeaderboards(
-        posters,
-        creators,
-      ).slice(0, 6),
-      creatorVisibility: buildCreatorVisibility(
-        creators,
-        posters,
-      ).slice(0, 6),
+      categoryLeaderboards: buildCategoryLeaderboards(posters, creators).slice(
+        0,
+        6,
+      ),
+      creatorVisibility: buildCreatorVisibility(creators, posters).slice(0, 6),
       content: {
         totalBanners: banners.length,
         activeBanners: banners.filter((item) => item.active).length,
@@ -708,7 +887,8 @@ export async function GET(req: NextRequest) {
       liveAnnouncements: activeAnnouncements.slice(0, 4),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load admin overview.";
+    const message =
+      error instanceof Error ? error.message : "Unable to load admin overview.";
     const status = message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ ok: false, error: message }, { status });
   }

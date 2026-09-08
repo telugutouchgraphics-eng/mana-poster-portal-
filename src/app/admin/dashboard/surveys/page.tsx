@@ -64,7 +64,9 @@ export default function AdminSurveysPage() {
   const [creating, setCreating] = useState(false);
 
   // Open comments drawer tracking
-  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [expandedComments, setExpandedComments] = useState<
+    Record<string, boolean>
+  >({});
 
   function toggleComments(id: string) {
     setExpandedComments((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -147,7 +149,10 @@ export default function AdminSurveysPage() {
 
   function formatTargetRegion(target: string) {
     if (!target || target === "all") return "All States & UTs (All India)";
-    const parts = target.split(",").map((p) => p.trim()).filter(Boolean);
+    const parts = target
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
     const names = parts.map((id) => {
       const found = DASHBOARD_REGIONS.find((r) => r.id === id);
       return found ? found.name : id;
@@ -219,9 +224,13 @@ export default function AdminSurveysPage() {
         setStatusMessage(`Question #${i + 1} cannot be empty.`);
         return;
       }
-      const cleanOpts = q.options.map((o) => o.trim()).filter((o) => o.length > 0);
+      const cleanOpts = q.options
+        .map((o) => o.trim())
+        .filter((o) => o.length > 0);
       if (cleanOpts.length < 2) {
-        setStatusMessage(`Question #${i + 1} must have at least 2 valid options.`);
+        setStatusMessage(
+          `Question #${i + 1} must have at least 2 valid options.`,
+        );
         return;
       }
     }
@@ -563,7 +572,8 @@ export default function AdminSurveysPage() {
           App User Surveys & Polls
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Create multi-question surveys for mobile app users. Questions display in an animated carousel flow in the app.
+          Create multi-question surveys for mobile app users. Questions display
+          in an animated carousel flow in the app.
         </p>
       </div>
 
@@ -577,11 +587,17 @@ export default function AdminSurveysPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Create New Survey / Poll</h2>
-            <p className="text-xs text-slate-500">Add questions, target regions & religion, and collect optional user comments.</p>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Create New Survey / Poll
+            </h2>
+            <p className="text-xs text-slate-500">
+              Add questions, target regions & religion, and collect optional
+              user comments.
+            </p>
           </div>
           <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
-            {questions.length} {questions.length === 1 ? "Question" : "Questions"}
+            {questions.length}{" "}
+            {questions.length === 1 ? "Question" : "Questions"}
           </span>
         </div>
 
@@ -608,7 +624,8 @@ export default function AdminSurveysPage() {
                   Target Religion
                 </label>
                 <p className="text-xs text-slate-500">
-                  Select which users should see this survey based on community preference.
+                  Select which users should see this survey based on community
+                  preference.
                 </p>
               </div>
               <span className="text-xs font-bold text-indigo-600">
@@ -646,7 +663,8 @@ export default function AdminSurveysPage() {
                   Target States / Regions
                 </label>
                 <p className="text-xs text-slate-500">
-                  Select which states and union territories should see this survey.
+                  Select which states and union territories should see this
+                  survey.
                 </p>
               </div>
               <span className="text-xs font-bold text-indigo-600">
@@ -678,7 +696,9 @@ export default function AdminSurveysPage() {
                 ) : (
                   <>
                     {selectedRegions.slice(0, 3).map((id) => {
-                      const r = DASHBOARD_REGIONS.find((item) => item.id === id);
+                      const r = DASHBOARD_REGIONS.find(
+                        (item) => item.id === id,
+                      );
                       return (
                         <span
                           key={id}
@@ -730,7 +750,12 @@ export default function AdminSurveysPage() {
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 </span>
               </div>
@@ -784,7 +809,9 @@ export default function AdminSurveysPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => selectRegionPreset(["andhra_pradesh", "telangana"])}
+                      onClick={() =>
+                        selectRegionPreset(["andhra_pradesh", "telangana"])
+                      }
                       className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                         !isAllRegions &&
                         selectedRegions.length === 2 &&
@@ -858,14 +885,26 @@ export default function AdminSurveysPage() {
                         }`}
                       >
                         {isAllRegions && (
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span>🇮🇳</span>
-                        <span className="text-xs font-bold">All India (All States & Union Territories)</span>
+                        <span className="text-xs font-bold">
+                          All India (All States & Union Territories)
+                        </span>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded-md">
@@ -875,7 +914,8 @@ export default function AdminSurveysPage() {
 
                   {/* State rows */}
                   {filteredRegions.map((region) => {
-                    const isSelected = isAllRegions || selectedRegions.includes(region.id);
+                    const isSelected =
+                      isAllRegions || selectedRegions.includes(region.id);
 
                     return (
                       <div
@@ -896,13 +936,25 @@ export default function AdminSurveysPage() {
                             }`}
                           >
                             {isSelected && (
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={3}
+                                  d="M5 13l4 4L19 7"
+                                />
                               </svg>
                             )}
                           </div>
                           <div>
-                            <div className={`text-xs ${isSelected ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                            <div
+                              className={`text-xs ${isSelected ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}
+                            >
                               {region.name}
                             </div>
                             <div className="text-[10px] text-slate-400">
@@ -922,7 +974,7 @@ export default function AdminSurveysPage() {
 
                   {filteredRegions.length === 0 && (
                     <div className="py-8 text-center text-xs text-slate-400">
-                      No states found matching "{regionSearch}"
+                      No states found matching {JSON.stringify(regionSearch)}
                     </div>
                   )}
                 </div>
@@ -996,7 +1048,9 @@ export default function AdminSurveysPage() {
                       required
                       placeholder={`Enter question #${qIdx + 1} (e.g. Which festival posters do you want?)`}
                       value={q.question}
-                      onChange={(e) => handleQuestionChange(qIdx, e.target.value)}
+                      onChange={(e) =>
+                        handleQuestionChange(qIdx, e.target.value)
+                      }
                       className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
@@ -1028,7 +1082,9 @@ export default function AdminSurveysPage() {
                             required
                             placeholder={`Option ${optIdx + 1}`}
                             value={opt}
-                            onChange={(e) => handleOptionChange(qIdx, optIdx, e.target.value)}
+                            onChange={(e) =>
+                              handleOptionChange(qIdx, optIdx, e.target.value)
+                            }
                             className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
                           />
                           {q.options.length > 2 && (
@@ -1059,7 +1115,11 @@ export default function AdminSurveysPage() {
                 "Publishing Survey..."
               ) : (
                 <>
-                  <span>🚀 Publish {questions.length > 1 ? `${questions.length}-Question` : ""} Survey to App</span>
+                  <span>
+                    🚀 Publish{" "}
+                    {questions.length > 1 ? `${questions.length}-Question` : ""}{" "}
+                    Survey to App
+                  </span>
                 </>
               )}
             </button>
@@ -1069,14 +1129,17 @@ export default function AdminSurveysPage() {
 
       {/* ACTIVE SURVEY SECTION */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900">Active Survey in Mobile App</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          Active Survey in Mobile App
+        </h2>
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
             Loading surveys...
           </div>
         ) : activeSurveys.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-            No active survey currently running. Create one above to ask questions to your app users.
+            No active survey currently running. Create one above to ask
+            questions to your app users.
           </div>
         ) : (
           activeSurveys.map((survey) => {
@@ -1106,7 +1169,10 @@ export default function AdminSurveysPage() {
                         LIVE NOW
                       </span>
                       <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-800">
-                        {surveyQuestions.length} {surveyQuestions.length === 1 ? "Question" : "Questions (Carousel)"}
+                        {surveyQuestions.length}{" "}
+                        {surveyQuestions.length === 1
+                          ? "Question"
+                          : "Questions (Carousel)"}
                       </span>
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
                         {formatReligion(survey.targetReligion)}
@@ -1118,9 +1184,17 @@ export default function AdminSurveysPage() {
                     </h3>
 
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                      <span><strong>📅 Published:</strong> {formatDateTime(survey.createdAt)}</span>
-                      <span><strong>📍 Target:</strong> {formatTargetRegion(survey.targetRegion)}</span>
-                      <span><strong>👥 Completed:</strong> {survey.totalVotes} Users</span>
+                      <span>
+                        <strong>📅 Published:</strong>{" "}
+                        {formatDateTime(survey.createdAt)}
+                      </span>
+                      <span>
+                        <strong>📍 Target:</strong>{" "}
+                        {formatTargetRegion(survey.targetRegion)}
+                      </span>
+                      <span>
+                        <strong>👥 Completed:</strong> {survey.totalVotes} Users
+                      </span>
                     </div>
                   </div>
 
@@ -1135,7 +1209,9 @@ export default function AdminSurveysPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleToggleStatus(survey.id, survey.status)}
+                      onClick={() =>
+                        handleToggleStatus(survey.id, survey.status)
+                      }
                       className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                     >
                       Close Survey
@@ -1164,7 +1240,9 @@ export default function AdminSurveysPage() {
                             Question {qIdx + 1} of {surveyQuestions.length}
                           </span>
                         </div>
-                        <h4 className="text-sm font-semibold text-slate-900">{q.question}</h4>
+                        <h4 className="text-sm font-semibold text-slate-900">
+                          {q.question}
+                        </h4>
 
                         <div className="space-y-2">
                           {q.options.map((opt, optIdx) => {
@@ -1216,12 +1294,19 @@ export default function AdminSurveysPage() {
                   {showComments && (
                     <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-3">
                       {comments.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">No feedback comments submitted yet.</p>
+                        <p className="text-xs text-slate-400 italic">
+                          No feedback comments submitted yet.
+                        </p>
                       ) : (
                         <div className="max-h-60 space-y-2.5 overflow-y-auto pr-1">
                           {comments.map((c, i) => (
-                            <div key={i} className="rounded-lg bg-slate-50 p-2.5 text-xs">
-                              <p className="font-medium text-slate-800">"{c.comment}"</p>
+                            <div
+                              key={i}
+                              className="rounded-lg bg-slate-50 p-2.5 text-xs"
+                            >
+                              <p className="font-medium text-slate-800">
+                                {JSON.stringify(c.comment)}
+                              </p>
                               <p className="mt-1 text-[10px] text-slate-400">
                                 {formatDateTime(c.createdAt)}
                               </p>
@@ -1241,7 +1326,9 @@ export default function AdminSurveysPage() {
       {/* PAST SURVEYS HISTORY */}
       {pastSurveys.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Past Surveys History</h2>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Past Surveys History
+          </h2>
           <div className="space-y-4">
             {pastSurveys.map((survey) => {
               const surveyQuestions =
@@ -1270,7 +1357,10 @@ export default function AdminSurveysPage() {
                           CLOSED
                         </span>
                         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                          {surveyQuestions.length} {surveyQuestions.length === 1 ? "Question" : "Questions"}
+                          {surveyQuestions.length}{" "}
+                          {surveyQuestions.length === 1
+                            ? "Question"
+                            : "Questions"}
                         </span>
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
                           {formatReligion(survey.targetReligion)}
@@ -1282,9 +1372,18 @@ export default function AdminSurveysPage() {
                       </h3>
 
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                        <span><strong>📅 Published:</strong> {formatDateTime(survey.createdAt)}</span>
-                        <span><strong>📍 Target:</strong> {formatTargetRegion(survey.targetRegion)}</span>
-                        <span><strong>👥 Completed:</strong> {survey.totalVotes} Users</span>
+                        <span>
+                          <strong>📅 Published:</strong>{" "}
+                          {formatDateTime(survey.createdAt)}
+                        </span>
+                        <span>
+                          <strong>📍 Target:</strong>{" "}
+                          {formatTargetRegion(survey.targetRegion)}
+                        </span>
+                        <span>
+                          <strong>👥 Completed:</strong> {survey.totalVotes}{" "}
+                          Users
+                        </span>
                       </div>
                     </div>
 
@@ -1298,7 +1397,9 @@ export default function AdminSurveysPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(survey.id, survey.status)}
+                        onClick={() =>
+                          handleToggleStatus(survey.id, survey.status)
+                        }
                         className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                       >
                         Re-activate
@@ -1317,7 +1418,10 @@ export default function AdminSurveysPage() {
                     {surveyQuestions.map((q, qIdx) => {
                       const qVotes = q.voteCounts ?? survey.voteCounts ?? {};
                       return (
-                        <div key={q.id ?? qIdx} className="rounded-lg bg-slate-50 p-3 text-xs">
+                        <div
+                          key={q.id ?? qIdx}
+                          className="rounded-lg bg-slate-50 p-3 text-xs"
+                        >
                           <p className="font-semibold text-slate-800">
                             Q{qIdx + 1}: {q.question}
                           </p>
@@ -1326,7 +1430,10 @@ export default function AdminSurveysPage() {
                               const count = qVotes[String(optIdx)] ?? 0;
                               return (
                                 <span key={optIdx}>
-                                  • {opt}: <strong className="text-slate-900">{count}</strong>
+                                  • {opt}:{" "}
+                                  <strong className="text-slate-900">
+                                    {count}
+                                  </strong>
                                 </span>
                               );
                             })}
@@ -1345,13 +1452,17 @@ export default function AdminSurveysPage() {
                         className="flex w-full items-center justify-between text-left text-xs font-bold text-slate-700"
                       >
                         <span>💬 User Comments ({comments.length})</span>
-                        <span className="text-indigo-600">{showComments ? "Hide ▲" : "View ▾"}</span>
+                        <span className="text-indigo-600">
+                          {showComments ? "Hide ▲" : "View ▾"}
+                        </span>
                       </button>
                       {showComments && (
                         <div className="mt-2 space-y-2 border-t border-slate-200/60 pt-2">
                           {comments.map((c, i) => (
                             <div key={i} className="text-xs text-slate-700">
-                              <span className="italic">"{c.comment}"</span>
+                              <span className="italic">
+                                {JSON.stringify(c.comment)}
+                              </span>
                               <span className="ml-2 text-[10px] text-slate-400">
                                 ({formatDateTime(c.createdAt)})
                               </span>

@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { adminDb, adminMessaging } from "@/lib/firebase/admin";
 import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
@@ -14,6 +14,7 @@ const PUSH_PROCESSING_RETRY_AFTER_MS = 2 * 60 * 1000;
 const INACTIVE_USER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const PUSH_AUDIENCE_USER_READ_LIMIT = 5000;
 const PUSH_AUDIENCE_TOKEN_READ_LIMIT = 5000;
+const PUSH_AUDIENCE_COUNT_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface PushTemplateOption {
   id: "morning" | "afternoon" | "night";
@@ -74,6 +75,29 @@ export interface PushHistoryRecord {
   createdByUid: string;
   createdByEmail: string;
   routeLabel?: string;
+}
+
+interface CachedAudienceCounts {
+  data: Record<PushAudienceSegment, number>;
+  cachedAt: number;
+}
+
+const audienceCountMemoryCache = new Map<string, CachedAudienceCounts>();
+
+function audienceCountCacheKey(targetLocation: {
+  state: string;
+  regionIds: string[];
+  district: string;
+  city: string;
+  religion: PushReligionTarget;
+}) {
+  return JSON.stringify({
+    state: trimValue(targetLocation.state),
+    regionIds: [...targetLocation.regionIds].map(trimValue).filter(Boolean).sort(),
+    district: cleanLocationText(targetLocation.district),
+    city: cleanLocationText(targetLocation.city),
+    religion: normalizeReligionTarget(targetLocation.religion),
+  });
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -142,7 +166,9 @@ async function cleanupTokenPath(refPath?: string) {
   }
   try {
     await adminDb.doc(refPath).delete();
-  } catch {}
+  } catch (error) {
+    console.warn("Failed to read push audience count cache", error);
+  }
 }
 
 function tokenDocId(token: string) {
@@ -386,6 +412,26 @@ export async function countPushAudienceSegments(targetLocation: {
   city: string;
   religion: PushReligionTarget;
 }) {
+  const cacheKey = audienceCountCacheKey(targetLocation);
+  const now = Date.now();
+  const memoryHit = audienceCountMemoryCache.get(cacheKey);
+  if (memoryHit && now - memoryHit.cachedAt < PUSH_AUDIENCE_COUNT_CACHE_TTL_MS) {
+    return memoryHit.data;
+  }
+
+  const cacheRef = adminDb
+    .collection("system")
+    .doc(`pushAudienceCountCache_${createHash("sha256").update(cacheKey).digest("hex")}`);
+  try {
+    const cacheSnap = await cacheRef.get();
+    const cachedAt = Number(cacheSnap.data()?.cachedAt ?? 0);
+    const data = cacheSnap.data()?.data as Record<PushAudienceSegment, number> | undefined;
+    if (cacheSnap.exists && data && now - cachedAt < PUSH_AUDIENCE_COUNT_CACHE_TTL_MS) {
+      audienceCountMemoryCache.set(cacheKey, { data, cachedAt: now });
+      return data;
+    }
+  } catch {}
+
   const baseUserIds = Array.from(
     new Set(
       (await loadAreaUserUidsForRegionIds({
@@ -405,12 +451,17 @@ export async function countPushAudienceSegments(targetLocation: {
     loadSubscribedUserUidSet(baseUserIds),
   ]);
 
-  return {
+  const data = {
     all_area_users: allAreaTargets.length,
     inactive_users: inactive.size,
     subscribers: subscribed.size,
     non_subscribers: baseUserIds.filter((uid) => !subscribed.has(uid)).length,
   } satisfies Record<PushAudienceSegment, number>;
+  audienceCountMemoryCache.set(cacheKey, { data, cachedAt: now });
+  cacheRef.set({ data, cachedAt: now }).catch((error) => {
+    console.warn("Failed to cache push audience counts", error);
+  });
+  return data;
 }
 
 function areaMatches(

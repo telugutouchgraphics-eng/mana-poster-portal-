@@ -25,6 +25,10 @@ function assertValidRegionIds(regionIds: string[]) {
   }
 }
 
+function isWeekdayCategoryId(categoryId: string) {
+  return categoryId.trim().toLowerCase().startsWith("weekday_");
+}
+
 const requestSchema = z.object({
   id: z.string().trim().optional(),
   label: z.string().trim().min(1).max(80),
@@ -91,7 +95,9 @@ export async function POST(req: NextRequest) {
       labelsByLanguage,
       iconAssetPath: payload.iconAssetPath ?? "",
       regionIds,
-      allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
+      allowPoliticalProtocol: isWeekdayCategoryId(id)
+        ? false
+        : (payload.allowPoliticalProtocol ?? false),
       active: payload.active ?? true,
       sortOrder: payload.sortOrder ?? 0,
       createdAt: now,
@@ -112,7 +118,9 @@ export async function POST(req: NextRequest) {
         categoryId: id,
         label: payload.label,
         regionIds,
-        allowPoliticalProtocol: payload.allowPoliticalProtocol ?? false,
+        allowPoliticalProtocol: isWeekdayCategoryId(id)
+          ? false
+          : (payload.allowPoliticalProtocol ?? false),
       },
     });
     return NextResponse.json({ ok: true, category: record });

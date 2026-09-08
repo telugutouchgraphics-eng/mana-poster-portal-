@@ -1,9 +1,12 @@
+import { createHash } from "crypto";
+
 import { adminDb } from "@/lib/firebase/admin";
 import { categoryLabelWithIcon } from "@/lib/category-display";
 import { getIstDayKey } from "@/lib/server/ist-schedule";
 
 const PERFORMANCE_STATS_READ_LIMIT = 3000;
 const PERFORMANCE_POSTERS_READ_LIMIT = 2000;
+const PERFORMANCE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface DailyPosterMetric {
   creatorPublicId: string;
@@ -60,6 +63,86 @@ export interface RecentPosterPerformanceMetric {
   rank: number;
 }
 
+type PerformanceStatDoc = FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>;
+type PerformancePosterDoc = FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>;
+
+interface PerformanceSourceSnapshot {
+  statsDocs: PerformanceStatDoc[];
+  posterDocs: PerformancePosterDoc[];
+}
+
+interface CachedPerformanceSourceSnapshot {
+  data: PerformanceSourceSnapshot;
+  cachedAt: number;
+}
+
+interface CachedPerformanceResult<T> {
+  data: T;
+  cachedAt: number;
+}
+
+let performanceSourceMemoryCache: CachedPerformanceSourceSnapshot | null = null;
+const performanceResultMemoryCache = new Map<string, CachedPerformanceResult<unknown>>();
+
+function performanceCacheDocId(cacheKey: string): string {
+  return `performanceMetricsCache_${createHash("sha256").update(cacheKey).digest("hex")}`;
+}
+
+async function loadCachedPerformanceResult<T>(
+  cacheKey: string,
+): Promise<T | null> {
+  const now = Date.now();
+  const memoryCache = performanceResultMemoryCache.get(cacheKey);
+  if (memoryCache && now - memoryCache.cachedAt < PERFORMANCE_CACHE_TTL_MS) {
+    return memoryCache.data as T;
+  }
+
+  const cacheDoc = await adminDb
+    .collection("system")
+    .doc(performanceCacheDocId(cacheKey))
+    .get();
+  const cache = cacheDoc.data() as CachedPerformanceResult<T> | undefined;
+  if (cache && now - readNumber(cache.cachedAt) < PERFORMANCE_CACHE_TTL_MS) {
+    performanceResultMemoryCache.set(cacheKey, cache as CachedPerformanceResult<unknown>);
+    return cache.data;
+  }
+  return null;
+}
+
+function savePerformanceResultCache<T>(cacheKey: string, data: T): void {
+  const cachedAt = Date.now();
+  const payload: CachedPerformanceResult<T> = { data, cachedAt };
+  performanceResultMemoryCache.set(cacheKey, payload as CachedPerformanceResult<unknown>);
+  adminDb
+    .collection("system")
+    .doc(performanceCacheDocId(cacheKey))
+    .set(payload, { merge: true })
+    .catch((error) => {
+      console.warn("Failed to cache performance metrics", error);
+    });
+}
+
+async function loadPerformanceSourceSnapshot(): Promise<PerformanceSourceSnapshot> {
+  const now = Date.now();
+  if (
+    performanceSourceMemoryCache &&
+    now - performanceSourceMemoryCache.cachedAt < PERFORMANCE_CACHE_TTL_MS
+  ) {
+    return performanceSourceMemoryCache.data;
+  }
+
+  const [statsSnap, posterSnap] = await Promise.all([
+    adminDb.collection("creatorPosterDailyStats").limit(PERFORMANCE_STATS_READ_LIMIT).get(),
+    adminDb.collection("creatorPosters").limit(PERFORMANCE_POSTERS_READ_LIMIT).get(),
+  ]);
+  const data = {
+    statsDocs: statsSnap.docs,
+    posterDocs: posterSnap.docs,
+  };
+  performanceSourceMemoryCache = { data, cachedAt: now };
+  return data;
+}
+
 function readNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -95,15 +178,22 @@ export async function loadDailyPosterMetrics(
     return [];
   }
 
-  const [statsSnap, posterSnap] = await Promise.all([
-    adminDb.collection("creatorPosterDailyStats").limit(PERFORMANCE_STATS_READ_LIMIT).get(),
-    adminDb.collection("creatorPosters").limit(PERFORMANCE_POSTERS_READ_LIMIT).get(),
-  ]);
+  const selectedRegionId = String(regionId ?? "").trim();
+  const dailyCacheKey = JSON.stringify({
+    type: "daily",
+    creatorPublicIds: [...new Set(creatorPublicIds.map((id) => id.trim()).filter(Boolean))].sort(),
+    regionId: selectedRegionId,
+  });
+  const cachedMetrics = await loadCachedPerformanceResult<DailyPosterMetric[]>(dailyCacheKey);
+  if (cachedMetrics) {
+    return cachedMetrics;
+  }
+
+  const { statsDocs, posterDocs } = await loadPerformanceSourceSnapshot();
 
   const creatorSet = new Set(creatorPublicIds);
-  const selectedRegionId = String(regionId ?? "").trim();
   const posterMap = new Map(
-    posterSnap.docs
+    posterDocs
       .map((doc) => {
         const data = doc.data();
         return [
@@ -120,7 +210,7 @@ export async function loadDailyPosterMetrics(
       .filter(([, item]) => !selectedRegionId || item.regionId === selectedRegionId),
   );
 
-  return statsSnap.docs
+  const metrics = statsDocs
     .map((doc) => {
       const data = doc.data();
       const creatorPublicId = String(data.creatorPublicId ?? "").trim();
@@ -171,19 +261,29 @@ export async function loadDailyPosterMetrics(
       } satisfies DailyPosterMetric;
     })
     .filter((item): item is DailyPosterMetric => item !== null);
+  savePerformanceResultCache(dailyCacheKey, metrics);
+  return metrics;
 }
 
 export async function loadActivePosterPerformanceMetrics(
   now = Date.now(),
   regionId?: string | null,
 ): Promise<RecentPosterPerformanceMetric[]> {
-  const [statsSnap, posterSnap] = await Promise.all([
-    adminDb.collection("creatorPosterDailyStats").limit(PERFORMANCE_STATS_READ_LIMIT).get(),
-    adminDb.collection("creatorPosters").limit(PERFORMANCE_POSTERS_READ_LIMIT).get(),
-  ]);
-
   const selectedRegionId = String(regionId ?? "").trim();
-  const recentPosters = posterSnap.docs
+  const activeCacheKey = JSON.stringify({
+    type: "active",
+    regionId: selectedRegionId,
+  });
+  const cachedMetrics = await loadCachedPerformanceResult<RecentPosterPerformanceMetric[]>(
+    activeCacheKey,
+  );
+  if (cachedMetrics) {
+    return cachedMetrics;
+  }
+
+  const { statsDocs, posterDocs } = await loadPerformanceSourceSnapshot();
+
+  const recentPosters = posterDocs
     .map((doc) => ({
       posterId: doc.id,
       creatorPublicId: String(doc.data().creatorPublicId ?? "").trim(),
@@ -210,6 +310,7 @@ export async function loadActivePosterPerformanceMetrics(
     );
 
   if (recentPosters.length === 0) {
+    savePerformanceResultCache(activeCacheKey, []);
     return [];
   }
 
@@ -224,7 +325,7 @@ export async function loadActivePosterPerformanceMetrics(
     }
   >();
 
-  for (const doc of statsSnap.docs) {
+  for (const doc of statsDocs) {
     const data = doc.data();
     const posterId = String(data.posterId ?? data.templateId ?? "").trim();
     if (!recentPosterIds.has(posterId)) {
@@ -301,6 +402,7 @@ export async function loadActivePosterPerformanceMetrics(
     });
   }
 
+  savePerformanceResultCache(activeCacheKey, enriched);
   return enriched;
 }
 

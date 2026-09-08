@@ -321,6 +321,16 @@ async function resolveAdminPosterSchedule(
   requestedPublishAt: number,
   regionId: string,
 ) {
+  if (uploadSource === "app_posters") {
+    return {
+      publishAt: now,
+      eventStartAt: 0,
+      eventEndAt: 0,
+      dynamicCategoryId: "",
+      dynamicCategoryLabel: "",
+    };
+  }
+
   const timeCategoryStartHour = {
     good_morning: 4,
     good_afternoon: 12,

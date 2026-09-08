@@ -6,17 +6,12 @@ export const privacySections = [
   {
     title: "Information We Collect",
     body:
-      "Mana Poster Ai app and portal use account details such as name, email address, phone number, profile photo, login identifiers, purchase status, poster profile details, notification tokens, upload review data, and device or session information required to operate the service.",
+      "Mana Poster Ai app and portal use account details such as name, email address, phone number, profile photo, login identifiers, purchase status, poster profile details, notification tokens, and device or session information required to operate the service.",
   },
   {
     title: "How We Use Data",
     body:
-      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, review uploads, prevent abuse, and provide customer support. If a user enables optional location access in the app, we use Android native location permission and store only approximate city, district, state, country code, update time, and a random feed seed to prioritize nearby statuses, show area-relevant banners, support area-targeted admin notifications, and provide privacy-safe aggregate admin insights. Exact GPS latitude/longitude is not stored or displayed for this feature.",
-  },
-  {
-    title: "Community Uploads and Review",
-    body:
-      "Users may upload poster images for manager review. We may process the uploaded image, selected category, upload time, applicable visibility date, review status, rejection reason, contribution share and download counts, and related moderation history. Approved community uploads are visible only to the uploading user in My Uploads and are not shown to other users in public app categories. Managers and admins may review, reject, remove, or retain uploads as part of moderation, abuse prevention, and record-keeping.",
+      "We use collected data to authenticate users, protect account access, personalize posters, deliver subscriptions, restore purchases, prevent abuse, and provide customer support. If a user enables optional location access in the app, we use Android native location permission and store only approximate city, district, state, country code, update time, and a random feed seed to prioritize nearby statuses, show area-relevant banners, support area-targeted admin notifications, and provide privacy-safe aggregate admin insights. Exact GPS latitude/longitude is not stored or displayed for this feature.",
   },
   {
     title: "Payments, Firebase, and Ads",
@@ -59,12 +54,12 @@ export const termsSections = [
   {
     title: "Community Uploads, Moderation, and Reporting",
     body:
-      `Users may upload posters for manager review. Uploading third-party content without rights, impersonation, abusive or offensive content, deceptive political misuse, spam uploads, repeated low-quality uploads, illegal notices, fake claims, or material you do not have rights to use is prohibited. Managers and admins may approve, reject, customize, delay, unpublish, or remove uploads. Rejected uploads may include a reason. Abusive or infringing status/reply content can be reported through the in-app report flow, app support flow, or by emailing ${SUPPORT_EMAIL}. Managers and admins may review reports, send reasonable email updates to the reporter, close reports after action, or re-open reports if further review is needed. Admin location insights are aggregate city/district/state views only and must not be used as exact user tracking.`,
+      `Abusive or infringing status/reply content can be reported through the in-app report flow, app support flow, or by emailing ${SUPPORT_EMAIL}. Managers and admins may review reports, send reasonable email updates to the reporter, close reports after action, or re-open reports if further review is needed. Admin location insights are aggregate city/district/state views only and must not be used as exact user tracking.`,
   },
   {
     title: "Manager and Admin Review Authority",
     body:
-      "To protect users and the platform, managers and admins may review uploaded posters, hold publication, reject or remove policy-violating material, preserve moderation history, and restrict access where fraud, abuse, or legal risk is detected.",
+      "To protect users and the platform, managers and admins may review reports, preserve limited moderation history, and restrict access where fraud, abuse, or legal risk is detected.",
   },
   {
     title: "Device Sessions",

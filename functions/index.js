@@ -474,102 +474,6 @@ async function hideExpiredCreatorPostersFromDashboards(cutoffMs) {
   };
 }
 
-async function cleanupExpiredUserUploads(bucket, cutoffMs) {
-  let lastDocumentId = null;
-  let scanned = 0;
-  let deletedUploads = 0;
-  let deletedUploadAssets = 0;
-  let deletedApprovedPosters = 0;
-  let deletedPosterAssets = 0;
-  let errors = 0;
-
-  while (true) {
-    let query = db
-      .collection("userPosterUploads")
-      .orderBy(FieldPath.documentId())
-      .limit(FIRESTORE_PAGE_SIZE)
-      .select(
-        "imagePath",
-        "approvedPosterTemplateId",
-        "expiresAt",
-        "createdAt",
-      );
-
-    if (lastDocumentId) {
-      query = query.startAfter(lastDocumentId);
-    }
-
-    const snapshot = await query.get();
-    if (snapshot.empty) {
-      break;
-    }
-
-    for (const document of snapshot.docs) {
-      scanned += 1;
-      const data = document.data();
-      const expiresAt = Number(data.expiresAt ?? data.createdAt ?? 0);
-      if (
-        !Number.isFinite(expiresAt) ||
-        expiresAt <= 0 ||
-        expiresAt > cutoffMs
-      ) {
-        continue;
-      }
-
-      try {
-        const uploadImagePath = normalizePath(data.imagePath);
-        if (uploadImagePath) {
-          await bucket.file(uploadImagePath).delete({ ignoreNotFound: true });
-          deletedUploadAssets += 1;
-        }
-
-        const approvedPosterTemplateId = String(
-          data.approvedPosterTemplateId ?? "",
-        ).trim();
-        if (approvedPosterTemplateId) {
-          const posterRef = db
-            .collection("creatorPosters")
-            .doc(approvedPosterTemplateId);
-          const posterSnap = await posterRef.get();
-          if (posterSnap.exists) {
-            const poster = posterSnap.data() || {};
-            const posterPaths = [
-              normalizePath(poster.imagePath),
-              normalizePath(poster.videoPath),
-            ].filter(Boolean);
-            for (const filePath of posterPaths) {
-              await bucket.file(filePath).delete({ ignoreNotFound: true });
-              deletedPosterAssets += 1;
-            }
-            await posterRef.delete();
-            deletedApprovedPosters += 1;
-          }
-        }
-
-        await document.ref.delete();
-        deletedUploads += 1;
-      } catch (error) {
-        errors += 1;
-        logger.error("Failed to clean expired user upload.", {
-          uploadId: document.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    lastDocumentId = snapshot.docs[snapshot.docs.length - 1].id;
-  }
-
-  return {
-    scanned,
-    deletedUploads,
-    deletedUploadAssets,
-    deletedApprovedPosters,
-    deletedPosterAssets,
-    errors,
-  };
-}
-
 function createStats() {
   return {
     scanned: 0,
@@ -676,10 +580,6 @@ exports.cleanupExpiredStorageAssets = onSchedule(
     const cutoffMs = startedAt - EXPIRY_MS;
     const dashboardCutoffMs = startedAt - DASHBOARD_POSTER_RETENTION_MS;
     const bucket = storage.bucket();
-    const expiredUserUploadsSummary = await cleanupExpiredUserUploads(
-      bucket,
-      startedAt,
-    );
     const expiredPosterSummary = await expireApprovedCreatorPosterContent(
       bucket,
       cutoffMs,
@@ -703,7 +603,6 @@ exports.cleanupExpiredStorageAssets = onSchedule(
         creatorPosters: creatorPosterDocs,
         websitePosters: websitePosterDocs,
       },
-      expiredUserUploads: expiredUserUploadsSummary,
       expiredCreatorPosterContent: expiredPosterSummary,
       dashboardCreatorPosterCleanup: dashboardPosterSummary,
       prefixes: {},

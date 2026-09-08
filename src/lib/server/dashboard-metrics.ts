@@ -185,7 +185,6 @@ function buildCategoryLabelMap(): Record<string, string> {
 
 const DASHBOARD_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DASHBOARD_METRICS_READ_LIMIT = 2000;
-const DASHBOARD_LEDGER_READ_LIMIT = 3000;
 
 function isDashboardVisiblePoster(poster: PosterRecord, now: number): boolean {
   if (poster.dashboardHiddenAt > 0) {
