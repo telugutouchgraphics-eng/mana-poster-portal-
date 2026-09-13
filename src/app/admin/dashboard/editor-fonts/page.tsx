@@ -238,6 +238,21 @@ export default function EditorFontsPage() {
         </p>
       </div>
 
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p className="font-bold text-sm text-amber-950">Notice: Moved to Dedicated Pixora Creator Dashboard</p>
+          <p className="mt-0.5 text-amber-800">Pixora Creator typography and fonts are now managed separately on the dedicated portal to prevent confusion.</p>
+        </div>
+        <a
+          href="https://mana-poster-editor.web.app/fonts"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center rounded-xl bg-[var(--portal-purple)] px-4 py-2 font-bold text-white shadow-xs hover:bg-purple-800 shrink-0"
+        >
+          Open Pixora Dashboard →
+        </a>
+      </div>
+
       <form onSubmit={uploadFont} className="rounded-lg border border-[var(--portal-border)] bg-white p-5">
         <div className="grid gap-3 md:grid-cols-3">
           <input

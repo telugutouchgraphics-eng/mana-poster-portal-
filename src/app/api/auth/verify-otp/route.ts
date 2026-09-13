@@ -3,6 +3,16 @@ import { z } from "zod";
 import { setOtpSessionCookie, verifyOtpChallenge } from "@/lib/server/otp-auth";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 const requestSchema = z.object({
   challengeId: z.string().trim().min(8),
   otp: z.string().trim().regex(/^\d{6}$/),
@@ -21,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       authEmail: verified.authEmail,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to verify OTP.";
     const status =
@@ -30,6 +40,6 @@ export async function POST(req: NextRequest) {
         : message.includes("Invalid OTP") || message.includes("OTP")
           ? 401
           : 400;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return NextResponse.json({ ok: false, error: message }, { status, headers: corsHeaders });
   }
 }

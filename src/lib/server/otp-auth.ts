@@ -1,4 +1,4 @@
-﻿import crypto from "crypto";
+import crypto from "crypto";
 import { cookies } from "next/headers";
 import nodemailer from "nodemailer";
 import { FieldValue } from "firebase-admin/firestore";
@@ -125,7 +125,12 @@ export async function verifyManagedPassword(authEmail: string, password: string)
   throw new Error("Unable to verify login password.");
 }
 
-export async function createOtpChallenge(identifier: string, role: ManagedPortalRole, password: string) {
+export async function createOtpChallenge(
+  identifier: string, 
+  role: ManagedPortalRole, 
+  password: string,
+  appName?: string
+) {
   let resolved;
   try {
     resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
@@ -139,10 +144,15 @@ export async function createOtpChallenge(identifier: string, role: ManagedPortal
     authEmail: resolved.authEmail,
     contactEmail: resolved.contactEmail,
     purpose: "login",
+    appName,
   });
 }
 
-export async function createPasswordResetChallenge(identifier: string, role: ManagedPortalRole) {
+export async function createPasswordResetChallenge(
+  identifier: string, 
+  role: ManagedPortalRole,
+  appName?: string
+) {
   let resolved;
   try {
     resolved = await resolveManagedAuthEmail(adminDb, identifier, role);
@@ -155,6 +165,7 @@ export async function createPasswordResetChallenge(identifier: string, role: Man
     authEmail: resolved.authEmail,
     contactEmail: resolved.contactEmail,
     purpose: "password_reset",
+    appName,
   });
 }
 
@@ -193,6 +204,7 @@ async function issueOtpChallenge(input: {
   authEmail: string;
   contactEmail: string;
   purpose: "login" | "password_reset";
+  appName?: string;
 }) {
   const challengeRef = adminDb.collection(OTP_COLLECTION).doc();
   const code = randomOtp();
@@ -213,7 +225,14 @@ async function issueOtpChallenge(input: {
   });
 
   const fromEmail = requiredEnv("SMTP_FROM_EMAIL");
-  const fromName = process.env.SMTP_FROM_NAME?.trim() || "Mana Poster Ai";
+  const isPixora = Boolean(
+    input.appName?.toLowerCase().includes("pixora") ||
+    input.contactEmail.toLowerCase().includes("manaposter2026@gmail.com") ||
+    input.authEmail.toLowerCase().includes("manaposter2026@gmail.com")
+  );
+  const fromName = isPixora 
+    ? "Pixora Creator" 
+    : (process.env.SMTP_FROM_NAME?.trim() || "Mana Poster Ai");
   const mailer = await transporter();
   try {
     const sent = await mailer.sendMail({
@@ -221,18 +240,18 @@ async function issueOtpChallenge(input: {
       to: input.contactEmail,
       subject:
         input.purpose === "password_reset"
-          ? "Your Mana Poster Ai password reset OTP"
-          : "Your Mana Poster Ai login OTP",
+          ? `Your ${fromName} password reset OTP`
+          : `Your ${fromName} login OTP`,
       text:
         input.purpose === "password_reset"
-          ? `Your Mana Poster Ai password reset OTP is ${code}. This code will expire in 10 minutes.`
-          : `Your Mana Poster Ai login OTP is ${code}. This code will expire in 10 minutes.`,
+          ? `Your ${fromName} password reset OTP is ${code}. This code will expire in 10 minutes.`
+          : `Your ${fromName} login OTP is ${code}. This code will expire in 10 minutes.`,
       html: `<div style="font-family:Arial,sans-serif;padding:24px;color:#111827">
-        <p style="margin:0 0 12px;font-size:14px;color:#6b7280">${
-          input.purpose === "password_reset" ? "Mana Poster Ai password reset" : "Mana Poster Ai secure login"
+        <p style="margin:0 0 12px;font-size:14px;color:#6b7280">${fromName} ${
+          input.purpose === "password_reset" ? "password reset" : "secure login"
         }</p>
-        <h2 style="margin:0 0 16px;font-size:28px;letter-spacing:4px">${code}</h2>
-        <p style="margin:0;font-size:15px;line-height:1.7;color:#374151">Use this OTP to complete your dashboard login. This code expires in 10 minutes.</p>
+        <h2 style="margin:0 0 16px;font-size:28px;letter-spacing:4px;color:#4f46e5">${code}</h2>
+        <p style="margin:0;font-size:15px;line-height:1.7;color:#374151">Use this OTP to complete your ${fromName} login. This code expires in 10 minutes.</p>
       </div>`,
     });
 
