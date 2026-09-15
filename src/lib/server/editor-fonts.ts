@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "crypto";
-import { adminDb } from "@/lib/firebase/admin";
+import { editorAdminDb, editorAdminStorage } from "@/lib/firebase/admin";
 import { deleteAdminAsset, uploadAdminAsset } from "@/lib/server/content-management";
 
 export const EDITOR_FONTS = "editorFonts";
@@ -80,7 +80,7 @@ function validateFontContents(buffer: Buffer, extension: "ttf" | "otf") {
 }
 
 export async function listEditorFonts(includeInactive = false) {
-  const snap = await adminDb.collection(EDITOR_FONTS).get();
+  const snap = await editorAdminDb.collection(EDITOR_FONTS).get();
   return snap.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }) as EditorFontRecord)
     .filter((item) => includeInactive || item.active)
@@ -100,7 +100,7 @@ export async function uploadEditorFont(input: {
   const id = randomUUID();
   const family = normalizeEditorFontName(input.family, input.file.name.replace(/\.[^.]+$/, ""));
   const displayName = normalizeEditorFontName(input.displayName, family);
-  const duplicate = await adminDb.collection(EDITOR_FONTS).get();
+  const duplicate = await editorAdminDb.collection(EDITOR_FONTS).get();
   if (
     duplicate.docs.some((doc) => {
       const item = doc.data() as Partial<EditorFontRecord>;
@@ -114,6 +114,7 @@ export async function uploadEditorFont(input: {
     buffer,
     contentType,
     `portal_assets/editor_fonts/${id}.${extension}`,
+    editorAdminStorage,
   );
   const now = Date.now();
   const record: EditorFontRecord = {
@@ -133,20 +134,20 @@ export async function uploadEditorFont(input: {
     updatedAt: now,
   };
   try {
-    await adminDb.collection(EDITOR_FONTS).doc(id).set(record);
+    await editorAdminDb.collection(EDITOR_FONTS).doc(id).set(record);
   } catch (error) {
-    await deleteAdminAsset(uploaded.filePath);
+    await deleteAdminAsset(uploaded.filePath, editorAdminStorage);
     throw error;
   }
   return record;
 }
 
 export async function deleteEditorFont(id: string) {
-  const ref = adminDb.collection(EDITOR_FONTS).doc(id);
+  const ref = editorAdminDb.collection(EDITOR_FONTS).doc(id);
   const snap = await ref.get();
   if (!snap.exists) return false;
   const record = snap.data() as EditorFontRecord;
   await ref.delete();
-  await deleteAdminAsset(record.filePath);
+  await deleteAdminAsset(record.filePath, editorAdminStorage);
   return true;
 }

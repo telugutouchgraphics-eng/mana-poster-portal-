@@ -51,6 +51,29 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: EDITOR_FIREBASE_STORAGE_BUCKET
+    value: mana-poster-editor.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: EDITOR_FIREBASE_PROJECT_ID
+    value: mana-poster-editor
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: EDITOR_FIREBASE_CLIENT_EMAIL
+    secret: EDITOR_FIREBASE_CLIENT_EMAIL
+    availability:
+      - RUNTIME
+  - variable: EDITOR_FIREBASE_PRIVATE_KEY
+    secret: EDITOR_FIREBASE_PRIVATE_KEY
+    availability:
+      - RUNTIME
+  - variable: EDITOR_FIREBASE_KEY_PATH
+    value: ./editor-service-account.json
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: SMTP_HOST
     value: smtp-relay.brevo.com
     availability:

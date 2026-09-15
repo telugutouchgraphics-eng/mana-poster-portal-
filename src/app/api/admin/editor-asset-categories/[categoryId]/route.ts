@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { editorAdminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import { EDITOR_ASSET_CATEGORIES, EDITOR_ASSETS, normalizeEditorAssetName, normalizeSortOrder } from "@/lib/server/editor-assets";
@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     if (typeof body.name === "string") update.name = normalizeEditorAssetName(body.name, "Category");
     if (typeof body.active === "boolean") update.active = body.active;
     if (body.sortOrder !== undefined) update.sortOrder = normalizeSortOrder(body.sortOrder);
-    await adminDb.collection(EDITOR_ASSET_CATEGORIES).doc(categoryId).update(update);
+    await editorAdminDb.collection(EDITOR_ASSET_CATEGORIES).doc(categoryId).update(update);
     await writeAuditLog({ actorUid: actor.uid, actorRole: actor.role, actorEmail: actor.email, action: "update", targetType: "editor_asset_category", targetId: categoryId, message: "Updated asset category." });
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -25,9 +25,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ c
   try {
     await requireRole(req, ["admin"]);
     const { categoryId } = await params;
-    const assets = await adminDb.collection(EDITOR_ASSETS).where("categoryId", "==", categoryId).limit(1).get();
+    const assets = await editorAdminDb.collection(EDITOR_ASSETS).where("categoryId", "==", categoryId).limit(1).get();
     if (!assets.empty) throw new Error("Remove this category's assets first.");
-    await adminDb.collection(EDITOR_ASSET_CATEGORIES).doc(categoryId).delete();
+    await editorAdminDb.collection(EDITOR_ASSET_CATEGORIES).doc(categoryId).delete();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Unable to delete category." }, { status: 400 });

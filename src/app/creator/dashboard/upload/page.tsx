@@ -15,6 +15,7 @@ import {
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 import { groupCategories, type CategoryType } from "@/lib/category-groups";
+import { groupCategories } from "@/lib/category-groups";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
@@ -35,6 +36,17 @@ import {
   VIDEO_PHOTO_ANIMATION_OPTIONS,
   type VideoPhotoAnimation,
 } from "@/lib/video-photo-animation";
+import type {
+  CreatorCategory,
+  CreatorDashboardResponse,
+  CreatorPoster,
+  ImageMeta,
+  PersonalizationConfig,
+  PoliticalProtocolSlot,
+} from "@/lib/types/creator-upload";
+import { CreatorRecentUploadsList } from "@/components/creators/creator-recent-uploads-list";
+import { UploadLivePreview } from "@/components/creators/upload-live-preview";
+import { UploadPersonalizationControls } from "@/components/creators/upload-personalization-controls";
 
 interface CreatorCategory {
   id: string;
@@ -2057,6 +2069,22 @@ export default function CreatorUploadStudioPage() {
             </div>
           </article>
         </section>
+        <CreatorRecentUploadsList
+          reviewPosters={reviewPosters}
+          selectedPosterIds={selectedPosterIds}
+          toggleAllVisiblePosters={toggleAllVisiblePosters}
+          togglePosterSelection={togglePosterSelection}
+          canCreatorDeletePoster={canCreatorDeletePoster}
+          canCreatorEditPoster={canCreatorEditPoster}
+          posterActionBusyMap={posterActionBusyMap}
+          startEditPoster={startEditPoster}
+          deletePoster={deletePoster}
+          deleteSelectedPosters={deleteSelectedPosters}
+          loadDashboard={loadDashboard}
+          refreshing={refreshing}
+          uploadMessage={uploadMessage}
+          customizationCopy={customizationCopy}
+        />
       )}
 
       {customizeOpen ? (
@@ -2082,6 +2110,22 @@ export default function CreatorUploadStudioPage() {
                   {customizationCopy.close}
                 </button>
               </div>
+            <UploadPersonalizationControls
+              personalization={personalization}
+              safePersonalization={safePersonalization}
+              setPersonalization={setPersonalization}
+              selectedPhotoTarget={selectedPhotoTarget}
+              setSelectedPhotoTarget={setSelectedPhotoTarget}
+              rememberPhotoShape={rememberPhotoShape}
+              clampPhotoSafeArea={clampPhotoSafeArea}
+              normalizePoliticalProtocolSlots={normalizePoliticalProtocolSlots}
+              fileMeta={fileMeta}
+              isVideoPreview={isVideoPreview}
+              isJokesCustomization={isJokesCustomization}
+              canUsePoliticalProtocol={canUsePoliticalProtocol}
+              customizationCopy={customizationCopy}
+              onClose={() => setCustomizeOpen(false)}
+            />
 
               <div className="mt-5 space-y-4 text-sm">
                 {isJokesCustomization ? (
@@ -2759,6 +2803,39 @@ export default function CreatorUploadStudioPage() {
                 </div>
               )}
             </section>
+            <UploadLivePreview
+              filePreviewUrl={filePreviewUrl}
+              file={file}
+              isVideoPreview={isVideoPreview}
+              videoPreviewStarted={videoPreviewStarted}
+              videoPreviewCycle={videoPreviewCycle}
+              previewFrameRef={previewFrameRef}
+              previewVideoRef={previewVideoRef}
+              replayVideoPreviewFromStart={replayVideoPreviewFromStart}
+              startVideoPreviewPlayback={startVideoPreviewPlayback}
+              personalization={personalization}
+              safePersonalization={safePersonalization}
+              canUsePoliticalProtocol={canUsePoliticalProtocol}
+              isJokesCustomization={isJokesCustomization}
+              stripOverlapWarning={stripOverlapWarning}
+              stripSafeZoneHeight={stripSafeZoneHeight}
+              isPhotoDragging={isPhotoDragging}
+              isVideoExtraPhotoDragging={isVideoExtraPhotoDragging}
+              isNameDragging={isNameDragging}
+              startPoliticalProtocolDrag={startPoliticalProtocolDrag}
+              startPhotoDrag={startPhotoDrag}
+              onPhotoWheel={onPhotoWheel}
+              startVideoExtraPhotoDrag={startVideoExtraPhotoDrag}
+              onVideoExtraPhotoWheel={onVideoExtraPhotoWheel}
+              startNameDrag={startNameDrag}
+              startStripResize={startStripResize}
+              onApply={() => {
+                setCustomizeOpen(false);
+                setUploadMessage(customizationCopy.appliedMessage);
+              }}
+              customizationCopy={customizationCopy}
+              activeEditPoster={activeEditPoster}
+            />
           </div>
         </div>
       ) : null}

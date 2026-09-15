@@ -4,14 +4,19 @@ import { writeAuditLog } from "@/lib/server/audit-log";
 import {
   createEditorAssetCategory,
   createEditorTextAsset,
+  ensureHomeAssetCategories,
   listEditorAssetCatalog,
   normalizeSortOrder,
   uploadEditorAsset,
 } from "@/lib/server/editor-assets";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function GET(req: NextRequest) {
   try {
     await requireRole(req, ["admin"]);
+    await ensureHomeAssetCategories();
     return NextResponse.json({ ok: true, ...(await listEditorAssetCatalog(true)) });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Unable to load assets." }, { status: 400 });

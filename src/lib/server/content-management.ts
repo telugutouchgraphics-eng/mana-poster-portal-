@@ -145,8 +145,13 @@ export async function loadLandingPageConfig(): Promise<LandingPageConfigRecord |
   return snap.data() as LandingPageConfigRecord;
 }
 
-export async function uploadAdminAsset(buffer: Buffer, contentType: string, path: string) {
-  const bucket = adminStorage.bucket();
+export async function uploadAdminAsset(
+  buffer: Buffer,
+  contentType: string,
+  path: string,
+  customStorage?: typeof adminStorage,
+) {
+  const bucket = (customStorage ?? adminStorage).bucket();
   const file = bucket.file(path);
   const downloadToken = randomUUID();
   const createdAt = Date.now();
@@ -163,11 +168,15 @@ export async function uploadAdminAsset(buffer: Buffer, contentType: string, path
   return { filePath: path, imageUrl };
 }
 
-export async function deleteAdminAsset(path?: string | null) {
+export async function deleteAdminAsset(
+  path?: string | null,
+  customStorage?: typeof adminStorage,
+) {
   const normalized = typeof path === "string" ? path.trim() : "";
   if (!normalized) {
     return;
   }
-  const bucket = adminStorage.bucket();
+  const bucket = (customStorage ?? adminStorage).bucket();
   await bucket.file(normalized).delete({ ignoreNotFound: true });
 }
+

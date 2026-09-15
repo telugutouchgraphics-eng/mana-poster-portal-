@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 
 export default function GlobalError({
@@ -9,6 +10,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error("Global application error", error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body className="min-h-screen bg-[var(--portal-bg)] text-[var(--portal-text)]">
@@ -24,6 +29,11 @@ export default function GlobalError({
             <p className="mt-3 text-sm leading-6 text-slate-600">
               The page did not load as expected. You can retry now or go back to login.
             </p>
+            {error.message ? (
+              <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                Error: {error.message}
+              </p>
+            ) : null}
             {error.digest ? (
               <p className="mt-3 text-xs text-slate-400">Ref: {error.digest}</p>
             ) : null}

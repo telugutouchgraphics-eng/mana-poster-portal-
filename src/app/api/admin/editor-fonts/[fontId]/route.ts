@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { editorAdminDb } from "@/lib/firebase/admin";
 import { requireRole } from "@/lib/server/auth";
 import { writeAuditLog } from "@/lib/server/audit-log";
 import {
@@ -32,7 +32,7 @@ export async function PATCH(
     if (body.sortOrder !== undefined) {
       update.sortOrder = normalizeFontSortOrder(body.sortOrder);
     }
-    await adminDb.collection(EDITOR_FONTS).doc(fontId).update(update);
+    await editorAdminDb.collection(EDITOR_FONTS).doc(fontId).update(update);
     await writeAuditLog({
       actorUid: actor.uid,
       actorRole: actor.role,
