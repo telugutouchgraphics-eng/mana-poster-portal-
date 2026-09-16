@@ -77,7 +77,7 @@ function getEditorFirebaseAdminApp() {
   if (keyPath) {
     const resolved = path.isAbsolute(keyPath)
       ? keyPath
-      : path.resolve(process.cwd(), keyPath);
+      : path.resolve(/*turbopackIgnore: true*/ process.cwd(), keyPath);
     if (fs.existsSync(resolved)) {
       try {
         const sa = JSON.parse(fs.readFileSync(resolved, "utf8"));

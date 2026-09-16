@@ -14,7 +14,6 @@ import {
 } from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
-import { groupCategories, type CategoryType } from "@/lib/category-groups";
 import { groupCategories } from "@/lib/category-groups";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
@@ -26,7 +25,6 @@ import {
   photoShapeFrameStyle,
   renderPosterPhotoPreview,
   type PhotoEdgeStyle,
-  type PhotoFrameStyle,
   type PhotoShape,
 } from "@/lib/poster-photo-preview";
 import {
@@ -34,7 +32,6 @@ import {
   resolveVideoPhotoAnimationStyle,
   VIDEO_PHOTO_ANIMATION_GLOBAL_CSS,
   VIDEO_PHOTO_ANIMATION_OPTIONS,
-  type VideoPhotoAnimation,
 } from "@/lib/video-photo-animation";
 import type {
   CreatorCategory,
@@ -48,109 +45,8 @@ import { CreatorRecentUploadsList } from "@/components/creators/creator-recent-u
 import { UploadLivePreview } from "@/components/creators/upload-live-preview";
 import { UploadPersonalizationControls } from "@/components/creators/upload-personalization-controls";
 
-interface CreatorCategory {
-  id: string;
-  label: string;
-  isDynamic?: boolean;
-  categoryType?: CategoryType | string;
-  allowPoliticalProtocol?: boolean;
-  eventDateLabel?: string;
-  eventStartAt?: number;
-}
-
-interface CreatorPoster {
-  id: string;
-  categoryId: string;
-  categoryLabel: string;
-  mediaType?: string;
-  imageUrl: string;
-  videoUrl?: string;
-  personalizationConfig?: Partial<PersonalizationConfig> | null;
-  status: string;
-  reviewComment?: string;
-  createdAt: number;
-  uploadDayKey?: string;
-  requestedPublishAt?: number;
-  publishAt?: number;
-  performanceWindowEndAt?: number;
-}
-
-interface PersonalizationConfig {
-  photoShape: PhotoShape;
-  photoRenderMode: "cutout" | "original";
-  edgeStyle: PhotoEdgeStyle;
-  photoFrameStyle: PhotoFrameStyle;
-  showSafeAreas: boolean;
-  photoX: number;
-  photoY: number;
-  photoScale: number;
-  showVideoExtraPhoto: boolean;
-  videoExtraPhotoShape: PhotoShape;
-  videoExtraPhotoRenderMode: "cutout" | "original";
-  videoExtraPhotoEdgeStyle: PhotoEdgeStyle;
-  videoExtraPhotoFrameStyle: PhotoFrameStyle;
-  videoExtraPhotoX: number;
-  videoExtraPhotoY: number;
-  videoExtraPhotoScale: number;
-  photoAnimation: VideoPhotoAnimation;
-  videoExtraPhotoAnimation: VideoPhotoAnimation;
-  nameX: number;
-  nameY: number;
-  showBottomStrip: boolean;
-  stripHeight: number;
-  stripWidth: number;
-  stripX: number;
-  stripBottom: number;
-  stripLayoutStyle: "full" | "split" | "badge";
-  showPoliticalProtocol: boolean;
-  politicalProtocolX: number;
-  politicalProtocolY: number;
-  politicalProtocolScale: number;
-  politicalProtocolSlots: PoliticalProtocolSlot[];
-  sampleName: string;
-  sampleDesignation: string;
-}
-
-interface PoliticalProtocolSlot {
-  x: number;
-  y: number;
-  scale: number;
-}
-
 const PERMANENT_SAMPLE_NAME = PERSONALIZATION_SAMPLE.name;
 const PERMANENT_SAMPLE_DESIGNATION = PERSONALIZATION_SAMPLE.designation;
-
-interface CreatorDashboardResponse {
-  ok: boolean;
-  error?: string;
-  previewOnly?: boolean;
-  profile?: {
-    creatorPublicId: string;
-    name: string;
-    email: string;
-  } | null;
-  assignedCategories?: CreatorCategory[];
-  uploadWindow?: {
-    isOpen: boolean;
-    closesAt: number;
-    opensAt: number;
-    cutoffLabel: string;
-    dayKey: string;
-  };
-  announcements?: Array<{
-    id: string;
-    title: string;
-    message: string;
-    priority: "normal" | "important" | "urgent";
-    endAt: number;
-  }>;
-  posters?: CreatorPoster[];
-}
-
-interface ImageMeta {
-  width: number;
-  height: number;
-}
 
 const defaultPersonalization: PersonalizationConfig = {
   photoShape: "transparent_bottom_fade",
@@ -1896,179 +1792,6 @@ export default function CreatorUploadStudioPage() {
           </article>
         </section>
       ) : (
-        <section className="space-y-6">
-          <article className="px-1 py-2">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--portal-purple)]">
-                  {customizationCopy.reviewTab}
-                </p>
-                <h3 className="mt-2 text-xl font-bold text-slate-950">
-                  {customizationCopy.submittedPosters}
-                </h3>
-              </div>
-              <button
-                onClick={() => void loadDashboard(true)}
-                className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white"
-              >
-                {refreshing
-                  ? customizationCopy.refreshing
-                  : customizationCopy.refresh}
-              </button>
-            </div>
-
-            {uploadMessage ? (
-              <p className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
-                {uploadMessage}
-              </p>
-            ) : null}
-
-            {reviewPosters.length > 0 ? (
-              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3">
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={
-                      reviewPosters.filter(canCreatorDeletePoster).length > 0 &&
-                      reviewPosters
-                        .filter(canCreatorDeletePoster)
-                        .every((poster) => selectedPosterIds.has(poster.id))
-                    }
-                    onChange={toggleAllVisiblePosters}
-                    className="h-4 w-4 accent-rose-600"
-                  />
-                  Select visible
-                </label>
-                <span className="text-xs font-semibold text-slate-500">
-                  {selectedPosterIds.size} selected
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void deleteSelectedPosters()}
-                  disabled={selectedPosterIds.size === 0}
-                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Delete selected
-                </button>
-              </div>
-            ) : null}
-
-            <div className="mt-5 space-y-4">
-              {reviewPosters.length === 0 ? (
-                <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-6 text-sm text-slate-600">
-                  {customizationCopy.noSubmittedPosters}
-                </div>
-              ) : (
-                reviewPosters.map((poster) => {
-                  const editable = canCreatorEditPoster(poster);
-                  const deletable = canCreatorDeletePoster(poster);
-                  const approved = poster.status === "approved";
-                  const busy = Boolean(posterActionBusyMap[poster.id]);
-                  return (
-                    <article
-                      key={poster.id}
-                      className="grid gap-4 rounded-[28px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)] md:grid-cols-[120px_minmax(0,1fr)]"
-                    >
-                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedPosterIds.has(poster.id)}
-                          disabled={!deletable || busy}
-                          onChange={() => togglePosterSelection(poster)}
-                          className="h-4 w-4 accent-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                        Select poster
-                      </label>
-                      <div className="aspect-[3/4] w-full overflow-hidden rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)]">
-                        {isVideoPoster(poster) ? (
-                          <video
-                            src={poster.videoUrl}
-                            className="h-full w-full bg-slate-950 object-cover"
-                            controls
-                            muted
-                            playsInline
-                          />
-                        ) : (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={poster.imageUrl}
-                              alt={poster.categoryLabel || poster.categoryId}
-                              className="h-full w-full object-cover"
-                            />
-                          </>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <h4 className="text-lg font-bold text-slate-950">
-                              <CategoryLabelWithLogo
-                                id={poster.categoryId}
-                                label={
-                                  poster.categoryLabel || poster.categoryId
-                                }
-                              />
-                            </h4>
-                            <p className="mt-1 text-sm text-slate-500">
-                              {formatDate(poster.createdAt)}
-                            </p>
-                          </div>
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(poster.status)}`}
-                          >
-                            {poster.status === "approved"
-                              ? customizationCopy.accepted
-                              : poster.status === "rejected"
-                                ? customizationCopy.rejected
-                                : customizationCopy.pending}
-                          </span>
-                        </div>
-
-                        {poster.reviewComment ? (
-                          <p className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                            {customizationCopy.reason}: {poster.reviewComment}
-                          </p>
-                        ) : null}
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          {!approved ? (
-                            <button
-                              type="button"
-                              onClick={() => startEditPoster(poster)}
-                              disabled={!editable || busy}
-                              className="rounded-xl border border-[var(--portal-purple)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-purple)] transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {customizationCopy.edit}
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => void deletePoster(poster)}
-                            disabled={!deletable || busy}
-                            className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {busy
-                              ? customizationCopy.refreshing
-                              : customizationCopy.delete}
-                          </button>
-                          {approved ? (
-                            <button
-                              type="button"
-                              disabled
-                              className="rounded-xl bg-[var(--portal-green)] px-4 py-2.5 text-sm font-semibold text-white opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {customizationCopy.reupload}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
-          </article>
-        </section>
         <CreatorRecentUploadsList
           reviewPosters={reviewPosters}
           selectedPosterIds={selectedPosterIds}
