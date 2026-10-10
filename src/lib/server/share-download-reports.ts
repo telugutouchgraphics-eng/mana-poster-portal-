@@ -137,6 +137,7 @@ export async function loadShareDownloadReport({
   allowedRegionIds,
   allowedCreatorPublicIds,
   creatorPublicId,
+  regionId,
   startDate,
   endDate,
   search,
@@ -144,11 +145,13 @@ export async function loadShareDownloadReport({
   allowedRegionIds: string[];
   allowedCreatorPublicIds?: string[] | null;
   creatorPublicId?: string | null;
+  regionId?: string | null;
   startDate: string;
   endDate: string;
   search?: string | null;
 }): Promise<ShareDownloadReportResult> {
   const allowedRegions = new Set(allowedRegionIds.map(normalizeString).filter(Boolean));
+  const selectedRegion = normalizeString(regionId);
   const scopedCreators =
     allowedCreatorPublicIds === null || allowedCreatorPublicIds === undefined
       ? null
@@ -233,9 +236,12 @@ export async function loadShareDownloadReport({
       continue;
     }
     const data = doc.data() || {};
-    const regionId = normalizeString(data.regionId);
+    const posterRegionId = normalizeString(data.regionId);
     const posterCreatorId = normalizeString(data.creatorPublicId);
-    if (allowedRegions.size > 0 && !allowedRegions.has(regionId)) {
+    if (selectedRegion && selectedRegion !== "all" && posterRegionId !== selectedRegion) {
+      continue;
+    }
+    if (allowedRegions.size > 0 && !allowedRegions.has(posterRegionId)) {
       continue;
     }
     if (scopedCreators && !scopedCreators.has(posterCreatorId)) {

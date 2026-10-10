@@ -14,7 +14,7 @@ import {
 } from "@/components/posters/app-style-name-strip";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
-import { groupCategories } from "@/lib/category-groups";
+import { groupCategories, type CategoryType } from "@/lib/category-groups";
 import { withCreatorImpersonationQuery } from "@/lib/client/creator-impersonation-query";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 import { portalLanguage, t } from "@/lib/i18n";
@@ -25,6 +25,7 @@ import {
   photoShapeFrameStyle,
   renderPosterPhotoPreview,
   type PhotoEdgeStyle,
+  type PhotoFrameStyle,
   type PhotoShape,
 } from "@/lib/poster-photo-preview";
 import {
@@ -32,6 +33,7 @@ import {
   resolveVideoPhotoAnimationStyle,
   VIDEO_PHOTO_ANIMATION_GLOBAL_CSS,
   VIDEO_PHOTO_ANIMATION_OPTIONS,
+  type VideoPhotoAnimation,
 } from "@/lib/video-photo-animation";
 import type {
   CreatorCategory,

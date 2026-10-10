@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { portalLanguage, t } from "@/lib/i18n";
 
 interface PayoutItem {
@@ -40,10 +41,12 @@ function formatCurrency(amount: number) {
 export default function AdminPayoutsPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
+  const { regions } = useDashboardRegion();
   const lang = portalLanguage(language);
   const [items, setItems] = useState<PayoutItem[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [selectedRegionId, setSelectedRegionId] = useState("all");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -53,16 +56,17 @@ export default function AdminPayoutsPage() {
     totalPages: 1,
   });
 
-  async function load(page = 1, nextQuery = query, nextStatus = status) {
+  async function load(page = 1, nextQuery = query, nextStatus = status, nextRegion = selectedRegionId) {
     const token = await user?.getIdToken();
     if (!token) return;
     setLoading(true);
     setMessage(null);
     try {
+      const regionParam = nextRegion && nextRegion !== "all" ? `&regionId=${encodeURIComponent(nextRegion)}` : "";
       const response = await fetch(
         `/api/admin/payouts?page=${page}&pageSize=${pagination.pageSize}&q=${encodeURIComponent(
           nextQuery,
-        )}&status=${encodeURIComponent(nextStatus)}`,
+        )}&status=${encodeURIComponent(nextStatus)}${regionParam}`,
         {
           headers: { authorization: `Bearer ${token}` },
         },
@@ -92,7 +96,7 @@ export default function AdminPayoutsPage() {
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void load(1, query, status);
+    void load(1, query, status, selectedRegionId);
   }
 
   return (
@@ -118,13 +122,28 @@ export default function AdminPayoutsPage() {
           </button>
         </div>
 
-        <form onSubmit={handleSearch} className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_140px]">
+        <form onSubmit={handleSearch} className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_120px]">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("payouts.searchPlaceholder", lang)}
             className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
           />
+          <select
+            value={selectedRegionId}
+            onChange={(e) => {
+              setSelectedRegionId(e.target.value);
+              void load(1, query, status, e.target.value);
+            }}
+            className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--portal-border-strong)] focus:bg-white"
+          >
+            <option value="all">All States / UTs</option>
+            {regions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}

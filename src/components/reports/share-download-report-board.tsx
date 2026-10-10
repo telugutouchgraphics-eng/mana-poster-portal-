@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 
 type ReportMode = "admin" | "manager" | "creator";
@@ -109,6 +110,8 @@ function endpointForMode(mode: ReportMode) {
 
 export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
   const { user } = useAuth();
+  const { region, regions } = useDashboardRegion();
+  const [selectedRegionId, setSelectedRegionId] = useState<string>(region.id);
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [creators, setCreators] = useState<CreatorOption[]>([]);
   const [creatorPublicId, setCreatorPublicId] = useState("");
@@ -117,6 +120,10 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSelectedRegionId(region.id);
+  }, [region.id]);
 
   const summary = useMemo(
     () => ({
@@ -192,6 +199,9 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
         endDate: selectedDate,
         search,
       });
+      if (selectedRegionId && selectedRegionId !== "all") {
+        params.set("regionId", selectedRegionId);
+      }
       if (creatorPublicId) {
         params.set("creatorPublicId", creatorPublicId);
       }
@@ -217,7 +227,7 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
     } finally {
       setLoading(false);
     }
-  }, [creatorPublicId, mode, search, selectedDate, user]);
+  }, [creatorPublicId, mode, search, selectedDate, selectedRegionId, user]);
 
   useEffect(() => {
     void loadReport();
@@ -235,7 +245,7 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
               Poster engagement history
             </h1>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <label className="text-sm font-medium text-slate-700">
               Date
               <input
@@ -245,6 +255,23 @@ export function ShareDownloadReportBoard({ mode }: { mode: ReportMode }) {
                 onChange={(event) => setSelectedDate(event.target.value)}
               />
             </label>
+            {mode !== "creator" ? (
+              <label className="text-sm font-medium text-slate-700">
+                State / Region
+                <select
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  value={selectedRegionId}
+                  onChange={(event) => setSelectedRegionId(event.target.value)}
+                >
+                  <option value="all">All States / UTs</option>
+                  {regions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {mode !== "creator" ? (
               <label className="text-sm font-medium text-slate-700">
                 Creator

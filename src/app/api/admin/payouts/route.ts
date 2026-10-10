@@ -17,10 +17,15 @@ export async function GET(req: NextRequest) {
     );
     const snapshot = await loadPortalAnalyticsSnapshot();
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
+    const requestedRegionId = (url.searchParams.get("regionId") ?? "").trim();
+    const effectiveRegionIds =
+      requestedRegionId && requestedRegionId !== "all"
+        ? [requestedRegionId]
+        : allowedRegionIds;
     const allowedCreatorIds = new Set(
       snapshot.creatorProfiles
         .filter((creator) =>
-          creator.assignedRegionIds.some((regionId) => allowedRegionIds.includes(regionId)),
+          creator.assignedRegionIds.some((regionId) => effectiveRegionIds.includes(regionId)),
         )
         .map((creator) => creator.creatorPublicId),
     );

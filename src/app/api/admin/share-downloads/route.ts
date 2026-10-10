@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
         allowedRegionIds,
         allowedCreatorPublicIds: null,
         creatorPublicId: url.searchParams.get("creatorPublicId"),
+        regionId: url.searchParams.get("regionId"),
         startDate: url.searchParams.get("startDate") || defaults.startDate,
         endDate: url.searchParams.get("endDate") || defaults.endDate,
         search: url.searchParams.get("search"),

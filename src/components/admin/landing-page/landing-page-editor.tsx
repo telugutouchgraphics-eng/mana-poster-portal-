@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import {
@@ -24,11 +24,13 @@ type MessageTone = "success" | "error";
 
 import {
   AssetField,
+  AssetPreview,
   CategoryItemGroup,
   FaqGroup,
   FeatureItemGroup,
   FieldLabel,
   ImageItemGroup,
+  ItemToolbar,
   LinkItemGroup,
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_IMAGE_UPLOAD_LABEL,
@@ -43,6 +45,9 @@ import {
   TextInput,
   WebsitePosterManager,
   type WebsitePosterItem,
+  moveItem,
+  removeArrayItem,
+  updateArrayItem,
 } from "./editor-common-components";
 
 type EditableSectionKey =

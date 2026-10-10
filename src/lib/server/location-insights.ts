@@ -1,10 +1,18 @@
 import { createHash } from "crypto";
 
 import { adminDb } from "@/lib/firebase/admin";
+import { DASHBOARD_REGIONS } from "@/lib/dashboard-regions";
 
-const LOCATION_INSIGHTS_USER_READ_LIMIT = 2000;
+const LOCATION_INSIGHTS_USER_READ_LIMIT = 5000;
 const LOCATION_INSIGHTS_REPORT_READ_LIMIT = 1000;
 const LOCATION_INSIGHTS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const REGION_ID_TO_NAME = new Map<string, string>(
+  DASHBOARD_REGIONS.map((r) => [r.id.toLowerCase(), r.name]),
+);
+for (const r of DASHBOARD_REGIONS) {
+  REGION_ID_TO_NAME.set(r.name.toLowerCase(), r.name);
+}
 
 export interface LocationInsightRow {
   key: string;
@@ -46,25 +54,56 @@ function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function toNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function readTimestampMillis(value: unknown): number {
+  if (!value) return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (typeof value === "object" && value !== null && "_seconds" in value) {
+    const seconds = Number((value as { _seconds?: unknown })._seconds ?? 0);
+    return Number.isFinite(seconds) ? seconds * 1000 : 0;
+  }
+  if (typeof value === "object" && value !== null && "toMillis" in value) {
+    const maybeTimestamp = value as { toMillis?: () => number };
+    const millis = maybeTimestamp.toMillis?.();
+    return typeof millis === "number" && Number.isFinite(millis) ? millis : 0;
+  }
+  return 0;
 }
 
 function readArea(data: Record<string, unknown>) {
   const area = data.locationArea;
+  let state = "";
+  let district = "";
+  let city = "";
+
   if (area && typeof area === "object" && !Array.isArray(area)) {
     const map = area as Record<string, unknown>;
-    return {
-      state: cleanText(map.state),
-      district: cleanText(map.district),
-      city: cleanText(map.city),
-    };
+    state = cleanText(map.state);
+    district = cleanText(map.district);
+    city = cleanText(map.city);
   }
-  return {
-    state: cleanText(data.locationState),
-    district: cleanText(data.locationDistrict),
-    city: cleanText(data.locationCity),
-  };
+  if (!state) state = cleanText(data.locationState);
+  if (!district) district = cleanText(data.locationDistrict);
+  if (!city) city = cleanText(data.locationCity);
+
+  if (!state) {
+    const selectedRegionName = cleanText(data.selectedRegionName);
+    const selectedRegion = cleanText(data.selectedRegion).toLowerCase();
+    const stateCandidate = cleanText(data.state || data.region);
+
+    if (selectedRegionName) {
+      state = REGION_ID_TO_NAME.get(selectedRegionName.toLowerCase()) || selectedRegionName;
+    } else if (selectedRegion) {
+      state = REGION_ID_TO_NAME.get(selectedRegion) || selectedRegion;
+    } else if (stateCandidate) {
+      state = REGION_ID_TO_NAME.get(stateCandidate.toLowerCase()) || stateCandidate;
+    }
+  }
+
+  return { state, district, city };
 }
 
 function areaKey(area: { state: string; district: string; city: string }) {
@@ -130,17 +169,18 @@ export async function getLocationInsights(
 
   usersSnap.docs.forEach((doc) => {
     const data = doc.data() as Record<string, unknown>;
-    if (data.locationEnabled !== true) return;
     const area = readArea(data);
     if (!area.state && !area.district && !area.city) return;
     if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
-    const locationUpdatedAt = toNumber(data.locationUpdatedAt);
+    const activityAt = readTimestampMillis(
+      data.locationUpdatedAt || data.updatedAt || data.lastActiveAt || data.createdAt,
+    );
     row.userCount += 1;
-    if (locationUpdatedAt >= lastSevenDays) {
+    if (activityAt >= lastSevenDays) {
       row.activeUserCount += 1;
     }
-    row.latestActivityAt = Math.max(row.latestActivityAt, locationUpdatedAt);
+    row.latestActivityAt = Math.max(row.latestActivityAt, activityAt);
   });
 
   reportsSnap.docs.forEach((doc) => {
@@ -150,7 +190,8 @@ export async function getLocationInsights(
     if (allowedStateNames && !allowedStateNames.has(area.state.trim().toLowerCase())) return;
     const row = ensureRow(rows, area);
     row.reportCount += 1;
-    row.latestActivityAt = Math.max(row.latestActivityAt, toNumber(data.reportedAt));
+    const reportedAt = readTimestampMillis(data.reportedAt || data.createdAt);
+    row.latestActivityAt = Math.max(row.latestActivityAt, reportedAt);
   });
 
   const allLocations = [...rows.values()];
