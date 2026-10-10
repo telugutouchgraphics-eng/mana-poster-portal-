@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
 import { withDeviceHeader } from "@/lib/client/device-id";
 
 interface LocationInsightRow {
@@ -43,6 +44,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export function LocationInsightsPanel() {
   const { user } = useAuth();
+  const { region } = useDashboardRegion();
   const [insights, setInsights] = useState<LocationInsights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,20 @@ export function LocationInsightsPanel() {
   const stateOptions = Array.from(new Set(rows.map((row) => row.state).filter(Boolean))).sort((a, b) =>
     a.localeCompare(b),
   );
+
+  useEffect(() => {
+    if (region?.name && stateOptions.length > 0) {
+      const match = stateOptions.find(
+        (s) => s.trim().toLowerCase() === region.name.trim().toLowerCase(),
+      );
+      if (match) {
+        setStateFilter(match);
+        setDistrictFilter("");
+        setCityFilter("");
+      }
+    }
+  }, [region?.name, stateOptions]);
+
   const districtOptions = Array.from(
     new Set(
       rows
@@ -118,6 +134,17 @@ export function LocationInsightsPanel() {
     .sort((a, b) => b.reportCount - a.reportCount || b.latestActivityAt - a.latestActivityAt)
     .slice(0, 8);
 
+  const isFilterActive = Boolean(stateFilter || districtFilter || cityFilter);
+  const statLocationEnabledUsers = isFilterActive
+    ? filteredRows.reduce((sum, item) => sum + item.userCount, 0)
+    : (insights?.totalLocationEnabledUsers ?? 0);
+  const statActiveUserCount = isFilterActive
+    ? filteredRows.reduce((sum, item) => sum + item.activeUserCount, 0)
+    : (insights?.lastSevenDaysActiveUserCount ?? 0);
+  const statReportCount = isFilterActive
+    ? filteredRows.reduce((sum, item) => sum + item.reportCount, 0)
+    : (insights?.totalReportCountWithLocation ?? 0);
+
   return (
     <section className="space-y-5">
       <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -150,9 +177,9 @@ export function LocationInsightsPanel() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Location-enabled users" value={insights?.totalLocationEnabledUsers ?? 0} />
-        <StatCard label="7-day active area users" value={insights?.lastSevenDaysActiveUserCount ?? 0} />
-        <StatCard label="Reports with area" value={insights?.totalReportCountWithLocation ?? 0} />
+        <StatCard label="Location-enabled users" value={statLocationEnabledUsers} />
+        <StatCard label="7-day active area users" value={statActiveUserCount} />
+        <StatCard label="Reports with area" value={statReportCount} />
       </div>
 
       <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">

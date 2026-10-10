@@ -1,6 +1,7 @@
 const PERMANENT_DASHBOARD_ADMIN_EMAILS = new Set([
   "supportmanaposter@gmail.com",
   "manaposter2026@gmail.com",
+  "telugutouchgraphics@gmail.com",
 ]);
 
 export function dashboardContactEmail(email?: string | null): string {

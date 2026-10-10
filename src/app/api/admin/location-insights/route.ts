@@ -7,15 +7,25 @@ import { loadActorAllowedRegionIds } from "@/lib/server/region-scope";
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
+    const url = new URL(req.url);
+    const requestedRegionId = (url.searchParams.get("regionId") ?? "").trim();
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
     const actorHasAllRegions = allowedRegionIds.length === DASHBOARD_REGIONS.length;
-    const allowedStateNames = actorHasAllRegions
-      ? undefined
-      : new Set(
-          DASHBOARD_REGIONS
-            .filter((region) => allowedRegionIds.includes(region.id))
-            .map((region) => region.name.trim().toLowerCase()),
-        );
+    let allowedStateNames: Set<string> | undefined;
+
+    if (requestedRegionId && requestedRegionId !== "all") {
+      const match = DASHBOARD_REGIONS.find((r) => r.id === requestedRegionId);
+      if (match) {
+        allowedStateNames = new Set([match.name.trim().toLowerCase()]);
+      }
+    } else if (!actorHasAllRegions) {
+      allowedStateNames = new Set(
+        DASHBOARD_REGIONS
+          .filter((region) => allowedRegionIds.includes(region.id))
+          .map((region) => region.name.trim().toLowerCase()),
+      );
+    }
+
     const insights = await getLocationInsights(allowedStateNames);
     return NextResponse.json({ ok: true, insights });
   } catch (error) {

@@ -35,7 +35,9 @@ export function DashboardRegionProvider({ children }: { children: ReactNode }) {
   const allowedRegions = useMemo(
     () => {
       if (roles.includes("admin")) {
-        return DASHBOARD_REGIONS.filter((item) => assignedRegionIds.includes(item.id));
+        return assignedRegionIds.length > 0
+          ? DASHBOARD_REGIONS.filter((item) => assignedRegionIds.includes(item.id))
+          : DASHBOARD_REGIONS;
       }
       return assignedRegionIds.length === 0
         ? DASHBOARD_REGIONS

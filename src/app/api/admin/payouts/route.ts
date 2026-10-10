@@ -18,20 +18,30 @@ export async function GET(req: NextRequest) {
     const snapshot = await loadPortalAnalyticsSnapshot();
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
     const requestedRegionId = (url.searchParams.get("regionId") ?? "").trim();
-    const effectiveRegionIds =
-      requestedRegionId && requestedRegionId !== "all"
-        ? [requestedRegionId]
-        : allowedRegionIds;
+    const isSpecificRegion = Boolean(requestedRegionId && requestedRegionId !== "all");
+    const postersInRegion = isSpecificRegion
+      ? new Set(
+          snapshot.posters
+            .filter((p) => p.regionId === requestedRegionId)
+            .map((p) => p.creatorPublicId)
+            .filter(Boolean),
+        )
+      : new Set<string>();
+
     const allowedCreatorIds = new Set(
       snapshot.creatorProfiles
-        .filter((creator) =>
-          creator.assignedRegionIds.some((regionId) => effectiveRegionIds.includes(regionId)),
-        )
+        .filter((creator) => {
+          if (!isSpecificRegion) return true;
+          return (
+            creator.assignedRegionIds.includes(requestedRegionId) ||
+            postersInRegion.has(creator.creatorPublicId)
+          );
+        })
         .map((creator) => creator.creatorPublicId),
     );
 
     const filteredRows = snapshot.payouts
-      .filter((item) => allowedCreatorIds.has(item.creatorPublicId))
+      .filter((item) => (!isSpecificRegion ? true : allowedCreatorIds.has(item.creatorPublicId)))
       .filter((item) => (status === "all" ? true : item.status.toLowerCase() === status))
       .filter((item) => {
         if (!q) return true;

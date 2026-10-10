@@ -26,7 +26,11 @@ export async function loadActorAllowedRegionIds(actor: RequestUser): Promise<str
   const userData = userSnap.data();
   const contactEmail = String(userData?.email ?? actor.email ?? "").trim();
 
-  if (actor.roles.includes("admin") && isPermanentDashboardAdminEmail(contactEmail)) {
+  if (actor.roles.includes("admin")) {
+    const userRegions = sanitizeDashboardRegionIds(userData?.assignedRegionIds);
+    if (userRegions.length > 0) {
+      return userRegions;
+    }
     return ALL_REGION_IDS;
   }
 

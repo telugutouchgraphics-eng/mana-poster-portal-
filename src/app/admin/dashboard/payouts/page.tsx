@@ -41,12 +41,12 @@ function formatCurrency(amount: number) {
 export default function AdminPayoutsPage() {
   const { user } = useAuth();
   const { language } = useDashboardLanguage();
-  const { regions } = useDashboardRegion();
+  const { regions, region } = useDashboardRegion();
   const lang = portalLanguage(language);
   const [items, setItems] = useState<PayoutItem[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [selectedRegionId, setSelectedRegionId] = useState("all");
+  const [selectedRegionId, setSelectedRegionId] = useState(region?.id ?? "all");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -90,9 +90,14 @@ export default function AdminPayoutsPage() {
   }
 
   useEffect(() => {
-    void load(1);
+    if (region?.id) {
+      setSelectedRegionId(region.id);
+      void load(1, query, status, region.id);
+    } else {
+      void load(1);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang]);
+  }, [user, lang, region?.id]);
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

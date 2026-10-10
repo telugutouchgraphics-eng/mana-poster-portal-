@@ -241,7 +241,7 @@ export async function loadShareDownloadReport({
     if (selectedRegion && selectedRegion !== "all" && posterRegionId !== selectedRegion) {
       continue;
     }
-    if (allowedRegions.size > 0 && !allowedRegions.has(posterRegionId)) {
+    if (allowedRegions.size > 0 && posterRegionId && !allowedRegions.has(posterRegionId)) {
       continue;
     }
     if (scopedCreators && !scopedCreators.has(posterCreatorId)) {

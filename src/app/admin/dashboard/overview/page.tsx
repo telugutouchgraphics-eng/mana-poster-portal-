@@ -176,6 +176,12 @@ export default function AdminOverviewPage() {
   }
 
   useEffect(() => {
+    if (region?.id) {
+      setOverviewRegionId(region.id);
+    }
+  }, [region.id]);
+
+  useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, lang, overviewRegionId]);
