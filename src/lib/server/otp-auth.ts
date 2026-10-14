@@ -226,9 +226,7 @@ async function issueOtpChallenge(input: {
 
   const fromEmail = requiredEnv("SMTP_FROM_EMAIL");
   const isPixora = Boolean(
-    input.appName?.toLowerCase().includes("pixora") ||
-    input.contactEmail.toLowerCase().includes("manaposter2026@gmail.com") ||
-    input.authEmail.toLowerCase().includes("manaposter2026@gmail.com")
+    input.appName?.toLowerCase().includes("pixora")
   );
   const fromName = isPixora 
     ? "Pixora Creator" 
