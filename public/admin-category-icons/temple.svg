@@ -1,9 +1,111 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Temple">
   <defs>
-    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#36d1dc"/><stop offset="1" stop-color="#5b86e5"/></linearGradient>
-    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+    <!-- Background Divine Sky -->
+    <radialGradient id="templeSky" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="35%" stop-color="#FFE082"/>
+      <stop offset="70%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </radialGradient>
+    <!-- Gopuram Gold & Stone -->
+    <linearGradient id="gopuramStone" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E65100"/>
+      <stop offset="25%" stop-color="#FFA726"/>
+      <stop offset="50%" stop-color="#FFE082"/>
+      <stop offset="75%" stop-color="#FFB74D"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </linearGradient>
+    <!-- Golden Kalasham -->
+    <linearGradient id="goldKalasham" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="40%" stop-color="#FFD54F"/>
+      <stop offset="80%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Garland Orange & Yellow -->
+    <radialGradient id="marigoldOrange" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFEB3B"/>
+      <stop offset="70%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </radialGradient>
   </defs>
-  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
-  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
-  <path d="M24 52 L64 24 L104 52 H24 Z M34 58 H94 V98 H84 V66 H74 V98 H54 V66 H44 V98 H34 V58 Z M28 102 H100 V110 H28 Z" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Sky Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#templeSky)"/>
+
+  <!-- Divine Rays -->
+  <g opacity="0.3" stroke="#FFFFFF" stroke-width="2">
+    <line x1="64" y1="20" x2="64" y2="4"/>
+    <line x1="64" y1="20" x2="20" y2="10"/>
+    <line x1="64" y1="20" x2="108" y2="10"/>
+    <line x1="64" y1="20" x2="10" y2="40"/>
+    <line x1="64" y1="20" x2="118" y2="40"/>
+  </g>
+
+  <!-- Temple Plinth / Base -->
+  <path d="M18 108 L110 108 L116 122 L12 122 Z" fill="#4E342E"/>
+  <rect x="24" y="102" width="80" height="6" rx="2" fill="url(#gopuramStone)"/>
+
+  <!-- Lower Gopuram Tier -->
+  <polygon points="28,102 34,84 94,84 100,102" fill="url(#gopuramStone)"/>
+  <!-- Tier Moldings & Mini Niches -->
+  <rect x="36" y="86" width="56" height="4" fill="#BF360C"/>
+  <rect x="42" y="92" width="8" height="8" rx="2" fill="#3E2723"/>
+  <rect x="54" y="92" width="8" height="8" rx="2" fill="#3E2723"/>
+  <rect x="66" y="92" width="8" height="8" rx="2" fill="#3E2723"/>
+  <rect x="78" y="92" width="8" height="8" rx="2" fill="#3E2723"/>
+
+  <!-- Middle Gopuram Tier -->
+  <polygon points="36,84 42,66 86,66 92,84" fill="url(#gopuramStone)"/>
+  <rect x="42" y="68" width="44" height="4" fill="#BF360C"/>
+  <rect x="48" y="74" width="7" height="8" rx="2" fill="#3E2723"/>
+  <rect x="60" y="74" width="8" height="8" rx="2" fill="#3E2723"/>
+  <rect x="73" y="74" width="7" height="8" rx="2" fill="#3E2723"/>
+
+  <!-- Upper Gopuram Tier -->
+  <polygon points="44,66 50,48 78,48 84,66" fill="url(#gopuramStone)"/>
+  <rect x="48" y="50" width="32" height="4" fill="#BF360C"/>
+  <rect x="54" y="56" width="6" height="8" rx="2" fill="#3E2723"/>
+  <rect x="68" y="56" width="6" height="8" rx="2" fill="#3E2723"/>
+
+  <!-- Top Crown Barrel Roof (Shala Shikhara) -->
+  <path d="M48 48 C48 38 56 34 64 34 C72 34 80 38 80 48 Z" fill="url(#gopuramStone)"/>
+  <path d="M46 48 L82 48 L80 45 L48 45 Z" fill="#BF360C"/>
+
+  <!-- 3 Golden Kalashams on Crest of Gopuram -->
+  <!-- Center Main Kalasham -->
+  <g fill="url(#goldKalasham)">
+    <path d="M62 34 C60 30 60 26 64 22 C68 26 68 30 66 34 Z"/>
+    <circle cx="64" cy="22" r="3"/>
+    <polygon points="64,15 62,20 66,20"/>
+  </g>
+  <!-- Left Kalasham -->
+  <g fill="url(#goldKalasham)">
+    <path d="M53 36 C52 32 52 28 55 25 C58 28 58 32 57 36 Z"/>
+    <circle cx="55" cy="25" r="2.4"/>
+    <polygon points="55,19 53,23 57,23"/>
+  </g>
+  <!-- Right Kalasham -->
+  <g fill="url(#goldKalasham)">
+    <path d="M71 36 C70 32 70 28 73 25 C76 28 76 32 75 36 Z"/>
+    <circle cx="73" cy="25" r="2.4"/>
+    <polygon points="73,19 71,23 75,23"/>
+  </g>
+
+  <!-- Glowing Sanctorum Temple Doorway (Garbhalayam) -->
+  <path d="M54 114 C54 104 64 102 64 102 C64 102 74 104 74 114 L74 122 L54 122 Z" fill="#FFEA00"/>
+  <path d="M57 114 C57 107 64 105 64 105 C64 105 71 107 71 114 L71 122 L57 122 Z" fill="#FF8F00"/>
+  <circle cx="64" cy="112" r="3" fill="#D50000"/>
+
+  <!-- Vibrant Marigold (Bantipula) Flower Garland across the Plinth -->
+  <g fill="url(#marigoldOrange)">
+    <circle cx="28" cy="106" r="3.5"/>
+    <circle cx="35" cy="107" r="3.5"/>
+    <circle cx="42" cy="108" r="3.5"/>
+    <circle cx="49" cy="107" r="3.5"/>
+    <circle cx="79" cy="107" r="3.5"/>
+    <circle cx="86" cy="108" r="3.5"/>
+    <circle cx="93" cy="107" r="3.5"/>
+    <circle cx="100" cy="106" r="3.5"/>
+  </g>
 </svg>

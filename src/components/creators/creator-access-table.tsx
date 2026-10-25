@@ -124,29 +124,84 @@ export function CreatorAccessTable({
     return { authorization: `Bearer ${token}` };
   }, [user]);
 
-  const loadCategories = useCallback(async () => {
-    const headers = await authHeader();
-    const response = await fetch(`/api/categories/list?regionId=${encodeURIComponent(region.id)}`, { headers });
-    const data = (await response.json()) as {
-      ok: boolean;
-      categories?: CategoryDef[];
-      error?: string;
-    };
-    if (!response.ok || !data.ok || !data.categories) {
-      throw new Error(data.error ?? "Unable to load categories.");
+  const SWR_CATEGORIES_KEY = `mana_categories_cache_${region.id}`;
+  const SWR_CREATORS_KEY = `mana_creators_cache_${region.id}_${status}`;
+
+  // Instant 0ms SWR hydration from localStorage
+  useEffect(() => {
+    try {
+      const cachedCats = window.localStorage.getItem(SWR_CATEGORIES_KEY);
+      if (cachedCats) {
+        const parsedCats = JSON.parse(cachedCats) as CategoryDef[];
+        if (Array.isArray(parsedCats) && parsedCats.length > 0) {
+          setCategories(parsedCats);
+        }
+      }
+
+      const cachedCreators = window.localStorage.getItem(SWR_CREATORS_KEY);
+      if (cachedCreators) {
+        const parsed = JSON.parse(cachedCreators) as CreatorRow[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRows(parsed);
+          setSelectedMap(
+            Object.fromEntries(
+              parsed.map((row) => [row.creatorPublicId, row.assignedCategories]),
+            ),
+          );
+          setRegionMap(
+            Object.fromEntries(
+              parsed.map((row) => [
+                row.creatorPublicId,
+                row.assignedRegionIds ?? [],
+              ]),
+            ),
+          );
+        }
+      }
+    } catch {
+      // LocalStorage fallback
     }
-    setCategories(data.categories);
-  }, [authHeader, region.id]);
+  }, [SWR_CATEGORIES_KEY, SWR_CREATORS_KEY]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const headers = await authHeader();
+      const response = await fetch(
+        `/api/categories/list?regionId=${encodeURIComponent(region.id)}`,
+        { headers },
+      );
+      const data = (await response.json()) as {
+        ok: boolean;
+        categories?: CategoryDef[];
+        error?: string;
+      };
+      if (response.ok && data.ok && data.categories) {
+        setCategories(data.categories);
+        try {
+          window.localStorage.setItem(
+            SWR_CATEGORIES_KEY,
+            JSON.stringify(data.categories),
+          );
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // Graceful fallback to cached
+    }
+  }, [authHeader, region.id, SWR_CATEGORIES_KEY]);
 
   const loadCreators = useCallback(async () => {
-    setLoading(true);
+    if (rows.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const headers = await authHeader();
       const url = `/api/creators/list?status=${encodeURIComponent(status)}&q=${encodeURIComponent(
-        query
+        query,
       )}&bankStatus=${encodeURIComponent(bankStatus)}&payoutStatus=${encodeURIComponent(
-        payoutStatus
+        payoutStatus,
       )}&regionId=${encodeURIComponent(region.id)}`;
       const response = await fetch(url, { headers });
       const data = (await response.json()) as {
@@ -158,22 +213,49 @@ export function CreatorAccessTable({
         throw new Error(data.error ?? "Unable to load creators.");
       }
       setRows(data.creators);
+      try {
+        window.localStorage.setItem(
+          SWR_CREATORS_KEY,
+          JSON.stringify(data.creators),
+        );
+      } catch {
+        // ignore
+      }
       setSelectedMap(
         Object.fromEntries(
-          data.creators.map((row) => [row.creatorPublicId, row.assignedCategories])
-        )
+          data.creators.map((row) => [
+            row.creatorPublicId,
+            row.assignedCategories,
+          ]),
+        ),
       );
       setRegionMap(
         Object.fromEntries(
-          data.creators.map((row) => [row.creatorPublicId, row.assignedRegionIds ?? []]),
+          data.creators.map((row) => [
+            row.creatorPublicId,
+            row.assignedRegionIds ?? [],
+          ]),
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load creators.");
+      if (rows.length === 0) {
+        setError(
+          err instanceof Error ? err.message : "Unable to load creators.",
+        );
+      }
     } finally {
       setLoading(false);
     }
-  }, [authHeader, bankStatus, payoutStatus, query, status, region.id]);
+  }, [
+    authHeader,
+    bankStatus,
+    payoutStatus,
+    query,
+    status,
+    region.id,
+    rows.length,
+    SWR_CREATORS_KEY,
+  ]);
 
   const loadManagers = useCallback(async () => {
     if (!isAdminViewer) {

@@ -1,9 +1,94 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Star Badge">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Today Special Star Badge">
   <defs>
-    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#f7971e"/><stop offset="1" stop-color="#ffd200"/></linearGradient>
-    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+    <!-- Background Vibrant Teal / Emerald Glow -->
+    <radialGradient id="specialBg" cx="50%" cy="45%" r="58%">
+      <stop offset="0%" stop-color="#E0F2F1"/>
+      <stop offset="35%" stop-color="#80CBC4"/>
+      <stop offset="70%" stop-color="#00897B"/>
+      <stop offset="100%" stop-color="#004D40"/>
+    </radialGradient>
+    <!-- 3D Golden Star Gradient -->
+    <linearGradient id="starGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="30%" stop-color="#FFD54F"/>
+      <stop offset="70%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Red Celebration Ribbon -->
+    <linearGradient id="ribbonRed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF1744"/>
+      <stop offset="50%" stop-color="#D50000"/>
+      <stop offset="100%" stop-color="#880E4F"/>
+    </linearGradient>
+    <!-- Star Inner Shading -->
+    <radialGradient id="starCore" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#FFF9C4"/>
+      <stop offset="85%" stop-color="#FFD54F"/>
+      <stop offset="100%" stop-color="#FFA000"/>
+    </radialGradient>
   </defs>
-  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
-  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
-  <path d="M64 18 L75 43 L102 45 L82 63 L89 90 L64 76 L39 90 L46 63 L26 45 L53 43 Z" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Aura Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#specialBg)"/>
+
+  <!-- Calendar Page in Background -->
+  <g transform="translate(64, 48)">
+    <!-- Calendar Body -->
+    <rect x="-32" y="-24" width="64" height="60" rx="8" fill="#FFFFFF"/>
+    <rect x="-32" y="-24" width="64" height="18" rx="8" fill="url(#ribbonRed)"/>
+    <rect x="-32" y="-12" width="64" height="6" fill="#D50000"/>
+    <!-- Calendar Binder Rings -->
+    <rect x="-20" y="-30" width="6" height="12" rx="3" fill="#B0BEC5"/>
+    <rect x="14" y="-30" width="6" height="12" rx="3" fill="#B0BEC5"/>
+  </g>
+
+  <!-- Red Victory / Special Occasion Ribbon Tails at Bottom -->
+  <polygon points="46,74 32,116 48,108 60,116 54,80" fill="url(#ribbonRed)"/>
+  <polygon points="82,74 96,116 80,108 68,116 74,80" fill="url(#ribbonRed)"/>
+  <polygon points="46,74 36,112 48,105 52,78" fill="#B71C1C" opacity="0.4"/>
+
+  <!-- Radiant Sunburst Flare behind Star -->
+  <g opacity="0.4" stroke="#FFFDE7" stroke-width="2.5" stroke-linecap="round">
+    <line x1="64" y1="62" x2="64" y2="24"/>
+    <line x1="64" y1="62" x2="36" y2="34"/>
+    <line x1="64" y1="62" x2="92" y2="34"/>
+    <line x1="64" y1="62" x2="26" y2="62"/>
+    <line x1="64" y1="62" x2="102" y2="62"/>
+  </g>
+
+  <!-- 3D Dimensional Faceted Gold Star (Centerpiece) -->
+  <g transform="translate(64, 62)">
+    <!-- Star Outer Drop Shadow -->
+    <polygon points="0,-32 10,-10 32,-10 15,4 21,26 0,13 -21,26 -15,4 -32,-10 -10,-10" fill="#E65100" opacity="0.5"/>
+    <!-- Star Main Body -->
+    <polygon points="0,-30 9,-9 30,-9 14,3 20,24 0,12 -20,24 -14,3 -30,-9 -9,-9" fill="url(#starGold)"/>
+    <!-- Facet Light/Dark Triangles (Creates 3D Chiseled Effect) -->
+    <!-- Point 1 Top -->
+    <polygon points="0,-30 0,0 9,-9" fill="#FFFFFF" opacity="0.6"/>
+    <polygon points="0,-30 0,0 -9,-9" fill="#BF360C" opacity="0.3"/>
+    <!-- Point 2 Right -->
+    <polygon points="30,-9 0,0 14,3" fill="#FFFFFF" opacity="0.5"/>
+    <polygon points="30,-9 0,0 9,-9" fill="#BF360C" opacity="0.3"/>
+    <!-- Point 3 Bottom-Right -->
+    <polygon points="20,24 0,0 0,12" fill="#FFFFFF" opacity="0.4"/>
+    <polygon points="20,24 0,0 14,3" fill="#BF360C" opacity="0.4"/>
+    <!-- Point 4 Bottom-Left -->
+    <polygon points="-20,24 0,0 -14,3" fill="#FFFFFF" opacity="0.5"/>
+    <polygon points="-20,24 0,0 0,12" fill="#BF360C" opacity="0.4"/>
+    <!-- Point 5 Left -->
+    <polygon points="-30,-9 0,0 -9,-9" fill="#FFFFFF" opacity="0.6"/>
+    <polygon points="-30,-9 0,0 -14,3" fill="#BF360C" opacity="0.4"/>
+
+    <!-- Center Bright Highlight -->
+    <circle cx="0" cy="0" r="4" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Sparkles around Star -->
+  <g fill="#FFFDE7">
+    <polygon points="28,26 30,22 32,26 36,28 32,30 30,34 28,30 24,28"/>
+    <polygon points="100,28 101,25 103,28 106,29 103,30 101,33 100,30 97,29"/>
+    <circle cx="22" cy="52" r="1.8"/>
+    <circle cx="106" cy="56" r="2"/>
+  </g>
 </svg>

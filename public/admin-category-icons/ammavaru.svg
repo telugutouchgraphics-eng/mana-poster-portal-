@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Ammavaru">
+  <defs>
+    <!-- Background Divine Halo / Prabhavali -->
+    <radialGradient id="divineGlow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFF9C4" stop-opacity="1"/>
+      <stop offset="35%" stop-color="#FBC02D" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#E65100" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#880E4F" stop-opacity="0.95"/>
+    </radialGradient>
+    <radialGradient id="prabhavaliAura" cx="50%" cy="45%" r="50%">
+      <stop offset="60%" stop-color="#FFE082" stop-opacity="0.8"/>
+      <stop offset="85%" stop-color="#FF6F00" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#BF360C" stop-opacity="1"/>
+    </radialGradient>
+    <!-- Gold Gradients -->
+    <linearGradient id="richGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="25%" stop-color="#FFD54F"/>
+      <stop offset="50%" stop-color="#FFA000"/>
+      <stop offset="75%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#FF6F00"/>
+    </linearGradient>
+    <linearGradient id="crownGold" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFF9C4"/>
+      <stop offset="30%" stop-color="#FFD54F"/>
+      <stop offset="70%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <linearGradient id="rubyRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8A80"/>
+      <stop offset="50%" stop-color="#D50000"/>
+      <stop offset="100%" stop-color="#5B0000"/>
+    </linearGradient>
+    <linearGradient id="emeraldGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A7FFEB"/>
+      <stop offset="50%" stop-color="#00C853"/>
+      <stop offset="100%" stop-color="#004D40"/>
+    </linearGradient>
+    <!-- Divine Face Skin -->
+    <linearGradient id="divineSkin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="40%" stop-color="#FFE0B2"/>
+      <stop offset="85%" stop-color="#FFCC80"/>
+      <stop offset="100%" stop-color="#FFB74D"/>
+    </linearGradient>
+    <!-- Lotus Petal Gradient -->
+    <linearGradient id="lotusPetal" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#880E4F"/>
+      <stop offset="40%" stop-color="#C2185B"/>
+      <stop offset="80%" stop-color="#F48FB1"/>
+      <stop offset="100%" stop-color="#FCE4EC"/>
+    </linearGradient>
+    <!-- Drop Shadow Filter -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Circular Outer Halo -->
+  <circle cx="64" cy="64" r="60" fill="url(#divineGlow)"/>
+
+  <!-- Prabhavali Divine Flames / Rays Around Crown -->
+  <g opacity="0.9">
+    <circle cx="64" cy="52" r="42" fill="none" stroke="url(#prabhavaliAura)" stroke-width="4"/>
+    <!-- Radiating Ray Spikes -->
+    <path d="M64 8 L64 16 M85 14 L80 21 M102 28 L94 33 M110 48 L102 49 M106 70 L98 67 M22 48 L30 49 M26 28 L34 33 M43 14 L48 21 M18 70 L26 67" 
+          stroke="#FFD54F" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="64" cy="11" r="3" fill="#FFF9C4"/>
+    <circle cx="83" cy="16" r="2.5" fill="#FFF9C4"/>
+    <circle cx="45" cy="16" r="2.5" fill="#FFF9C4"/>
+    <circle cx="98" cy="30" r="2.5" fill="#FFF9C4"/>
+    <circle cx="30" cy="30" r="2.5" fill="#FFF9C4"/>
+  </g>
+
+  <!-- Ornate Golden Crown / Kiritam -->
+  <!-- Crown Base Layer -->
+  <path d="M38 52 C38 48 44 42 64 36 C84 42 90 48 90 52 L86 58 C80 56 72 55 64 55 C56 55 48 56 42 58 Z" fill="url(#crownGold)"/>
+  <!-- Crown Middle Tier -->
+  <path d="M43 45 C43 36 50 26 64 20 C78 26 85 36 85 45 C78 43 71 42 64 42 C57 42 50 43 43 45 Z" fill="url(#richGold)"/>
+  <!-- Crown Top Peak (Shikhara) -->
+  <path d="M52 26 C52 18 58 12 64 8 C70 12 76 18 76 26 C72 25 68 24 64 24 C60 24 56 25 52 26 Z" fill="url(#richGold)"/>
+  <!-- Crown Kalasham Tip -->
+  <circle cx="64" cy="7" r="3.5" fill="#FFF9C4"/>
+  <ellipse cx="64" cy="5" rx="1.5" ry="3" fill="#FFE082"/>
+
+  <!-- Jewels on Crown -->
+  <circle cx="64" cy="16" r="2.5" fill="url(#rubyRed)"/>
+  <circle cx="64" cy="28" r="3" fill="url(#emeraldGreen)"/>
+  <circle cx="56" cy="34" r="2.2" fill="url(#rubyRed)"/>
+  <circle cx="72" cy="34" r="2.2" fill="url(#rubyRed)"/>
+  <ellipse cx="64" cy="48" rx="4" ry="3" fill="url(#rubyRed)"/>
+  <circle cx="52" cy="50" r="2" fill="url(#emeraldGreen)"/>
+  <circle cx="76" cy="50" r="2" fill="url(#emeraldGreen)"/>
+
+  <!-- Divine Ears and Golden Kundalas (Jhumkas) -->
+  <ellipse cx="36" cy="74" rx="4" ry="7" fill="url(#divineSkin)"/>
+  <ellipse cx="92" cy="74" rx="4" ry="7" fill="url(#divineSkin)"/>
+  <!-- Golden Earrings -->
+  <g fill="url(#richGold)">
+    <circle cx="34" cy="77" r="3"/>
+    <path d="M31 79 L37 79 L39 86 L29 86 Z"/>
+    <circle cx="34" cy="87" r="1.5" fill="#FFF9C4"/>
+    <circle cx="94" cy="77" r="3"/>
+    <path d="M91 79 L97 79 L99 86 L89 86 Z"/>
+    <circle cx="94" cy="87" r="1.5" fill="#FFF9C4"/>
+  </g>
+
+  <!-- Divine Face Shape -->
+  <path d="M38 56 C38 56 36 78 44 92 C52 104 64 107 64 107 C64 107 76 104 84 92 C92 78 90 56 90 56 C80 54 72 53 64 53 C56 53 48 54 38 56 Z" 
+        fill="url(#divineSkin)" filter="url(#softGlow)"/>
+
+  <!-- Forehead Golden Headband (Nethi Bottu / Chutti) -->
+  <path d="M38 56 C48 57 56 59 64 61 C72 59 80 57 90 56 C82 54 73 53 64 53 C55 53 46 54 38 56 Z" fill="url(#richGold)"/>
+  <circle cx="64" cy="62" r="2.5" fill="url(#rubyRed)"/>
+
+  <!-- Kumkum Tilakam & Chandrakala (Moon) -->
+  <!-- Crescent Moon -->
+  <path d="M58 64 C60 63 68 63 70 64 C68 65 60 65 58 64 Z" fill="#FFF9C4"/>
+  <!-- Red Sacred Kumkum Bottu -->
+  <ellipse cx="64" cy="67" rx="3" ry="5.5" fill="url(#rubyRed)"/>
+  <!-- Golden Center Dot -->
+  <circle cx="64" cy="67" r="1.2" fill="#FFF9C4"/>
+
+  <!-- Divine Eyebrows (Arched & Graceful) -->
+  <path d="M46 73 C50 70 56 71 59 74" fill="none" stroke="#3E2723" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M69 74 C72 71 78 70 82 73" fill="none" stroke="#3E2723" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Almond-shaped Divine Eyes -->
+  <!-- Left Eye -->
+  <path d="M46 77 C50 74 56 75 60 78 C56 81 50 81 46 77 Z" fill="#FFFFFF"/>
+  <ellipse cx="53" cy="77.5" rx="3.2" ry="3.2" fill="#1A1A1A"/>
+  <circle cx="54" cy="76.5" r="1.2" fill="#FFFFFF"/>
+  <path d="M45 77 C49 73 57 74 61 78" fill="none" stroke="#212121" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Eye -->
+  <path d="M68 78 C72 75 78 74 82 77 C78 81 72 81 68 78 Z" fill="#FFFFFF"/>
+  <ellipse cx="75" cy="77.5" rx="3.2" ry="3.2" fill="#1A1A1A"/>
+  <circle cx="76" cy="76.5" r="1.2" fill="#FFFFFF"/>
+  <path d="M67 78 C71 74 79 73 83 77" fill="none" stroke="#212121" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Divine Nose & Golden Mukku Pudaka (Nose Ring) -->
+  <path d="M64 74 L63 85 C62 86 61 87 63 88 C64 88.5 65 88 65 87" fill="none" stroke="#D7CCC8" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- Diamond / Pearl Nose Jewel -->
+  <circle cx="60" cy="85" r="1.6" fill="#FFFDE7"/>
+  <circle cx="60" cy="85" r="0.8" fill="#D50000"/>
+
+  <!-- Divine Compassionate Lips -->
+  <path d="M57 93 C60 92 62 93 64 94 C66 93 68 92 71 93 C69 96 66 98 64 98 C62 98 59 96 57 93 Z" fill="url(#rubyRed)"/>
+  <path d="M58 93 C61 94.5 67 94.5 70 93" fill="none" stroke="#880E4F" stroke-width="1"/>
+
+  <!-- Golden Necklace / Kanthabharanam -->
+  <path d="M46 102 C52 108 76 108 82 102 C77 114 51 114 46 102 Z" fill="url(#crownGold)"/>
+  <circle cx="64" cy="107" r="3" fill="url(#rubyRed)"/>
+  <circle cx="56" cy="105" r="2" fill="url(#emeraldGreen)"/>
+  <circle cx="72" cy="105" r="2" fill="url(#emeraldGreen)"/>
+
+  <!-- Base Lotus Petals (Goddess seated on Sacred Lotus) -->
+  <g opacity="0.95">
+    <!-- Center Petal -->
+    <path d="M64 100 C56 110 54 122 64 126 C74 122 72 110 64 100 Z" fill="url(#lotusPetal)"/>
+    <!-- Left Petals -->
+    <path d="M52 103 C40 112 36 122 48 126 C56 122 58 112 52 103 Z" fill="url(#lotusPetal)"/>
+    <path d="M38 107 C26 114 24 124 36 126 C44 123 46 115 38 107 Z" fill="url(#lotusPetal)"/>
+    <!-- Right Petals -->
+    <path d="M76 103 C88 112 92 122 80 126 C72 122 70 112 76 103 Z" fill="url(#lotusPetal)"/>
+    <path d="M90 107 C102 114 104 124 92 126 C84 123 82 115 90 107 Z" fill="url(#lotusPetal)"/>
+  </g>
+</svg>

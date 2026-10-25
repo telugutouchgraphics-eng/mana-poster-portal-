@@ -1,9 +1,110 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Birthday Cake">
   <defs>
-    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#c471f5"/><stop offset="1" stop-color="#fa71cd"/></linearGradient>
-    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+    <!-- Background Celebration Glow -->
+    <radialGradient id="cakeBg" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="35%" stop-color="#FCE4EC"/>
+      <stop offset="70%" stop-color="#F06292"/>
+      <stop offset="100%" stop-color="#880E4F"/>
+    </radialGradient>
+    <!-- Cake Sponge Gradient -->
+    <linearGradient id="cakeSponge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#D7CCC8"/>
+      <stop offset="30%" stop-color="#EFEBE9"/>
+      <stop offset="70%" stop-color="#D7CCC8"/>
+      <stop offset="100%" stop-color="#BCAAA4"/>
+    </linearGradient>
+    <!-- Chocolate / Strawberry Frosting -->
+    <linearGradient id="cakeFrosting" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F06292"/>
+      <stop offset="60%" stop-color="#E91E63"/>
+      <stop offset="100%" stop-color="#AD1457"/>
+    </linearGradient>
+    <!-- White Cream Icing -->
+    <linearGradient id="whiteCream" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="60%" stop-color="#FFF9C4"/>
+      <stop offset="100%" stop-color="#FFE082"/>
+    </linearGradient>
+    <!-- Candle Flame -->
+    <linearGradient id="cFlame" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#2979FF"/>
+      <stop offset="25%" stop-color="#FF3D00"/>
+      <stop offset="70%" stop-color="#FFEA00"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <!-- Fresh Cherry Red -->
+    <radialGradient id="cherryRed" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FF5252"/>
+      <stop offset="50%" stop-color="#D50000"/>
+      <stop offset="100%" stop-color="#4A0000"/>
+    </radialGradient>
   </defs>
-  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
-  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
-  <path d="M38 58 H90 V102 H38 Z M30 102 H98 M46 58 V42 M64 58 V40 M82 58 V42 M42 74 C50 82 58 66 66 74 C74 82 82 66 90 74" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Celebration Halo -->
+  <circle cx="64" cy="64" r="60" fill="url(#cakeBg)"/>
+
+  <!-- Cake Stand / Plate -->
+  <ellipse cx="64" cy="116" rx="46" ry="8" fill="#ECEFF1"/>
+  <ellipse cx="64" cy="114" rx="44" ry="7" fill="#FFFFFF"/>
+  <ellipse cx="64" cy="114" rx="42" ry="5.5" fill="#CFD8DC"/>
+
+  <!-- Bottom Cake Tier -->
+  <!-- Cylinder Side -->
+  <path d="M26 84 L26 104 C26 112 44 116 64 116 C84 116 102 112 102 104 L102 84 Z" fill="url(#cakeFrosting)"/>
+  <!-- Cylinder Top Ellipse -->
+  <ellipse cx="64" cy="84" rx="38" ry="10" fill="url(#whiteCream)"/>
+
+  <!-- Decorative Cream Swirls on Bottom Tier -->
+  <g fill="#FFFFFF" opacity="0.95">
+    <circle cx="34" cy="94" r="3"/>
+    <circle cx="48" cy="98" r="3"/>
+    <circle cx="64" cy="100" r="3.2"/>
+    <circle cx="80" cy="98" r="3"/>
+    <circle cx="94" cy="94" r="3"/>
+  </g>
+
+  <!-- Top Cake Tier -->
+  <!-- Cylinder Side -->
+  <path d="M38 56 L38 76 C38 84 50 88 64 88 C78 88 90 84 90 76 L90 56 Z" fill="url(#cakeFrosting)"/>
+  <!-- Cylinder Top Ellipse -->
+  <ellipse cx="64" cy="56" rx="26" ry="8" fill="url(#whiteCream)"/>
+
+  <!-- Icing Drips on Top Tier -->
+  <path d="M38 56 C40 64 42 66 44 60 C46 68 50 72 52 62 C54 70 58 74 60 62 C62 72 66 74 68 64 C70 70 74 72 76 60 C78 68 82 66 84 58 C87 64 89 60 90 56 Z" 
+        fill="#FFFFFF"/>
+
+  <!-- Fresh Cherries on Cake Top -->
+  <circle cx="46" cy="54" r="4.5" fill="url(#cherryRed)"/>
+  <circle cx="44.5" cy="52.5" r="1.2" fill="#FFFFFF"/>
+  <circle cx="82" cy="54" r="4.5" fill="url(#cherryRed)"/>
+  <circle cx="80.5" cy="52.5" r="1.2" fill="#FFFFFF"/>
+
+  <!-- Glowing Birthday Candle in Center -->
+  <!-- Candle Stick (Striped) -->
+  <rect x="61" y="28" width="6" height="26" rx="2" fill="#FFEB3B"/>
+  <line x1="61" y1="34" x2="67" y2="38" stroke="#E91E63" stroke-width="2"/>
+  <line x1="61" y1="42" x2="67" y2="46" stroke="#E91E63" stroke-width="2"/>
+  <!-- Wick -->
+  <line x1="64" y1="28" x2="64" y2="22" stroke="#424242" stroke-width="1.8"/>
+
+  <!-- Radiant Light Glow around candle flame -->
+  <circle cx="64" cy="16" r="16" fill="#FFFDE7" opacity="0.6"/>
+
+  <!-- Dynamic Realistic Candle Flame -->
+  <path d="M64 4 C58 12 55 18 55 22 C55 28 59 31 64 31 C69 31 73 28 73 22 C73 18 70 12 64 4 Z" 
+        fill="url(#cFlame)"/>
+  <ellipse cx="64" cy="22" rx="3.5" ry="6" fill="#FFFFFF"/>
+
+  <!-- Golden Celebration Confetti & Sparkles -->
+  <g fill="#FFD54F">
+    <!-- Star Sparkles -->
+    <polygon points="26,36 28,32 30,36 34,38 30,40 28,44 26,40 22,38"/>
+    <polygon points="102,40 103,37 105,40 108,41 105,42 103,45 102,42 99,41"/>
+    <polygon points="96,22 97,19 99,22 102,23 99,24 97,27 96,24 93,23"/>
+    <!-- Confetti Dots -->
+    <circle cx="22" cy="52" r="2" fill="#00E5FF"/>
+    <circle cx="106" cy="62" r="2.2" fill="#FFEB3B"/>
+    <circle cx="30" cy="22" r="1.8" fill="#FF4081"/>
+  </g>
 </svg>

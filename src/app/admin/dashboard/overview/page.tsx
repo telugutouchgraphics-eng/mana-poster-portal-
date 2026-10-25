@@ -121,16 +121,23 @@ function formatCurrency(value: number) {
 function MetricCard({
   label,
   value,
-  tone,
 }: {
   label: string;
   value: string;
-  tone: string;
+  tone?: string;
 }) {
   return (
-    <div className={`rounded-[24px] border px-5 py-5 shadow-sm ${tone}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.22em]">{label}</p>
-      <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+        {value === "..." ? (
+          <span className="inline-block h-7 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+        ) : (
+          value
+        )}
+      </p>
     </div>
   );
 }
@@ -140,9 +147,10 @@ export default function AdminOverviewPage() {
   const { language } = useDashboardLanguage();
   const { region, regions } = useDashboardRegion();
   const lang = portalLanguage(language);
-  const [overviewRegionId, setOverviewRegionId] = useState("all");
+  const [overviewRegionId, setOverviewRegionId] = useState<string>(() => region?.id || "all");
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAllInstallRegions, setShowAllInstallRegions] = useState(false);
   const overviewRegionName =
@@ -150,17 +158,40 @@ export default function AdminOverviewPage() {
       ? "All States / UTs"
       : regions.find((item) => item.id === overviewRegionId)?.name ?? region.name;
 
+  const SWR_STORAGE_KEY = `mana_admin_overview_swr_v2_${overviewRegionId}`;
+
+  // 1. Instant 0-millisecond SWR cache hydration from localStorage
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(SWR_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as AdminOverviewResponse;
+        if (parsed?.ok && parsed?.headline) {
+          setData(parsed);
+        }
+      }
+    } catch {
+      // LocalStorage fallback
+    }
+  }, [SWR_STORAGE_KEY]);
+
   async function load(forceRefresh = false) {
     const token = await user?.getIdToken();
     if (!token) return;
-    setLoading(true);
+
+    // If no cached data exists, show initial skeleton loading; otherwise silently sync in background
+    if (!data) {
+      setLoading(true);
+    } else {
+      setIsSyncing(true);
+    }
     setError(null);
+
     try {
       const response = await fetch(
         `/api/admin/overview?regionId=${encodeURIComponent(overviewRegionId)}${forceRefresh ? "&forceRefresh=true" : ""}`,
         {
           headers: { authorization: `Bearer ${token}` },
-          cache: "no-store",
         },
       );
       const payload = (await response.json()) as AdminOverviewResponse;
@@ -168,23 +199,32 @@ export default function AdminOverviewPage() {
         throw new Error(payload.error ?? t("admin.overview.unableLoad", lang));
       }
       setData(payload);
+      try {
+        window.localStorage.setItem(SWR_STORAGE_KEY, JSON.stringify(payload));
+      } catch {
+        // LocalStorage quota fallback
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("admin.overview.unableLoad", lang));
+      if (!data) {
+        setError(err instanceof Error ? err.message : t("admin.overview.unableLoad", lang));
+      }
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
   }
 
   useEffect(() => {
-    if (region?.id) {
+    if (region?.id && region.id !== overviewRegionId && overviewRegionId === "all") {
       setOverviewRegionId(region.id);
     }
-  }, [region.id]);
+  }, [region?.id, overviewRegionId]);
 
   useEffect(() => {
+    if (!user) return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, lang, overviewRegionId]);
+  }, [user, overviewRegionId]);
 
   const trendMax = useMemo(
     () => Math.max(1, ...(data?.uploadsTrend?.map((item) => item.uploads) ?? [1])),
@@ -231,7 +271,7 @@ export default function AdminOverviewPage() {
 
   return (
     <section className="space-y-6">
-      <div className="overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#111827_0%,#7c3aed_42%,#ef4444_100%)] px-6 py-8 text-white shadow-[0_12px_30px_rgba(15,23,42,0.12)]">
+      <div className="overflow-hidden rounded-[24px] border border-slate-800/80 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.22),transparent_60%),linear-gradient(180deg,#0f172a_0%,#090d16_100%)] px-6 py-8 text-white shadow-[0_12px_30px_rgba(15,23,42,0.12)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/75">
           {t("admin.overview.eyebrow", lang)}
         </p>
@@ -247,7 +287,11 @@ export default function AdminOverviewPage() {
               Total Users
             </p>
             <p className="mt-2 text-4xl font-black text-white">
-              {loading ? "..." : data?.headline?.totalInstalls ?? 0}
+              {loading && !data ? (
+                <span className="inline-block h-9 w-24 animate-pulse rounded-lg bg-white/20" />
+              ) : (
+                data?.headline?.totalInstalls ?? 0
+              )}
             </p>
             <p className="mt-1 text-xs font-semibold text-white/70">
               {isAllStatesOverview ? "All States / UTs combined" : overviewRegionName}
@@ -258,7 +302,11 @@ export default function AdminOverviewPage() {
               Today Installs
             </p>
             <p className="mt-2 text-3xl font-black text-white">
-              {loading ? "..." : data?.headline?.todayInstalls ?? 0}
+              {loading && !data ? (
+                <span className="inline-block h-8 w-20 animate-pulse rounded-lg bg-white/20" />
+              ) : (
+                data?.headline?.todayInstalls ?? 0
+              )}
             </p>
           </div>
           <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4 backdrop-blur">
@@ -266,7 +314,11 @@ export default function AdminOverviewPage() {
               Today Active
             </p>
             <p className="mt-2 text-3xl font-black text-white">
-              {loading ? "..." : data?.headline?.todayActiveUsers ?? 0}
+              {loading && !data ? (
+                <span className="inline-block h-8 w-20 animate-pulse rounded-lg bg-white/20" />
+              ) : (
+                data?.headline?.todayActiveUsers ?? 0
+              )}
             </p>
           </div>
           <div className="rounded-3xl border border-white/15 bg-white/10 px-4 py-4 backdrop-blur">
@@ -274,19 +326,31 @@ export default function AdminOverviewPage() {
               Active Subscribers
             </p>
             <p className="mt-2 text-3xl font-black text-white">
-              {loading ? "..." : data?.headline?.subscribedUsers ?? 0}
+              {loading && !data ? (
+                <span className="inline-block h-8 w-20 animate-pulse rounded-lg bg-white/20" />
+              ) : (
+                data?.headline?.subscribedUsers ?? 0
+              )}
             </p>
           </div>
         </div>
         <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-t border-white/15 pt-5">
           <div className="flex flex-1 flex-col gap-2 sm:max-w-xs">
-            <label className="text-[11px] font-black uppercase tracking-[0.24em] text-white/75">
-              Overview Data
-            </label>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-black uppercase tracking-[0.24em] text-white/75">
+                Overview Data
+              </label>
+              {isSyncing ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/30 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400" />
+                  live syncing
+                </span>
+              ) : null}
+            </div>
             <select
               value={overviewRegionId}
               onChange={(event) => setOverviewRegionId(event.target.value)}
-              className="min-h-11 rounded-2xl border border-white/25 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none shadow-sm"
+              className="min-h-11 rounded-2xl border border-white/25 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none shadow-sm dark:bg-slate-900 dark:text-white"
               aria-label="Select overview state or union territory"
             >
               <option value="all">All States / UTs</option>
@@ -305,15 +369,15 @@ export default function AdminOverviewPage() {
               type="button"
               onClick={() => void load(true)}
               className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/30 bg-white/20 px-5 py-2.5 text-sm font-black text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-900 disabled:opacity-50"
-              disabled={loading}
+              disabled={loading || isSyncing}
             >
-              🔄 {loading ? "Syncing..." : "Sync All Data"}
+              🔄 {isSyncing ? "Syncing..." : "Sync All Data"}
             </button>
             <button
               type="button"
               onClick={() => void load(false)}
               className="inline-flex min-h-11 items-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
-              disabled={loading}
+              disabled={loading || isSyncing}
             >
               {t("admin.overview.refresh", lang)}
             </button>

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Lord Ganesha">
+  <defs>
+    <!-- Divine Aura Background -->
+    <radialGradient id="ganeshaAura" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFF9C4"/>
+      <stop offset="35%" stop-color="#FFE082"/>
+      <stop offset="65%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </radialGradient>
+    <!-- Skin Tone (Gentle Golden-Peach Elephant God Tone) -->
+    <linearGradient id="ganeshaSkin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3E0"/>
+      <stop offset="50%" stop-color="#FFE0B2"/>
+      <stop offset="100%" stop-color="#FFB74D"/>
+    </linearGradient>
+    <!-- Crown Gold -->
+    <linearGradient id="gCrown" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="30%" stop-color="#FFD54F"/>
+      <stop offset="70%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Ruby & Emerald -->
+    <linearGradient id="gRuby" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5252"/>
+      <stop offset="100%" stop-color="#B71C1C"/>
+    </linearGradient>
+    <!-- Laddu / Modak Gold -->
+    <radialGradient id="modakGold" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="40%" stop-color="#FFEB3B"/>
+      <stop offset="80%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Halo Aura -->
+  <circle cx="64" cy="64" r="60" fill="url(#ganeshaAura)"/>
+  <circle cx="64" cy="54" r="42" fill="none" stroke="#FFE082" stroke-width="2" opacity="0.6"/>
+
+  <!-- Large Divine Ears -->
+  <!-- Left Ear -->
+  <path d="M42 54 C24 50 18 64 22 78 C25 86 34 88 44 80 Z" fill="url(#ganeshaSkin)"/>
+  <path d="M40 58 C28 56 24 66 27 75 C30 80 36 82 42 76 Z" fill="#FFCC80" opacity="0.6"/>
+  <!-- Right Ear -->
+  <path d="M86 54 C104 50 110 64 106 78 C103 86 94 88 84 80 Z" fill="url(#ganeshaSkin)"/>
+  <path d="M88 58 C100 56 104 66 101 75 C98 80 92 82 86 76 Z" fill="#FFCC80" opacity="0.6"/>
+
+  <!-- Ornate Golden Crown (Kiritam) -->
+  <path d="M46 44 C46 32 54 18 64 12 C74 18 82 32 82 44 Z" fill="url(#gCrown)"/>
+  <path d="M52 24 C52 14 58 8 64 4 C70 8 76 14 76 24 Z" fill="url(#gCrown)"/>
+  <circle cx="64" cy="4" r="3" fill="#FFF9C4"/>
+  <!-- Crown Inset Gems -->
+  <circle cx="64" cy="20" r="2.5" fill="url(#gRuby)"/>
+  <circle cx="56" cy="34" r="2" fill="#00E676"/>
+  <circle cx="72" cy="34" r="2" fill="#00E676"/>
+  <circle cx="64" cy="38" r="3" fill="url(#gRuby)"/>
+
+  <!-- Crown Base Band -->
+  <path d="M40 44 C52 48 76 48 88 44 L86 49 C74 53 54 53 42 49 Z" fill="url(#gCrown)"/>
+
+  <!-- Divine Head & Brow -->
+  <path d="M42 48 C42 48 38 68 44 82 C48 90 54 94 64 94 C74 94 80 90 84 82 C90 68 86 48 86 48 Z" fill="url(#ganeshaSkin)"/>
+
+  <!-- Sacred Red & Yellow Tilakam / Trishul mark on Forehead -->
+  <!-- Yellow U-shape -->
+  <path d="M56 50 C56 60 72 60 72 50" fill="none" stroke="#FFEB3B" stroke-width="3" stroke-linecap="round"/>
+  <!-- Red Center Line & Bindi -->
+  <line x1="64" y1="46" x2="64" y2="60" stroke="#D50000" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="64" cy="62" r="1.8" fill="#D50000"/>
+
+  <!-- Divine Eyes -->
+  <!-- Left Eye -->
+  <path d="M48 64 C51 62 55 63 57 66 C55 68 51 68 48 64 Z" fill="#FFFFFF"/>
+  <circle cx="53" cy="65" r="1.8" fill="#212121"/>
+  <circle cx="53.5" cy="64.5" r="0.6" fill="#FFFFFF"/>
+  <path d="M47 63 C51 60 56 61 58 65" fill="none" stroke="#5D4037" stroke-width="1.2"/>
+  <!-- Right Eye -->
+  <path d="M71 66 C73 63 77 62 80 64 C77 68 73 68 71 66 Z" fill="#FFFFFF"/>
+  <circle cx="75" cy="65" r="1.8" fill="#212121"/>
+  <circle cx="75.5" cy="64.5" r="0.6" fill="#FFFFFF"/>
+  <path d="M70 65 C72 61 77 60 81 63" fill="none" stroke="#5D4037" stroke-width="1.2"/>
+
+  <!-- Tusks (Ivory) -->
+  <!-- Right Intact Tusk -->
+  <path d="M74 78 C78 78 82 82 82 86 C78 85 76 82 74 78 Z" fill="#FFFDE7"/>
+  <!-- Left Broken Tusk -->
+  <path d="M54 78 C52 79 48 81 48 82 C50 82 52 81 54 78 Z" fill="#FFFDE7"/>
+
+  <!-- Elephant Trunk (Curving to Left / Valampuri/Idampuri) -->
+  <path d="M58 72 C58 84 56 94 48 100 C42 104 36 98 42 92 C46 88 52 86 52 72 Z" 
+        fill="url(#ganeshaSkin)"/>
+  <!-- Trunk Wrinkles -->
+  <path d="M56 78 C54 80 50 80 52 78" stroke="#D7CCC8" stroke-width="1.2" fill="none"/>
+  <path d="M54 84 C52 86 48 86 50 84" stroke="#D7CCC8" stroke-width="1.2" fill="none"/>
+
+  <!-- Golden Modak / Laddu held by trunk tip -->
+  <circle cx="38" cy="94" r="8" fill="url(#modakGold)"/>
+  <circle cx="35" cy="91" r="2" fill="#FFFFFF" opacity="0.6"/>
+  <circle cx="39" cy="96" r="1.5" fill="#E65100" opacity="0.7"/>
+
+  <!-- Lotus Base -->
+  <path d="M36 114 C52 108 76 108 92 114 C84 124 44 124 36 114 Z" fill="#E91E63"/>
+  <path d="M46 112 C56 106 72 106 82 112" fill="none" stroke="#F8BBD0" stroke-width="2"/>
+</svg>

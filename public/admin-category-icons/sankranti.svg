@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Sankranti">
+  <defs>
+    <!-- Background Radiant Sky -->
+    <radialGradient id="sankrantiSky" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFF9C4"/>
+      <stop offset="35%" stop-color="#FFE082"/>
+      <stop offset="70%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </radialGradient>
+    <!-- Kite Gradients -->
+    <linearGradient id="kiteLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4081"/>
+      <stop offset="100%" stop-color="#C2185B"/>
+    </linearGradient>
+    <linearGradient id="kiteRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#0288D1"/>
+    </linearGradient>
+    <linearGradient id="kiteBottom" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFEA00"/>
+      <stop offset="100%" stop-color="#FF8F00"/>
+    </linearGradient>
+    <!-- Sugarcane Stalk Gradient -->
+    <linearGradient id="caneGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2E7D32"/>
+      <stop offset="30%" stop-color="#7CB342"/>
+      <stop offset="60%" stop-color="#4E342E"/>
+      <stop offset="100%" stop-color="#1B5E20"/>
+    </linearGradient>
+    <!-- Pongal Clay Pot -->
+    <radialGradient id="pongalPot" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FF8A65"/>
+      <stop offset="60%" stop-color="#D84315"/>
+      <stop offset="100%" stop-color="#3E2723"/>
+    </radialGradient>
+    <!-- Milk Froth -->
+    <linearGradient id="pongalFroth" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="60%" stop-color="#FFFDE7"/>
+      <stop offset="100%" stop-color="#FFF9C4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#sankrantiSky)"/>
+
+  <!-- Sun Rays in Sky -->
+  <circle cx="64" cy="36" r="28" fill="#FFFDE7" opacity="0.35"/>
+
+  <!-- Two Crossed Sugarcane Stalks (Cheraku Gadalu) -->
+  <!-- Left to Right Cane -->
+  <g opacity="0.95">
+    <path d="M22 118 L86 16 L94 20 L30 122 Z" fill="url(#caneGreen)"/>
+    <!-- Cane Joints (Ring lines) -->
+    <line x1="36" y1="96" x2="44" y2="100" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="50" y1="74" x2="58" y2="78" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="64" y1="52" x2="72" y2="56" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="78" y1="30" x2="86" y2="34" stroke="#FFF59D" stroke-width="2.5"/>
+    <!-- Leafy Cane Top -->
+    <path d="M88 18 C94 8 104 6 108 8 C102 14 96 16 90 20 Z" fill="#43A047"/>
+    <path d="M86 16 C90 6 96 4 100 4 C96 10 92 12 88 18 Z" fill="#66BB6A"/>
+  </g>
+  <!-- Right to Left Cane -->
+  <g opacity="0.95">
+    <path d="M106 118 L42 16 L34 20 L98 122 Z" fill="url(#caneGreen)"/>
+    <!-- Cane Joints -->
+    <line x1="92" y1="96" x2="84" y2="100" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="78" y1="74" x2="70" y2="78" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="64" y1="52" x2="56" y2="56" stroke="#FFF59D" stroke-width="2.5"/>
+    <line x1="50" y1="30" x2="42" y2="34" stroke="#FFF59D" stroke-width="2.5"/>
+    <!-- Leafy Cane Top -->
+    <path d="M40 18 C34 8 24 6 20 8 C26 14 32 16 38 20 Z" fill="#43A047"/>
+    <path d="M42 16 C38 6 32 4 28 4 C32 10 36 12 40 18 Z" fill="#66BB6A"/>
+  </g>
+
+  <!-- Colorful Flying Festival Kite (Patang) in the Upper Half -->
+  <g transform="translate(64, 40)">
+    <!-- Kite Main Diamond Body -->
+    <polygon points="0,-28 26,0 0,28 -26,0" fill="#E91E63"/>
+    <!-- Split color quadrants -->
+    <polygon points="0,-28 -26,0 0,0" fill="url(#kiteLeft)"/>
+    <polygon points="0,-28 26,0 0,0" fill="url(#kiteRight)"/>
+    <polygon points="-26,0 0,28 0,0" fill="url(#kiteBottom)"/>
+    <polygon points="26,0 0,28 0,0" fill="#FFC107"/>
+    <!-- Center Spine & Bow Spine (Bamboo Sticks) -->
+    <line x1="0" y1="-28" x2="0" y2="28" stroke="#FFFFFF" stroke-width="1.8"/>
+    <path d="M-26 0 C-10 -16 10 -16 26 0" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+    <!-- Kite Triangle Tail -->
+    <polygon points="0,28 -8,40 8,40" fill="#00E5FF"/>
+    <!-- Flying Thread (Manja) -->
+    <path d="M0 0 Q-15 30 -30 65" fill="none" stroke="#FFFDE7" stroke-width="1.2" opacity="0.8"/>
+  </g>
+
+  <!-- Sweet Pongal / Payasam Pot in the Foreground (Center Bottom) -->
+  <ellipse cx="64" cy="116" rx="26" ry="6" fill="#212121" opacity="0.4"/>
+  <!-- Pot Body -->
+  <circle cx="64" cy="98" r="22" fill="url(#pongalPot)"/>
+  <!-- Decorative Pot Band -->
+  <path d="M46 96 Q64 104 82 96" fill="none" stroke="#FFF59D" stroke-width="2"/>
+  <circle cx="64" cy="100" r="2" fill="#FFF59D"/>
+
+  <!-- Overflowing Festive Milk / Sweet Pongal Froth -->
+  <ellipse cx="64" cy="80" rx="16" ry="7" fill="url(#pongalFroth)"/>
+  <!-- Dripping Milk Over the Rim (Pongal Pongindi!) -->
+  <path d="M50 82 C50 88 53 92 54 88 C55 84 57 84 58 88 C59 92 63 94 64 88 C65 84 68 84 70 88 C72 92 76 90 77 84 C78 80 74 78 50 82 Z" 
+        fill="#FFFFFF"/>
+</svg>

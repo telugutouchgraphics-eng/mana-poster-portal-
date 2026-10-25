@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
 import { useDashboardRegion } from "@/components/regions/dashboard-region-provider";
@@ -86,13 +86,13 @@ function toInputDate(epochMs: number): string {
 
 function formatRange(item: ManualEventCategory): string {
   const start = new Date(item.startAt).toLocaleDateString("en-IN", {
-    day: "2-digit",
     month: "short",
+    day: "numeric",
     year: "numeric",
   });
   const end = new Date(item.endAt).toLocaleDateString("en-IN", {
-    day: "2-digit",
     month: "short",
+    day: "numeric",
     year: "numeric",
   });
   return start === end ? start : `${start} - ${end}`;
@@ -110,6 +110,7 @@ export function ManualEventCategoriesConsole() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
   const [id, setId] = useState("");
   const [label, setLabel] = useState("");
   const [iconAssetPath, setIconAssetPath] = useState("");
@@ -125,31 +126,32 @@ export function ManualEventCategoriesConsole() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const lang = portalLanguage(language);
   const copy = {
-    eyebrow: t("manualEventCategories.eyebrow", lang),
-    title: t("manualEventCategories.title", lang),
-    description: t("manualEventCategories.description", lang),
-    categoryId: t("manualEventCategories.categoryId", lang),
-    autoIdPlaceholder: t("manualEventCategories.autoIdPlaceholder", lang),
-    autoIdHelp: t("manualEventCategories.autoIdHelp", lang),
-    label: t("manualEventCategories.label", lang),
-    labelPlaceholder: t("manualEventCategories.labelPlaceholder", lang),
-    startDate: t("manualEventCategories.startDate", lang),
-    endDate: t("manualEventCategories.endDate", lang),
-    saving: t("manualEventCategories.saving", lang),
-    update: t("manualEventCategories.update", lang),
-    create: t("manualEventCategories.create", lang),
-    clear: t("manualEventCategories.clear", lang),
-    existingTitle: t("manualEventCategories.existingTitle", lang),
-    loading: t("manualEventCategories.loading", lang),
-    empty: t("manualEventCategories.empty", lang),
-    edit: t("manualEventCategories.edit", lang),
-    delete: t("manualEventCategories.delete", lang),
-    unableLoad: t("manualEventCategories.unableLoad", lang),
-    unableSave: t("manualEventCategories.unableSave", lang),
-    created: t("manualEventCategories.created", lang),
-    updated: t("manualEventCategories.updated", lang),
-    unableDelete: t("manualEventCategories.unableDelete", lang),
-    deleted: t("manualEventCategories.deleted", lang),
+    eyebrow: "Event Categories",
+    title: "Manage Festival & Event Categories",
+    description:
+      "Configure dynamic date-based festival categories, 3D vector realistic icons, regional visibility, and multi-language translations for the mobile app.",
+    categoryId: "Category ID",
+    autoIdPlaceholder: "Auto-generated from label",
+    autoIdHelp: "System identifier.",
+    label: "Event Name (Display Label)",
+    labelPlaceholder: "e.g. Diwali, Sankranti, Independence Day",
+    startDate: "Start Date",
+    endDate: "End Date",
+    saving: "Saving Category...",
+    update: "Update Category",
+    create: "Create Event Category",
+    clear: "Cancel / Reset",
+    existingTitle: "Configured Event Categories",
+    loading: "Loading categories...",
+    empty: "No event categories configured for this region yet.",
+    edit: "Edit",
+    delete: "Delete",
+    unableLoad: "Unable to load categories",
+    unableSave: "Unable to save category",
+    created: "Category created successfully",
+    updated: "Category updated successfully",
+    unableDelete: "Unable to delete category",
+    deleted: "Category deleted successfully",
   };
 
   async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -164,8 +166,28 @@ export function ManualEventCategoriesConsole() {
     });
   }
 
+  const SWR_EVENT_CATS_KEY = `mana_event_categories_${region.id}`;
+
+  // Instant 0ms SWR hydration from localStorage
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(SWR_EVENT_CATS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as ManualEventCategory[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+          setLoading(false);
+        }
+      }
+    } catch {
+      // LocalStorage fallback
+    }
+  }, [SWR_EVENT_CATS_KEY]);
+
   async function loadItems() {
-    setLoading(true);
+    if (items.length === 0) {
+      setLoading(true);
+    }
     setMessage(null);
     try {
       const response = await authorizedFetch(
@@ -177,6 +199,14 @@ export function ManualEventCategoriesConsole() {
       }
       const nextItems = data.categories ?? [];
       setItems(nextItems);
+      try {
+        window.localStorage.setItem(
+          SWR_EVENT_CATS_KEY,
+          JSON.stringify(nextItems),
+        );
+      } catch {
+        // ignore
+      }
       const visibleIds = new Set(nextItems.map((item) => item.id));
       setSelectedIds((prev) => {
         const next = new Set<string>();
@@ -186,7 +216,9 @@ export function ManualEventCategoriesConsole() {
         return next;
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : copy.unableLoad);
+      if (items.length === 0) {
+        setMessage(error instanceof Error ? error.message : copy.unableLoad);
+      }
     } finally {
       setLoading(false);
     }
@@ -194,8 +226,7 @@ export function ManualEventCategoriesConsole() {
 
   useEffect(() => {
     void loadItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, region.id]);
+  }, [region.id]);
 
   function resetForm() {
     setEditingId(null);
@@ -363,114 +394,200 @@ export function ManualEventCategoriesConsole() {
     }
   }
 
-  return (
-    <section className="space-y-5">
-      <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">
-          {copy.eyebrow}
-        </p>
-        <h3 className="mt-2 text-2xl font-black text-slate-950">
-          {copy.title}
-        </h3>
-        <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
-          {copy.description}
-        </p>
+  const filteredItems = useMemo(() => {
+    const q = categorySearchQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q),
+    );
+  }, [items, categorySearchQuery]);
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-        >
-          <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>{copy.categoryId}</span>
-            <input
-              value={id}
-              onChange={(event) => setId(slugifyCategoryId(event.target.value))}
-              disabled
-              placeholder={copy.autoIdPlaceholder}
-              className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
-            />
-            <p className="text-xs font-medium text-slate-500">
-              {editingId
-                ? copy.autoIdHelp
-                : `${copy.autoIdHelp} Preview: ${previewCategoryId(region.id, label)}`}
+  return (
+    <section className="space-y-6">
+      {/* Category Creation / Editing Card */}
+      <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs transition-colors dark:border-slate-800 dark:bg-[#0f172a]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                {copy.eyebrow}
+              </span>
+              {editingId ? (
+                <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                  Editing: {editingId}
+                </span>
+              ) : null}
+            </div>
+            <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {editingId ? "Update Event Category" : copy.title}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {copy.description}
             </p>
-          </label>
-          <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>{copy.label}</span>
-            <input
-              value={label}
-              onChange={(event) => {
-                const nextLabel = event.target.value;
-                setLabel(nextLabel);
-                if (!editingId) {
-                  setId(slugifyCategoryId(nextLabel));
-                }
-              }}
-              placeholder={copy.labelPlaceholder}
-              className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
-            />
-          </label>
-          <div className="space-y-2 text-sm font-semibold text-slate-700 md:col-span-2 xl:col-span-2">
-            <span>Category icon</span>
-            <div className="rounded-2xl border border-[var(--portal-border)] bg-white p-3">
-              <div className="flex items-center gap-3">
-                {selectedIconPreview(iconAssetPath) ? (
+          </div>
+          {editingId ? (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Cancel Edit
+            </button>
+          ) : null}
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Display Name */}
+            <label className="space-y-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>{copy.label} *</span>
+              <input
+                value={label}
+                required
+                onChange={(event) => {
+                  const nextLabel = event.target.value;
+                  setLabel(nextLabel);
+                  if (!editingId) {
+                    setId(slugifyCategoryId(nextLabel));
+                  }
+                }}
+                placeholder={copy.labelPlaceholder}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </label>
+
+            {/* Category ID (Slug) */}
+            <label className="space-y-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>{copy.categoryId}</span>
+              <input
+                value={id}
+                onChange={(event) => setId(slugifyCategoryId(event.target.value))}
+                disabled
+                placeholder={copy.autoIdPlaceholder}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-500 outline-none dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400"
+              />
+              <p className="text-[11px] font-medium text-slate-400">
+                {editingId
+                  ? copy.autoIdHelp
+                  : `Preview ID: ${previewCategoryId(region.id, label)}`}
+              </p>
+            </label>
+          </div>
+
+          {/* Realistic Category Icon Picker */}
+          <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Category 3D Vector Icon
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Pick a high-definition 3D realistic festival icon
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {selectedIconPreview(iconAssetPath) ? (
+                <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white p-1 shadow-2xs dark:border-slate-700 dark:bg-slate-800">
                   <img
                     src={selectedIconPreview(iconAssetPath)}
                     alt=""
-                    className="h-11 w-11 rounded-2xl bg-slate-50 p-1"
+                    className="h-10 w-10 object-contain"
                   />
-                ) : (
-                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-xs font-black text-slate-400">
-                    SVG
-                  </div>
-                )}
-                <select
-                  value={iconAssetPath}
-                  onChange={(event) => setIconAssetPath(event.target.value)}
-                  className="min-w-0 flex-1 rounded-xl border border-[var(--portal-border)] px-3 py-2 outline-none"
-                >
-                  <option value="">Default app icon</option>
-                  {ADMIN_CATEGORY_ICON_OPTIONS.map((icon) => (
-                    <option key={icon.id} value={icon.assetPath}>
-                      {icon.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mt-3 grid max-h-48 grid-cols-6 gap-2 overflow-y-auto pr-1 sm:grid-cols-8 md:grid-cols-10">
-                {ADMIN_CATEGORY_ICON_OPTIONS.map((icon) => {
-                  const selected = iconAssetPath === icon.assetPath;
-                  return (
-                    <button
-                      key={icon.id}
-                      type="button"
-                      title={icon.label}
-                      onClick={() => setIconAssetPath(icon.assetPath)}
-                      className={`rounded-2xl border p-1 transition ${
-                        selected
-                          ? "border-[var(--portal-purple)] bg-indigo-50"
-                          : "border-slate-200 bg-white hover:border-slate-400"
-                      }`}
-                    >
-                      <img
-                        src={icon.previewPath}
-                        alt={icon.label}
-                        className="h-9 w-9"
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+                </div>
+              ) : (
+                <div className="grid h-12 w-12 flex-none place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-100 text-xs font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-800">
+                  ICON
+                </div>
+              )}
+              <select
+                value={iconAssetPath}
+                onChange={(event) => setIconAssetPath(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="">Default app icon</option>
+                {ADMIN_CATEGORY_ICON_OPTIONS.map((icon) => (
+                  <option key={icon.id} value={icon.assetPath}>
+                    {icon.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Icon Grid */}
+            <div className="mt-3 grid grid-cols-6 gap-2 sm:grid-cols-9">
+              {ADMIN_CATEGORY_ICON_OPTIONS.map((icon) => {
+                const selected = iconAssetPath === icon.assetPath;
+                return (
+                  <button
+                    key={icon.id}
+                    type="button"
+                    title={icon.label}
+                    onClick={() => setIconAssetPath(icon.assetPath)}
+                    className={`group relative flex flex-col items-center justify-center rounded-xl border p-2 transition-all ${
+                      selected
+                        ? "border-indigo-600 bg-indigo-50/80 ring-2 ring-indigo-600/30 dark:border-indigo-500 dark:bg-indigo-950/40"
+                        : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    <img
+                      src={icon.previewPath}
+                      alt={icon.label}
+                      className="h-8 w-8 transition-transform group-hover:scale-110"
+                    />
+                    <span className="mt-1 max-w-[65px] truncate text-[9px] font-semibold text-slate-600 dark:text-slate-400">
+                      {icon.label.split("/")[0].trim()}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div className="md:col-span-2 xl:col-span-4 rounded-2xl border border-[var(--portal-border)] bg-white p-4">
-            <p className="text-sm font-bold text-slate-800">
-              Visible states / UTs
+
+          {/* Dates & Protocol */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="space-y-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>{copy.startDate} *</span>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </label>
+            <label className="space-y-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>{copy.endDate}</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </label>
+            <div className="flex flex-col justify-end">
+              <label className="flex h-10 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+                <span>Political protocol</span>
+                <input
+                  type="checkbox"
+                  checked={allowPoliticalProtocol}
+                  onChange={(event) =>
+                    setAllowPoliticalProtocol(event.target.checked)
+                  }
+                  className="h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Visible States / UTs */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+              Visible States / UTs
             </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Select every state where this manual event category should appear
-              in the app.
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              Choose regions where this category should be displayed in the app.
             </p>
             <div className="mt-3">
               <RegionMultiSelectDropdown
@@ -482,95 +599,20 @@ export function ManualEventCategoriesConsole() {
               />
             </div>
           </div>
-          <div className="md:col-span-2 xl:col-span-4 rounded-2xl border border-[var(--portal-border)] bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-slate-800">
-                  App language labels
-                </p>
-                <p className="text-xs text-slate-500">
-                  Auto translation will fill blank fields after save; edit any
-                  field for manual override.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLabelsByLanguage(emptyLabels())}
-                className="rounded-xl border border-[var(--portal-border)] px-3 py-2 text-xs font-bold text-slate-600"
-              >
-                Clear overrides
-              </button>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {CATEGORY_LABEL_LANGUAGES.map(([key, name]) => (
-                <label
-                  key={key}
-                  className="space-y-1 text-xs font-semibold text-slate-600"
-                >
-                  <span>{name}</span>
-                  <input
-                    value={labelsByLanguage[key] ?? ""}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setLabelsByLanguage((prev) => ({
-                        ...prev,
-                        [key]: value,
-                      }));
-                    }}
-                    placeholder={`${name} label`}
-                    className="w-full rounded-xl border border-[var(--portal-border)] px-3 py-2 text-sm outline-none"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-          <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>{copy.startDate}</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
-            />
-          </label>
-          <label className="space-y-2 text-sm font-semibold text-slate-700">
-            <span>{copy.endDate}</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
-              className="w-full rounded-2xl border border-[var(--portal-border)] px-4 py-3 outline-none"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--portal-border)] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 md:col-span-2 xl:col-span-4">
-            <span>
-              <span className="block">Allow political protocol photos</span>
-              <span className="block text-xs font-medium text-slate-500">
-                Enable this only when posters in this event can use party
-                leader photos.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={allowPoliticalProtocol}
-              onChange={(event) =>
-                setAllowPoliticalProtocol(event.target.checked)
-              }
-              className="h-5 w-5 rounded border-slate-300 text-[var(--portal-purple)]"
-            />
-          </label>
-          <div className="md:col-span-2 xl:col-span-4 flex flex-wrap gap-3">
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="submit"
               disabled={busy || !label.trim() || !startDate}
-              className="rounded-2xl bg-[var(--portal-purple)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 disabled:opacity-50"
             >
               {busy ? copy.saving : editingId ? copy.update : copy.create}
             </button>
             <button
               type="button"
               onClick={resetForm}
-              className="rounded-2xl border border-[var(--portal-border)] px-5 py-3 text-sm font-bold text-slate-700"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {copy.clear}
             </button>
@@ -578,112 +620,146 @@ export function ManualEventCategoriesConsole() {
         </form>
 
         {message ? (
-          <p className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 px-3.5 py-2.5 text-xs font-semibold text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300">
             {message}
-          </p>
+          </div>
         ) : null}
       </article>
 
-      <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <h4 className="text-xl font-black text-slate-950">
-          {copy.existingTitle}
-        </h4>
+      {/* Existing Categories Table & List */}
+      <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs transition-colors dark:border-slate-800 dark:bg-[#0f172a]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div>
+            <h4 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+              {copy.existingTitle} ({items.length})
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Active and upcoming festival event categories in {region.name}
+            </p>
+          </div>
+
+          {/* Quick Filter */}
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              value={categorySearchQuery}
+              onChange={(e) => setCategorySearchQuery(e.target.value)}
+              placeholder="Search category..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pr-7 pl-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-indigo-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            />
+            {categorySearchQuery ? (
+              <button
+                type="button"
+                onClick={() => setCategorySearchQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-2 text-xs font-bold text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         {items.length > 0 ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-900/40">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
               <input
                 type="checkbox"
                 checked={allVisibleSelected}
                 onChange={toggleAllVisible}
-                className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)]"
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
-              Select all
+              Select all visible ({filteredItems.length})
             </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {selectedCount} selected
               </span>
               <button
                 type="button"
                 disabled={busy || selectedCount === 0}
                 onClick={() => void handleBulkDelete()}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-rose-700 disabled:opacity-50"
               >
-                Delete selected
+                Delete Selected
               </button>
             </div>
           </div>
         ) : null}
-        <div className="mt-5 space-y-3">
+
+        {/* Categories List */}
+        <div className="mt-4 space-y-2.5">
           {loading && items.length === 0 ? (
-            <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
+            <div className="py-12 text-center text-xs text-slate-500">
               {copy.loading}
             </div>
-          ) : items.length === 0 ? (
-            <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              {copy.empty}
+          ) : filteredItems.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-500">
+              {categorySearchQuery
+                ? `No categories matching "${categorySearchQuery}"`
+                : copy.empty}
             </div>
           ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4"
-              >
-                <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(item.id)}
-                    disabled={busy}
-                    onChange={() => toggleSelection(item.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-[var(--portal-purple)] disabled:opacity-50"
-                  />
-                  Select category
-                </label>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-bold text-slate-950">
-                      {categoryLabelWithIcon(item.id, item.label)}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">{item.id}</p>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {formatRange(item)}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      States:{" "}
-                      {regions
-                        .filter((candidate) =>
-                          (item.regionIds?.length
-                            ? item.regionIds
-                            : item.regionId
-                              ? [item.regionId]
-                              : []
-                          ).includes(candidate.id),
-                        )
-                        .map((candidate) => candidate.name)
-                        .join(", ") || "All States / UTs"}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Political protocol:{" "}
-                      {item.allowPoliticalProtocol ? "Allowed" : "Off"}
-                    </p>
-                    {item.iconAssetPath ? (
-                      <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
-                        {adminCategoryIconPreviewPath(item.iconAssetPath) ? (
-                          <img
-                            src={adminCategoryIconPreviewPath(
-                              item.iconAssetPath,
-                            )}
-                            alt=""
-                            className="h-7 w-7 rounded-lg bg-white p-0.5"
-                          />
-                        ) : null}
-                        <span className="break-all">
-                          Icon: {item.iconAssetPath}
+            filteredItems.map((item) => {
+              const preview = item.iconAssetPath
+                ? adminCategoryIconPreviewPath(item.iconAssetPath)
+                : "";
+              const isSelected = selectedIds.has(item.id);
+
+              return (
+                <div
+                  key={item.id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 transition-all ${
+                    isSelected
+                      ? "border-indigo-400 bg-indigo-50/40 dark:border-indigo-700 dark:bg-indigo-950/20"
+                      : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-2xs dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={busy}
+                      onChange={() => toggleSelection(item.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+
+                    {/* Realistic 3D Icon Preview */}
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+                      {preview ? (
+                        <img
+                          src={preview}
+                          alt=""
+                          className="h-8 w-8 object-contain"
+                        />
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400">
+                          SVG
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {categoryLabelWithIcon(item.id, item.label)}
+                        </span>
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          {item.id}
                         </span>
                       </div>
-                    ) : null}
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span>📅 {formatRange(item)}</span>
+                        <span>•</span>
+                        <span>
+                          {item.allowPoliticalProtocol
+                            ? "🏛️ Protocol On"
+                            : "Off"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -706,8 +782,9 @@ export function ManualEventCategoriesConsole() {
                         setAllowPoliticalProtocol(
                           item.allowPoliticalProtocol === true,
                         );
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
-                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       {copy.edit}
                     </button>
@@ -715,14 +792,14 @@ export function ManualEventCategoriesConsole() {
                       type="button"
                       disabled={busy}
                       onClick={() => void handleDelete(item.id)}
-                      className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-900/60 disabled:opacity-50"
                     >
                       {copy.delete}
                     </button>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </article>

@@ -62,8 +62,9 @@ export function EventDatesConsole() {
   const [year, setYear] = useState<number>(currentYear);
   const [month, setMonth] = useState<number>(now.getMonth() + 1);
 
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const fixed = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES.map((item) => {
+  const today = toDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+  const fixed: ScheduleItem[] = CSV_FIXED_DYNAMIC_EVENT_CATEGORIES.map((item) => {
     const startDate = toDate(year, item.month, item.day);
     const durationDays = Math.max(1, item.durationDays ?? 1);
     const endDate = new Date(startDate);
@@ -84,19 +85,18 @@ export function EventDatesConsole() {
     };
   });
 
-  const lunar = CSV_LUNAR_PLACEHOLDER_CATEGORIES.flatMap((item) => {
-    const resolved = RESOLVED_LUNAR_EVENT_DATES[year]?.[item.id];
-    if (!resolved) {
-      return [];
-    }
+  const lunarYearTable = RESOLVED_LUNAR_EVENT_DATES[year] ?? {};
+  const lunar: ScheduleItem[] = CSV_LUNAR_PLACEHOLDER_CATEGORIES.flatMap((item) => {
+    const resolved = lunarYearTable[item.id];
+    if (!resolved) return [];
     const startDate = toDate(year, resolved.month, resolved.day);
     const endDate =
-      resolved.endMonth != null && resolved.endDay != null
+      resolved.endMonth && resolved.endDay
         ? toDate(year, resolved.endMonth, resolved.endDay)
-        : new Date(
+        : toDate(
             year,
-            resolved.month - 1,
-            resolved.day + Math.max(1, resolved.durationDays ?? 1) - 1,
+            resolved.month,
+            resolved.day + Math.max(0, (resolved.durationDays ?? 1) - 1),
           );
     const visibleStart = new Date(startDate);
     visibleStart.setDate(visibleStart.getDate() - 5);
@@ -134,34 +134,37 @@ export function EventDatesConsole() {
     .sort((a, b) => a - b);
 
   return (
-    <section className="space-y-5">
-      <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="space-y-6">
+      {/* Calendar Overview Card */}
+      <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-[#0f172a]">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--portal-purple)]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
               Event Dates Calendar
-            </p>
-            <h3 className="mt-2 text-2xl font-black text-slate-950">Month-wise dynamic event schedule</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
-              These events are visible in the portal 5 days early. The app shows dynamic events only on the event day.
+            </span>
+            <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Month-wise Dynamic Event Schedule
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Events become visible in the portal 5 days early for poster planning. Mobile app shows dynamic events on event day.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
               value={year}
               onChange={(event) => setYear(Number(event.target.value))}
-              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               {years.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  Year {item}
                 </option>
               ))}
             </select>
             <select
               value={month}
               onChange={(event) => setMonth(Number(event.target.value))}
-              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               {MONTHS.map((label, index) => (
                 <option key={label} value={index + 1}>
@@ -172,90 +175,100 @@ export function EventDatesConsole() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-          <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-5">
-            <p className="text-sm font-bold text-slate-950">Currently visible in portal</p>
-            <p className="mt-1 text-xs text-slate-500">Today + next 5-day visibility window.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 lg:col-span-2">
+            <p className="text-xs font-bold text-slate-900 dark:text-white">
+              Currently Visible in Portal (5-Day Window)
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               {visibleNow.length === 0 ? (
-                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
-                  No active event window
+                <span className="rounded-lg bg-slate-200/80 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                  No active events right now
                 </span>
               ) : (
                 visibleNow.map((item) => (
                   <span
                     key={item.id}
-                    className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-400"
                   >
-                    {categoryLabelWithIcon(item.id, item.label)}
+                    <span>{categoryLabelWithIcon(item.id, item.label)}</span>
                   </span>
                 ))
               )}
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-5">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Year</p>
-                <p className="mt-2 text-2xl font-black text-slate-950">{year}</p>
-              </div>
-              <div className="rounded-2xl bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Selected Month</p>
-                <p className="mt-2 text-2xl font-black text-slate-950">{MONTHS[month - 1]}</p>
-              </div>
-              <div className="rounded-2xl bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Events</p>
-                <p className="mt-2 text-2xl font-black text-slate-950">{filtered.length}</p>
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Selected
+              </p>
+              <p className="mt-1 truncate text-base font-bold text-slate-900 dark:text-white">
+                {MONTHS[month - 1]} {year}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Total Events
+              </p>
+              <p className="mt-1 text-base font-bold text-indigo-600 dark:text-indigo-400">
+                {filtered.length} Events
+              </p>
             </div>
           </div>
         </div>
       </article>
 
-      <article className="rounded-[28px] border border-[var(--portal-border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-        <h4 className="text-xl font-black text-slate-950">
-          {MONTHS[month - 1]} {year} events
-        </h4>
-        <p className="mt-2 text-sm text-slate-600">
-          Clear date-wise list. Multi-day events show the full range.
-        </p>
-        <div className="mt-5 space-y-3">
+      {/* Events List for Month */}
+      <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-[#0f172a]">
+        <div className="border-b border-slate-100 pb-3 dark:border-slate-800">
+          <h4 className="text-base font-bold text-slate-900 dark:text-white">
+            {MONTHS[month - 1]} {year} Events Schedule
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Chronological date list for selected month
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-2.5">
           {filtered.length === 0 ? (
-            <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] px-5 py-7 text-sm text-slate-600">
-              No events this month.
+            <div className="py-10 text-center text-xs text-slate-500">
+              No festival events scheduled for {MONTHS[month - 1]} {year}.
             </div>
           ) : (
             filtered.map((item) => (
               <div
                 key={`${item.id}-${item.startMonth}-${item.startDay}`}
-                className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-soft)] p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-bold text-slate-950">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
                       {categoryLabelWithIcon(item.id, item.label)}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">{formatRange(item)}</p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {item.source === "lunar" ? "Variable-date / yearly update" : "Fixed-date event"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {item.visible ? (
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        Visible
-                      </span>
-                    ) : null}
-                    {item.startsSoon ? (
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                        5-day window
-                      </span>
-                    ) : null}
-                    <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
-                      {item.durationDays > 1 ? `${item.durationDays} days` : "1 day"}
+                    </span>
+                    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      {item.source === "lunar" ? "Lunar / Variable" : "Fixed Date"}
                     </span>
                   </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    📅 {formatRange(item)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {item.visible ? (
+                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                      Active Visible
+                    </span>
+                  ) : null}
+                  {item.startsSoon ? (
+                    <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                      5-Day Window
+                    </span>
+                  ) : null}
+                  <span className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:text-slate-400">
+                    {item.durationDays > 1 ? `${item.durationDays} Days` : "1 Day"}
+                  </span>
                 </div>
               </div>
             ))

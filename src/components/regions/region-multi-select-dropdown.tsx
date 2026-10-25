@@ -33,11 +33,18 @@ export function RegionMultiSelectDropdown({
       <select
         value=""
         onChange={(event) => addRegion(event.target.value)}
-        className="w-full rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-[var(--portal-border-strong)]"
+        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 shadow-xs outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
       >
-        <option value="">{label}</option>
+        <option value="" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+          {label}
+        </option>
         {regions.map((item) => (
-          <option key={item.id} value={item.id} disabled={selectedSet.has(item.id)}>
+          <option
+            key={item.id}
+            value={item.id}
+            disabled={selectedSet.has(item.id)}
+            className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 disabled:text-slate-400 dark:disabled:text-slate-600"
+          >
             {item.name}
           </option>
         ))}
@@ -48,16 +55,16 @@ export function RegionMultiSelectDropdown({
           .map((item) => (
             <span
               key={item.id}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               {item.name}
               <button
                 type="button"
                 onClick={() => removeRegion(item.id)}
-                className="rounded-full px-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-full px-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
                 aria-label={`Remove ${item.name}`}
               >
-                x
+                ×
               </button>
             </span>
           ))}

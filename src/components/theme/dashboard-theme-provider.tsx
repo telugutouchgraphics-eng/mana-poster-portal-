@@ -36,6 +36,11 @@ export function DashboardThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.dashboardTheme = theme;
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
     window.localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 

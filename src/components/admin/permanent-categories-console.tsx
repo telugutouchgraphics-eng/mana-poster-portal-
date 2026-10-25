@@ -102,8 +102,28 @@ export function PermanentCategoriesConsole() {
     });
   }
 
+  const SWR_PERM_CATS_KEY = "mana_permanent_categories_cache";
+
+  // Instant 0ms SWR hydration from localStorage
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(SWR_PERM_CATS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as PermanentCategory[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+          setLoading(false);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   async function loadItems() {
-    setLoading(true);
+    if (items.length === 0) {
+      setLoading(true);
+    }
     setMessage(null);
     try {
       const response = await authorizedFetch("/api/admin/permanent-categories");
@@ -111,13 +131,21 @@ export function PermanentCategoriesConsole() {
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "Unable to load permanent categories.");
       }
-      setItems(data.categories ?? []);
+      const nextCats = data.categories ?? [];
+      setItems(nextCats);
+      try {
+        window.localStorage.setItem(SWR_PERM_CATS_KEY, JSON.stringify(nextCats));
+      } catch {
+        // ignore
+      }
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to load permanent categories.",
-      );
+      if (items.length === 0) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to load permanent categories.",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -257,43 +285,43 @@ export function PermanentCategoriesConsole() {
         className="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_180px_auto]"
       >
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-slate-700">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
             Category label
           </span>
           <input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="Example: Special Offers"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             required
           />
           {!editingId && label.trim() ? (
-            <span className="block text-xs text-slate-500">
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
               ID: {slugifyCategoryId(label) || "auto-generated"}
             </span>
           ) : null}
         </label>
         <div className="space-y-2 md:col-span-2">
-          <span className="text-sm font-semibold text-slate-700">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
             Category icon
           </span>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/60">
             <div className="flex items-center gap-3">
               {adminCategoryIconPreviewPath(iconAssetPath) ? (
                 <img
                   src={adminCategoryIconPreviewPath(iconAssetPath)}
                   alt=""
-                  className="h-11 w-11 rounded-xl bg-slate-50 p-1"
+                  className="h-11 w-11 rounded-xl bg-slate-50 p-1 dark:bg-slate-800"
                 />
               ) : (
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 text-xs font-black text-slate-400">
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 text-xs font-black text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                   SVG
                 </div>
               )}
               <select
                 value={iconAssetPath}
                 onChange={(event) => setIconAssetPath(event.target.value)}
-                className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">Default app icon</option>
                 {ADMIN_CATEGORY_ICON_OPTIONS.map((icon) => (
@@ -314,8 +342,8 @@ export function PermanentCategoriesConsole() {
                     onClick={() => setIconAssetPath(icon.assetPath)}
                     className={`rounded-xl border p-1 transition ${
                       selected
-                        ? "border-indigo-600 bg-indigo-50"
-                        : "border-slate-200 bg-white hover:border-slate-400"
+                        ? "border-indigo-600 bg-indigo-50 dark:border-indigo-500 dark:bg-indigo-950/60"
+                        : "border-slate-200 bg-white hover:border-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:hover:border-slate-700"
                     }`}
                   >
                     <img
@@ -329,11 +357,11 @@ export function PermanentCategoriesConsole() {
             </div>
           </div>
         </div>
-        <div className="md:col-span-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">
+        <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
             Visible states / UTs
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Leave empty for all states, or select only the states where this
             permanent category should appear.
           </p>
@@ -345,13 +373,13 @@ export function PermanentCategoriesConsole() {
             />
           </div>
         </div>
-        <div className="md:col-span-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
                 App language labels
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Blank fields are auto-translated on save; filled fields are used
                 as manual overrides.
               </p>
@@ -359,7 +387,7 @@ export function PermanentCategoriesConsole() {
             <button
               type="button"
               onClick={() => setLabelsByLanguage(emptyLabels())}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Clear overrides
             </button>
@@ -368,7 +396,7 @@ export function PermanentCategoriesConsole() {
             {CATEGORY_LABEL_LANGUAGES.map(([key, name]) => (
               <label
                 key={key}
-                className="space-y-1 text-xs font-semibold text-slate-600"
+                className="space-y-1 text-xs font-semibold text-slate-600 dark:text-slate-300"
               >
                 <span>{name}</span>
                 <input
@@ -381,7 +409,7 @@ export function PermanentCategoriesConsole() {
                     }));
                   }}
                   placeholder={`${name} label`}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
               </label>
             ))}
@@ -442,38 +470,38 @@ export function PermanentCategoriesConsole() {
       </form>
 
       {message ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200">
           {message}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="font-semibold text-slate-950">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/60">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <h2 className="font-bold text-slate-900 dark:text-white">
             Existing permanent categories
           </h2>
         </div>
         {loading ? (
-          <p className="p-5 text-sm text-slate-500">Loading...</p>
+          <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Loading...</p>
         ) : items.length === 0 ? (
-          <p className="p-5 text-sm text-slate-500">
+          <p className="p-5 text-sm text-slate-500 dark:text-slate-400">
             No permanent categories yet.
           </p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between"
+                className="flex flex-col gap-3 px-5 py-4 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/30 md:flex-row md:items-center md:justify-between"
               >
                 <div>
-                  <p className="font-semibold text-slate-950">
+                  <p className="font-bold text-slate-900 dark:text-white">
                     {categoryLabelWithIcon(item.id, item.label)}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {item.id} · sort {item.sortOrder ?? 0}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                  <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     States:{" "}
                     {item.regionIds?.length
                       ? regions
@@ -484,7 +512,7 @@ export function PermanentCategoriesConsole() {
                           .join(", ")
                       : "All States / UTs"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                  <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     Political protocol:{" "}
                     {isWeekdayCategoryId(item.id)
                       ? "Off"
@@ -493,12 +521,12 @@ export function PermanentCategoriesConsole() {
                         : "Off"}
                   </p>
                   {item.iconAssetPath ? (
-                    <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       {adminCategoryIconPreviewPath(item.iconAssetPath) ? (
                         <img
                           src={adminCategoryIconPreviewPath(item.iconAssetPath)}
                           alt=""
-                          className="h-7 w-7 rounded-lg bg-slate-50 p-0.5"
+                          className="h-7 w-7 rounded-lg bg-slate-50 p-0.5 dark:bg-slate-800"
                         />
                       ) : null}
                       <span className="break-all">
@@ -514,8 +542,8 @@ export function PermanentCategoriesConsole() {
                     disabled={busy}
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       item.active
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-600"
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                     }`}
                   >
                     {item.active ? "On in app" : "Off in app"}
@@ -523,7 +551,7 @@ export function PermanentCategoriesConsole() {
                   <button
                     type="button"
                     onClick={() => edit(item)}
-                    className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     Edit
                   </button>

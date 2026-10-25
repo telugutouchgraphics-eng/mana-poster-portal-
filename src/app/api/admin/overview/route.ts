@@ -20,6 +20,13 @@ import {
 } from "@/lib/server/dashboard-metrics";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
 
+interface CachedOverviewResponse {
+  data: Record<string, unknown>;
+  cachedAt: number;
+}
+const serverOverviewMemoryCache = new Map<string, CachedOverviewResponse>();
+const SERVER_OVERVIEW_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes in-memory RAM cache (₹0 backend reads)
+
 function assignedToRegion(assignedRegionIds: string[], regionId: string) {
   return assignedRegionIds.map((item) => item.trim()).includes(regionId);
 }
@@ -542,6 +549,20 @@ export async function GET(req: NextRequest) {
     const forceRefresh =
       req.nextUrl.searchParams.get("forceRefresh") === "true";
     const showAllRegions = requestedRegionId === "all";
+
+    // 1. FAST ZERO-COST IN-MEMORY CACHE (0ms, 0 Firestore Reads, ₹0 Cost)
+    const cacheKey = `${requestedRegionId || "all"}`;
+    if (!forceRefresh) {
+      const cached = serverOverviewMemoryCache.get(cacheKey);
+      if (cached && Date.now() - cached.cachedAt < SERVER_OVERVIEW_CACHE_TTL_MS) {
+        return NextResponse.json(cached.data, {
+          headers: {
+            "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600",
+          },
+        });
+      }
+    }
+
     const allowedRegionIds = await loadActorAllowedRegionIds(actor);
     const region = showAllRegions
       ? null
@@ -567,14 +588,10 @@ export async function GET(req: NextRequest) {
     const summaryData = summarySnap.exists
       ? (summarySnap.data() as AnalyticsSummary)
       : null;
-    const hasOtherRegionInCache =
-      summaryData?.installMetrics?.byRegion?.some(
-        (row) => row.regionId === "other",
-      ) ?? false;
-    const isCacheStale =
-      !summaryData?.lastCalculatedAt ||
-      summaryData.lastCalculatedAt < todayStartMs ||
-      !hasOtherRegionInCache;
+    const hasBaseline = Boolean(
+      summaryData?.installMetrics && summaryData?.subscriptionMetrics,
+    );
+    const isCacheStale = !hasBaseline;
 
     let installMetrics: InstallMetrics | undefined;
     let subscriptionMetrics: SubscriptionMetrics | undefined;
@@ -801,7 +818,7 @@ export async function GET(req: NextRequest) {
       (item) => dayKeyInIst(item.createdAt) === todayKey,
     ).length;
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       overview: {
         ...snapshot.overview,
@@ -885,6 +902,15 @@ export async function GET(req: NextRequest) {
       },
       liveBanners: banners.slice(0, 4),
       liveAnnouncements: activeAnnouncements.slice(0, 4),
+    };
+
+    // Save into server memory cache for 5-minute zero-cost serving
+    serverOverviewMemoryCache.set(cacheKey, { data: payload, cachedAt: Date.now() });
+
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600",
+      },
     });
   } catch (error) {
     const message =

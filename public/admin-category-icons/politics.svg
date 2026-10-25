@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Politics and Leadership">
+  <defs>
+    <!-- Background Civic Blue / Violet Gradient -->
+    <radialGradient id="politicsBg" cx="50%" cy="45%" r="58%">
+      <stop offset="0%" stop-color="#E8EAF6"/>
+      <stop offset="35%" stop-color="#C5CAE9"/>
+      <stop offset="70%" stop-color="#3F51B5"/>
+      <stop offset="100%" stop-color="#1A237E"/>
+    </radialGradient>
+    <!-- Wooden / Metallic Leadership Podium -->
+    <linearGradient id="podiumWood" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5D4037"/>
+      <stop offset="25%" stop-color="#8D6E63"/>
+      <stop offset="50%" stop-color="#BCAAA4"/>
+      <stop offset="75%" stop-color="#6D4C41"/>
+      <stop offset="100%" stop-color="#3E2723"/>
+    </linearGradient>
+    <!-- Gold Trim Gradient -->
+    <linearGradient id="podiumGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF9C4"/>
+      <stop offset="35%" stop-color="#FFD54F"/>
+      <stop offset="70%" stop-color="#FFA000"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Microphone Silver -->
+    <linearGradient id="micSilver" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CFD8DC"/>
+      <stop offset="50%" stop-color="#ECEFF1"/>
+      <stop offset="100%" stop-color="#78909C"/>
+    </linearGradient>
+    <!-- Speech Waves -->
+    <radialGradient id="soundGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#FFD54F" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFA000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Aura Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#politicsBg)"/>
+
+  <!-- Subtle Parliament Pillars in Background Silhouette -->
+  <g fill="#FFFFFF" opacity="0.18">
+    <rect x="24" y="24" width="8" height="42" rx="1"/>
+    <rect x="40" y="24" width="8" height="42" rx="1"/>
+    <rect x="56" y="24" width="8" height="42" rx="1"/>
+    <rect x="72" y="24" width="8" height="42" rx="1"/>
+    <rect x="80" y="24" width="8" height="42" rx="1"/>
+    <rect x="96" y="24" width="8" height="42" rx="1"/>
+    <polygon points="64,10 16,24 112,24"/>
+  </g>
+
+  <!-- Sound / Speech Waves radiating from Microphone -->
+  <g fill="none" stroke="#FFF9C4" opacity="0.6" stroke-width="2" stroke-linecap="round">
+    <path d="M46 28 C42 34 42 42 46 48"/>
+    <path d="M40 22 C34 32 34 48 40 58"/>
+    <path d="M82 28 C86 34 86 42 82 48"/>
+    <path d="M88 22 C94 32 94 48 88 58"/>
+  </g>
+
+  <!-- Speech Microphone (Central Leader Mic) -->
+  <g transform="translate(64, 38)">
+    <!-- Stand Neck -->
+    <line x1="0" y1="0" x2="0" y2="28" stroke="#37474F" stroke-width="3"/>
+    <!-- Mic Clip -->
+    <rect x="-4" y="0" width="8" height="4" rx="1" fill="#212121"/>
+    <!-- Mic Body & Grille -->
+    <rect x="-6" y="-18" width="12" height="18" rx="6" fill="url(#micSilver)"/>
+    <line x1="-5" y1="-12" x2="5" y2="-12" stroke="#546E7A" stroke-width="1.2"/>
+    <line x1="-5" y1="-7" x2="5" y2="-7" stroke="#546E7A" stroke-width="1.2"/>
+    <circle cx="0" cy="-9" r="14" fill="url(#soundGlow)"/>
+  </g>
+
+  <!-- Leadership Podium / Rostrum -->
+  <!-- Podium Base Plinth -->
+  <path d="M22 118 L106 118 L100 110 L28 110 Z" fill="#261713"/>
+  <rect x="26" y="110" width="76" height="5" rx="1" fill="url(#podiumGold)"/>
+
+  <!-- Podium Center Column -->
+  <polygon points="34,64 94,64 88,110 40,110" fill="url(#podiumWood)"/>
+
+  <!-- Gold Decorative Border Lines on Column -->
+  <line x1="42" y1="68" x2="46" y2="106" stroke="url(#podiumGold)" stroke-width="2"/>
+  <line x1="86" y1="68" x2="82" y2="106" stroke="url(#podiumGold)" stroke-width="2"/>
+
+  <!-- Golden Emblem / Star Rosette on Podium Front -->
+  <circle cx="64" cy="86" r="10" fill="url(#podiumGold)"/>
+  <circle cx="64" cy="86" r="8" fill="#1A237E"/>
+  <polygon points="64,79 66,84 71,84 67,87 69,92 64,89 59,92 61,87 57,84 62,84" fill="#FFD54F"/>
+
+  <!-- Podium Top Slanted Desk -->
+  <path d="M18 64 L110 64 L104 56 L24 56 Z" fill="url(#podiumWood)"/>
+  <path d="M16 64 L112 64 L110 67 L18 67 Z" fill="url(#podiumGold)"/>
+
+  <!-- Documents / Speeches on the Podium -->
+  <path d="M48 58 L72 58 L70 54 L46 54 Z" fill="#FFFFFF" opacity="0.9"/>
+  <path d="M52 60 L76 60 L74 56 L50 56 Z" fill="#FFFDE7" opacity="0.7"/>
+</svg>

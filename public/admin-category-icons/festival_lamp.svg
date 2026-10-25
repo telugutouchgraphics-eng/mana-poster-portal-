@@ -1,9 +1,118 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Festival Lamp">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Diya">
   <defs>
-    <linearGradient id="bg" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#ff5f6d"/><stop offset="1" stop-color="#ffc371"/></linearGradient>
-    <linearGradient id="shine" x1="30" y1="22" x2="86" y2="108" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".72"/></linearGradient>
+    <!-- Background Radiant Light Glow -->
+    <radialGradient id="diyaHalo" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#FFFDE7" stop-opacity="1"/>
+      <stop offset="25%" stop-color="#FFE082" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#FF9800" stop-opacity="0.8"/>
+      <stop offset="75%" stop-color="#E65100" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#3E2723" stop-opacity="0.9"/>
+    </radialGradient>
+    <radialGradient id="flameCoreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="30%" stop-color="#FFF9C4"/>
+      <stop offset="70%" stop-color="#FFD54F"/>
+      <stop offset="100%" stop-color="#FF6F00" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Terracotta Clay Diya Gradient -->
+    <linearGradient id="clayBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF8A65"/>
+      <stop offset="25%" stop-color="#D84315"/>
+      <stop offset="70%" stop-color="#BF360C"/>
+      <stop offset="100%" stop-color="#4E1A0C"/>
+    </linearGradient>
+    <!-- Diya Brass Rim & Pattern -->
+    <linearGradient id="brassGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF9C4"/>
+      <stop offset="35%" stop-color="#FFD54F"/>
+      <stop offset="70%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Liquid Golden Oil -->
+    <linearGradient id="goldenOil" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#BF360C"/>
+      <stop offset="40%" stop-color="#FFB300"/>
+      <stop offset="70%" stop-color="#FFE082"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </linearGradient>
+    <!-- 3D Flame Gradients -->
+    <linearGradient id="outerFlame" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#D50000"/>
+      <stop offset="30%" stop-color="#FF3D00"/>
+      <stop offset="65%" stop-color="#FF9100"/>
+      <stop offset="90%" stop-color="#FFD600"/>
+      <stop offset="100%" stop-color="#FFFF8D"/>
+    </linearGradient>
+    <linearGradient id="innerFlame" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#2979FF"/>
+      <stop offset="20%" stop-color="#00E5FF"/>
+      <stop offset="45%" stop-color="#FFEA00"/>
+      <stop offset="80%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
   </defs>
-  <circle cx="64" cy="64" r="56" fill="url(#bg)"/>
-  <circle cx="46" cy="38" r="18" fill="#fff" opacity=".18"/>
-  <path d="M64 22 C72 36 84 47 84 64 C84 78 75 88 64 88 C53 88 44 78 44 64 C44 47 56 36 64 22 Z M34 90 H94 C89 104 75 112 64 112 C53 112 39 104 34 90 Z" fill="none" stroke="url(#shine)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Deep Sacred Radiant Circle Background -->
+  <circle cx="64" cy="64" r="60" fill="url(#diyaHalo)"/>
+
+  <!-- Ambient Light Halo Ring -->
+  <circle cx="64" cy="46" r="32" fill="url(#flameCoreGlow)" opacity="0.65"/>
+
+  <!-- Diya Base Shadow -->
+  <ellipse cx="64" cy="112" rx="42" ry="10" fill="#210802" opacity="0.6"/>
+
+  <!-- Terracotta Clay Diya Stand / Pedestal -->
+  <path d="M46 102 C46 108 52 112 64 112 C76 112 82 108 82 102 C74 104 54 104 46 102 Z" fill="#3E1508"/>
+  <ellipse cx="64" cy="103" rx="18" ry="3" fill="url(#brassGold)"/>
+
+  <!-- Main Diya Body -->
+  <path d="M18 78 C20 98 42 108 64 108 C86 108 108 98 110 78 C110 74 106 72 96 73 C84 74 72 75 64 75 C56 75 44 74 32 73 C22 72 18 74 18 78 Z" 
+        fill="url(#clayBody)"/>
+
+  <!-- Traditional Carved Patterns along Diya side -->
+  <g fill="url(#brassGold)" opacity="0.85">
+    <circle cx="36" cy="88" r="2.5"/>
+    <circle cx="48" cy="94" r="2.8"/>
+    <circle cx="64" cy="96" r="3.2"/>
+    <circle cx="80" cy="94" r="2.8"/>
+    <circle cx="92" cy="88" r="2.5"/>
+    <!-- Carved Wave Lines -->
+    <path d="M28 82 Q46 92 64 92 Q82 92 100 82" fill="none" stroke="url(#brassGold)" stroke-width="1.8"/>
+  </g>
+
+  <!-- Diya Rim and Top Opening with Golden Oil -->
+  <ellipse cx="64" cy="74" rx="46" ry="12" fill="#5D1E0C"/>
+  <ellipse cx="64" cy="75" rx="43" ry="10" fill="url(#goldenOil)"/>
+  <ellipse cx="64" cy="74" rx="46" ry="12" fill="none" stroke="url(#brassGold)" stroke-width="2.5"/>
+
+  <!-- Oil Reflection Ripple -->
+  <ellipse cx="64" cy="75" rx="26" ry="5" fill="#FFE082" opacity="0.6"/>
+
+  <!-- Cotton Wick (Ottu) soaked in oil -->
+  <path d="M64 74 C64 68 62 62 64 56 C65 62 66 68 64 74 Z" fill="#212121"/>
+  <path d="M63 60 C63 56 65 56 65 60 Z" fill="#FF5722"/>
+
+  <!-- Realistic 3D Glowing Flame -->
+  <!-- Outer Flame Layer -->
+  <path d="M64 12 C52 28 44 42 44 54 C44 68 53 76 64 76 C75 76 84 68 84 54 C84 42 76 28 64 12 Z" 
+        fill="url(#outerFlame)"/>
+
+  <!-- Inner Dynamic Flame (Hot Core) -->
+  <path d="M64 24 C56 36 52 46 52 56 C52 66 58 72 64 72 C70 72 76 66 76 56 C76 46 72 36 64 24 Z" 
+        fill="url(#innerFlame)"/>
+
+  <!-- Intense White-Hot Center -->
+  <ellipse cx="64" cy="56" rx="6" ry="12" fill="#FFFFFF"/>
+  <ellipse cx="64" cy="58" rx="3.5" ry="7" fill="#E0F7FA"/>
+
+  <!-- Blue Flame Base (Combustion Zone) -->
+  <ellipse cx="64" cy="68" rx="8" ry="4" fill="#00E5FF" opacity="0.8"/>
+  <ellipse cx="64" cy="69" rx="5" ry="2.5" fill="#2979FF" opacity="0.9"/>
+
+  <!-- Floating Spark Particles -->
+  <circle cx="58" cy="18" r="1.5" fill="#FFF9C4" opacity="0.8"/>
+  <circle cx="72" cy="14" r="1.8" fill="#FFF9C4" opacity="0.9"/>
+  <circle cx="67" cy="8" r="1.2" fill="#FFFFFF"/>
+  <circle cx="48" cy="28" r="1.2" fill="#FFE082" opacity="0.7"/>
+  <circle cx="80" cy="24" r="1.4" fill="#FFE082" opacity="0.7"/>
 </svg>

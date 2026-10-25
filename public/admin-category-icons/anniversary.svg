@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Anniversary Wedding Rings">
+  <defs>
+    <!-- Background Romantic Aura -->
+    <radialGradient id="anniBg" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="35%" stop-color="#FFCDD2"/>
+      <stop offset="70%" stop-color="#E91E63"/>
+      <stop offset="100%" stop-color="#880E4F"/>
+    </radialGradient>
+    <!-- 3D Polished Gold Ring Gradient -->
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDE7"/>
+      <stop offset="25%" stop-color="#FFD54F"/>
+      <stop offset="50%" stop-color="#FFA000"/>
+      <stop offset="75%" stop-color="#FF8F00"/>
+      <stop offset="100%" stop-color="#E65100"/>
+    </linearGradient>
+    <!-- Diamond Sparkle -->
+    <radialGradient id="diamondShine" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#E0F7FA"/>
+      <stop offset="100%" stop-color="#80DEEA"/>
+    </radialGradient>
+    <!-- Rose Red -->
+    <radialGradient id="roseRed" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FF5252"/>
+      <stop offset="60%" stop-color="#C2185B"/>
+      <stop offset="100%" stop-color="#880E4F"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Halo -->
+  <circle cx="64" cy="64" r="60" fill="url(#anniBg)"/>
+
+  <!-- Romantic Heart Silhouette in Background -->
+  <path d="M64 42 C64 26 44 22 36 34 C26 48 48 68 64 80 C80 68 102 48 92 34 C84 22 64 26 64 42 Z" 
+        fill="#FF80AB" opacity="0.25"/>
+
+  <!-- Red Roses & Jasmine Floral Bed at Bottom -->
+  <g transform="translate(64, 98)">
+    <!-- Leaves -->
+    <path d="M-40 0 C-48 -8 -52 4 -36 12 Z" fill="#2E7D32"/>
+    <path d="M40 0 C48 -8 52 4 36 12 Z" fill="#2E7D32"/>
+    <!-- Left Rose -->
+    <circle cx="-32" cy="4" r="10" fill="url(#roseRed)"/>
+    <path d="M-36 2 C-34 0 -30 0 -28 2 C-26 4 -30 8 -34 6 Z" fill="#FF80AB"/>
+    <!-- Right Rose -->
+    <circle cx="32" cy="4" r="10" fill="url(#roseRed)"/>
+    <path d="M28 2 C30 0 34 0 36 2 C38 4 34 8 30 6 Z" fill="#FF80AB"/>
+    <!-- Center Rose -->
+    <circle cx="0" cy="8" r="12" fill="url(#roseRed)"/>
+    <path d="M-4 6 C-2 3 2 3 4 6 C6 9 0 12 -4 10 Z" fill="#FF80AB"/>
+    <!-- Jasmine Flowers (White Mallipulu) -->
+    <circle cx="-16" cy="6" r="3.5" fill="#FFFFFF"/>
+    <circle cx="16" cy="6" r="3.5" fill="#FFFFFF"/>
+    <circle cx="-22" cy="-4" r="3" fill="#FFFFFF"/>
+    <circle cx="22" cy="-4" r="3" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Two Intertwined 3D Polished Golden Wedding Rings -->
+  <!-- Left Ring (Back Segment) -->
+  <ellipse cx="50" cy="54" rx="22" ry="24" fill="none" stroke="url(#goldRing)" stroke-width="8"/>
+  <ellipse cx="50" cy="54" rx="22" ry="24" fill="none" stroke="#FFE082" stroke-width="2"/>
+
+  <!-- Right Ring with Diamond (Intertwined) -->
+  <g transform="rotate(18, 76, 56)">
+    <ellipse cx="76" cy="56" rx="22" ry="24" fill="none" stroke="url(#goldRing)" stroke-width="8"/>
+    <ellipse cx="76" cy="56" rx="22" ry="24" fill="none" stroke="#FFE082" stroke-width="2"/>
+    <!-- Solitaire Diamond Crown Mount -->
+    <polygon points="76,28 72,34 80,34" fill="#FFD54F"/>
+    <!-- Solitaire Diamond Gem -->
+    <polygon points="76,22 83,28 76,34 69,28" fill="url(#diamondShine)"/>
+    <polygon points="76,22 79,28 76,34 73,28" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Left Ring (Front Intertwined Overlap) -->
+  <path d="M60 40 C66 45 68 52 66 60" fill="none" stroke="url(#goldRing)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M60 40 C66 45 68 52 66 60" fill="none" stroke="#FFE082" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Diamond Radiant Flare Sparkles -->
+  <g fill="#FFFFFF" transform="translate(84, 26)">
+    <polygon points="0,-12 3,-3 12,0 3,3 0,12 -3,3 -12,0 -3,-3"/>
+    <circle cx="0" cy="0" r="2.5" fill="#FFF9C4"/>
+  </g>
+</svg>

@@ -123,13 +123,41 @@ export function ManagerTable() {
     return { authorization: `Bearer ${token}` };
   }, [copy.loginRequired, user]);
 
+  const SWR_MANAGERS_KEY = `mana_managers_cache_${status}`;
+
+  // Instant 0ms SWR hydration from localStorage
+  useEffect(() => {
+    try {
+      const cached = window.localStorage.getItem(SWR_MANAGERS_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as ManagerRow[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRows(parsed);
+          setSelectedManagerIds((prev) => {
+            const visibleIds = new Set(parsed.map((row) => row.uid));
+            return new Set([...prev].filter((id) => visibleIds.has(id)));
+          });
+          setRegionMap(
+            Object.fromEntries(
+              parsed.map((row) => [row.uid, row.assignedRegionIds ?? []]),
+            ),
+          );
+        }
+      }
+    } catch {
+      // LocalStorage fallback
+    }
+  }, [SWR_MANAGERS_KEY]);
+
   const loadManagers = useCallback(async () => {
-    setLoading(true);
+    if (rows.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const headers = await authHeader();
       const url = `/api/admin/managers/list?status=${encodeURIComponent(
-        status
+        status,
       )}&q=${encodeURIComponent(query)}`;
       const response = await fetch(url, { headers });
       const data = (await response.json()) as {
@@ -141,19 +169,34 @@ export function ManagerTable() {
         throw new Error(data.error ?? copy.unableLoad);
       }
       setRows(data.managers);
+      try {
+        window.localStorage.setItem(
+          SWR_MANAGERS_KEY,
+          JSON.stringify(data.managers),
+        );
+      } catch {
+        // quota fallback
+      }
       setSelectedManagerIds((prev) => {
         const visibleIds = new Set(data.managers?.map((row) => row.uid) ?? []);
         return new Set([...prev].filter((id) => visibleIds.has(id)));
       });
       setRegionMap(
-        Object.fromEntries(data.managers.map((row) => [row.uid, row.assignedRegionIds ?? []])),
+        Object.fromEntries(
+          data.managers.map((row) => [
+            row.uid,
+            row.assignedRegionIds ?? [],
+          ]),
+        ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.unableLoad);
+      if (rows.length === 0) {
+        setError(err instanceof Error ? err.message : copy.unableLoad);
+      }
     } finally {
       setLoading(false);
     }
-  }, [authHeader, copy.unableLoad, query, status]);
+  }, [authHeader, copy.unableLoad, query, status, rows.length, SWR_MANAGERS_KEY]);
 
   useEffect(() => {
     if (!user) {
