@@ -27,6 +27,7 @@ import {
 } from "@/lib/political-party-categories";
 import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
+import { normalizeStoredPosterFrameSize } from "@/lib/video-frame-size";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -414,6 +415,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const widthPxRaw = Number(formData.get("widthPx") ?? 0);
+    const heightPxRaw = Number(formData.get("heightPx") ?? 0);
+    const frameSize = normalizeStoredPosterFrameSize(mediaKind, widthPxRaw, heightPxRaw);
     const mimeType = media.type || "image/png";
     const ext = resolveFileExtension(media);
     const safeOriginal = sanitizeFileName(media.name || `poster.${ext}`);
@@ -568,6 +572,7 @@ export async function POST(req: NextRequest) {
       imageUrl: mediaKind === "image" ? assetUrl : "",
       videoPath: mediaKind === "video" ? filePath : "",
       videoUrl: mediaKind === "video" ? assetUrl : "",
+      ...(frameSize ? { widthPx: frameSize.widthPx, heightPx: frameSize.heightPx } : {}),
       status: "pending",
       reviewComment: "",
       duplicateStatus: "unique",

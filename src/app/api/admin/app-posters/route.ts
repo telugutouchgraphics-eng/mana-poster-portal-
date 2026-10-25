@@ -44,6 +44,7 @@ import {
 } from "@/lib/political-party-categories";
 import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import { normalizeStoredPosterFrameSize } from "@/lib/video-frame-size";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
@@ -380,6 +381,8 @@ function mapPoster(id: string, data: Record<string, unknown>) {
       : [],
     regionName: String(data.regionName ?? ""),
     mediaType: String(data.mediaType ?? "image"),
+    widthPx: Number(data.widthPx ?? 0),
+    heightPx: Number(data.heightPx ?? 0),
     imageUrl: String(data.imageUrl ?? ""),
     imagePath: String(data.imagePath ?? ""),
     videoUrl: String(data.videoUrl ?? ""),
@@ -739,6 +742,7 @@ export async function POST(req: NextRequest) {
     const categoryLabel = localizeCategoryLabel(category, region);
     const targetRegionIds = resolvePosterTargetRegionIds(region.id, categoryId);
 
+
     let personalizationConfig = personalizationSchema.parse({});
     const personalizationRaw = formData.get("personalizationConfig");
     if (
@@ -772,6 +776,13 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    const widthPxRaw = Number(formData.get("widthPx") ?? 0);
+    const heightPxRaw = Number(formData.get("heightPx") ?? 0);
+    const frameSize = normalizeStoredPosterFrameSize(
+      mediaKind,
+      widthPxRaw,
+      heightPxRaw,
+    );
     const maxBytes =
       mediaKind === "video" ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
     if (media.size <= 0 || media.size > maxBytes) {
@@ -919,6 +930,7 @@ export async function POST(req: NextRequest) {
       imageUrl: mediaKind === "image" ? uploaded.imageUrl : "",
       videoPath: mediaKind === "video" ? uploaded.filePath : "",
       videoUrl: mediaKind === "video" ? uploaded.imageUrl : "",
+      ...(frameSize ? { widthPx: frameSize.widthPx, heightPx: frameSize.heightPx } : {}),
       status: "approved",
       reviewComment: "",
       duplicateStatus: "unique",

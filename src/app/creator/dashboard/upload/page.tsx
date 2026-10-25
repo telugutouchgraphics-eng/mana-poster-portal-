@@ -649,10 +649,18 @@ export default function CreatorUploadStudioPage() {
     const nextUrl = URL.createObjectURL(file);
     setFilePreviewUrl(nextUrl);
     if (isVideoFile(file)) {
-      setFileMeta({
-        width: 1080,
-        height: 1920,
-      });
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        setFileMeta({
+          width: video.videoWidth || 1080,
+          height: video.videoHeight || 1920,
+        });
+      };
+      video.onerror = () => {
+        setFileMeta({ width: 1080, height: 1920 });
+      };
+      video.src = nextUrl;
       return () => URL.revokeObjectURL(nextUrl);
     }
     const image = new window.Image();
@@ -996,6 +1004,10 @@ export default function CreatorUploadStudioPage() {
       }
       if (uploadFile) {
         body.set("media", uploadFile);
+      }
+      if (fileMeta?.width && fileMeta?.height) {
+        body.set("widthPx", String(fileMeta.width));
+        body.set("heightPx", String(fileMeta.height));
       }
       body.set(
         "personalizationConfig",

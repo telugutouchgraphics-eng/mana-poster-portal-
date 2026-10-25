@@ -36,6 +36,7 @@ import {
 } from "@/lib/political-party-categories";
 import { politicalPartyCategoriesForRegionManaged } from "@/lib/server/political-parties";
 import { assertActorCanAccessRegion } from "@/lib/server/region-scope";
+import { normalizeStoredPosterFrameSize } from "@/lib/video-frame-size";
 import { PERSONALIZATION_SAMPLE } from "@/lib/constants/personalization-sample";
 
 const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
@@ -464,6 +465,8 @@ export async function PATCH(
       await assertActorCanAccessRegion(actor, existing.regionId);
     }
     const region = await assertActorCanAccessRegion(actor, parsed.regionId);
+    const widthPxRaw = Number(formData.get("widthPx") ?? 0);
+    const heightPxRaw = Number(formData.get("heightPx") ?? 0);
     let personalizationConfig: unknown = undefined;
     const personalizationRaw = formData.get("personalizationConfig");
     if (
@@ -720,6 +723,11 @@ export async function PATCH(
       await deleteAdminAsset(existing.videoPath);
     }
 
+    const frameSize = normalizeStoredPosterFrameSize(
+      (mediaType ?? existing.mediaType ?? "image") as "image" | "video",
+      widthPxRaw,
+      heightPxRaw,
+    );
     const schedule = await resolveAdminPosterSchedule(
       categoryId,
       updatedAt,
@@ -753,6 +761,7 @@ export async function PATCH(
         performanceWindowStartAt: schedule.publishAt || updatedAt,
         performanceWindowEndAt:
           (schedule.publishAt || updatedAt) + 24 * 60 * 60 * 1000,
+        ...(frameSize ? { widthPx: frameSize.widthPx, heightPx: frameSize.heightPx } : {}),
         ...(personalizationConfig != null ? { personalizationConfig } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(imageUrl ? { imageUrl } : {}),
