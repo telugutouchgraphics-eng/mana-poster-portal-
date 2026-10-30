@@ -107,22 +107,7 @@ export default function AdminDashboardLayout({
       icon: "photo",
       hint: "Political leaders & party assets",
     },
-    {
-      group: "Posters & Assets",
-      href: "/admin/dashboard/editor-assets",
-      label: "Editor Assets",
-      shortLabel: "Assets",
-      icon: "palette",
-      hint: "PNG stickers, shapes & borders",
-    },
-    {
-      group: "Posters & Assets",
-      href: "/admin/dashboard/editor-fonts",
-      label: "Editor Fonts",
-      shortLabel: "Fonts",
-      icon: "font",
-      hint: "Regional & display typography",
-    },
+
 
     // 👥 Team & Creators
     {
