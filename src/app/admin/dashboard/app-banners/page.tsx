@@ -152,16 +152,7 @@ export default function AdminAppBannersPage() {
     } else {
       setMessage(data.error ?? "Unable to load banners.");
     }
-    const insightsResponse = await fetch("/api/admin/location-insights", {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const insightsData = (await insightsResponse.json()) as {
-      ok: boolean;
-      insights?: { locations?: LocationInsightRow[] };
-    };
-    if (insightsResponse.ok && insightsData.ok) {
-      setLocationRows(insightsData.insights?.locations ?? []);
-    }
+
   }
 
   useEffect(() => {

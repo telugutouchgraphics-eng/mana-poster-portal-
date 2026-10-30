@@ -94,16 +94,7 @@ export default function AdminPushNotificationsPage() {
     if (!response.ok || !data.ok) {
       setStatusMessage(data.error ?? "Unable to load push notification history.");
     }
-    const insightsResponse = await fetch("/api/admin/location-insights", {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const insightsData = (await insightsResponse.json()) as {
-      ok: boolean;
-      insights?: { locations?: LocationInsightRow[] };
-    };
-    if (insightsResponse.ok && insightsData.ok) {
-      setLocationRows(insightsData.insights?.locations ?? []);
-    }
+
   }
 
   async function loadAudienceCounts() {

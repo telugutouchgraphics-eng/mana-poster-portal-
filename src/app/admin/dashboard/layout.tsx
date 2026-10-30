@@ -23,22 +23,7 @@ export default function AdminDashboardLayout({
       icon: "overview",
       hint: "KPIs, stats & growth metrics",
     },
-    {
-      group: "Analytics",
-      href: "/admin/dashboard/location-insights",
-      label: "Location Insights",
-      shortLabel: "Insights",
-      icon: "insights",
-      hint: "State & district performance",
-    },
-    {
-      group: "Analytics",
-      href: "/admin/dashboard/reports",
-      label: "Community Reports",
-      shortLabel: "Reports",
-      icon: "reports",
-      hint: "User issues & feedback",
-    },
+
     {
       group: "Analytics",
       href: "/admin/dashboard/share-downloads",
@@ -47,14 +32,7 @@ export default function AdminDashboardLayout({
       icon: "downloads",
       hint: "Viral shares & download tracking",
     },
-    {
-      group: "Analytics",
-      href: "/admin/dashboard/audit-logs",
-      label: "Audit Logs",
-      shortLabel: "Audit",
-      icon: "audit",
-      hint: "Admin action history",
-    },
+
 
     // 📅 Events & Categories
     {
