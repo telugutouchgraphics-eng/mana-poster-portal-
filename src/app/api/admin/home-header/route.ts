@@ -114,6 +114,13 @@ export async function POST(req: NextRequest) {
     const templateId = String(body.templateId ?? "").trim();
     const imageUrl = String(body.imageUrl ?? "").trim();
     const videoUrl = String(body.videoUrl ?? "").trim();
+
+    if (imageUrl.startsWith("blob:") || videoUrl.startsWith("blob:")) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid media URL: local blob URLs cannot be persisted to database." },
+        { status: 400 },
+      );
+    }
     const mediaType = body.mediaType === "video" ? "video" : "image";
     const themeTitle = String(body.themeTitle ?? "").trim() || (enabled ? "Festival Template" : "Default Gradient");
     const overlayOpacity = Math.min(0.6, Math.max(0, Number(body.overlayOpacity ?? 0.15)));

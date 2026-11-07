@@ -146,6 +146,9 @@ export default function HomeHeaderAdminPage() {
         setSelectedFile(null);
         setSuccessMsg("🎉 Header background updated and published live to app!");
       } else {
+        if (previewImageUrl.startsWith("blob:") || previewVideoUrl.startsWith("blob:")) {
+          throw new Error("Please click 'Upload & Publish Live' below or pick a template from the library.");
+        }
         // Publish template or default gradient
         const res = await fetch("/api/admin/home-header", {
           method: "POST",
