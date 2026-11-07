@@ -151,7 +151,11 @@ export async function uploadAdminAsset(
   path: string,
   customStorage?: typeof adminStorage,
 ) {
-  const bucket = (customStorage ?? adminStorage).bucket();
+  const defaultBucketName =
+    process.env.FIREBASE_STORAGE_BUCKET ??
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ??
+    "mana-poster-ap.firebasestorage.app";
+  const bucket = (customStorage ?? adminStorage).bucket(defaultBucketName);
   const file = bucket.file(path);
   const downloadToken = randomUUID();
   const createdAt = Date.now();
@@ -176,7 +180,11 @@ export async function deleteAdminAsset(
   if (!normalized) {
     return;
   }
-  const bucket = (customStorage ?? adminStorage).bucket();
+  const defaultBucketName =
+    process.env.FIREBASE_STORAGE_BUCKET ??
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ??
+    "mana-poster-ap.firebasestorage.app";
+  const bucket = (customStorage ?? adminStorage).bucket(defaultBucketName);
   await bucket.file(normalized).delete({ ignoreNotFound: true });
 }
 

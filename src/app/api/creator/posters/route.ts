@@ -504,7 +504,11 @@ export async function POST(req: NextRequest) {
         requestedPublishAt = earliestRegularPublishAt;
       }
     }
-    const bucket = adminStorage.bucket();
+    const defaultBucketName =
+      process.env.FIREBASE_STORAGE_BUCKET ??
+      process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ??
+      "mana-poster-ap.firebasestorage.app";
+    const bucket = adminStorage.bucket(defaultBucketName);
     const folderName = "creator_posters";
     const filePath = `${folderName}/${creator.creatorPublicId}/${now}-${safeOriginal}`;
     const file = bucket.file(filePath);
