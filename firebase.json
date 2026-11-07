@@ -1,6 +1,7 @@
 {
   "functions": {
     "source": "functions",
+    "codebase": "portal-storage-cleanup",
     "ignore": [
       "node_modules",
       ".git",
