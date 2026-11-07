@@ -85,6 +85,14 @@ export default function AdminDashboardLayout({
       icon: "photo",
       hint: "Political leaders & party assets",
     },
+    {
+      group: "Posters & Assets",
+      href: "/admin/dashboard/home-header",
+      label: "Header Background",
+      shortLabel: "Header",
+      icon: "photo",
+      hint: "Festival themes & custom header",
+    },
 
 
     // 👥 Team & Creators
