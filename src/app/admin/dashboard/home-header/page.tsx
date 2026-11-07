@@ -84,7 +84,7 @@ export default function HomeHeaderAdminPage() {
     setPreviewEnabled(true);
     setPreviewMediaType(tpl.mediaType);
     setPreviewImageUrl(tpl.imageUrl);
-    setPreviewVideoUrl("");
+    setPreviewVideoUrl(tpl.videoUrl || "");
     setPreviewTitle(`${tpl.teluguName} (${tpl.name})`);
     setSelectedTemplateId(tpl.id);
   }
@@ -400,14 +400,30 @@ export default function HomeHeaderAdminPage() {
               >
                 {/* Banner Thumbnail (exact 1080x240 aspect ratio) */}
                 <div
-                  className="relative flex h-24 w-full items-end p-3 transition-transform group-hover:scale-105"
+                  className="relative flex h-24 w-full items-end overflow-hidden p-3 transition-transform group-hover:scale-105"
                   style={{
                     background: `linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.6)), url(${tpl.imageUrl}) center/cover no-repeat`,
                   }}
                 >
-                  <span className="rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur">
-                    {tpl.festivalTag}
-                  </span>
+                  {tpl.videoUrl && (
+                    <video
+                      src={tpl.videoUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="absolute inset-0 h-full w-full object-cover opacity-85 transition-opacity group-hover:opacity-100"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+                  <div className="relative z-10 flex w-full items-center justify-between">
+                    <span className="rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur">
+                      {tpl.festivalTag}
+                    </span>
+                    <span className="rounded-md bg-amber-400 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-slate-900 shadow-xs">
+                      🎥 ANIMATED
+                    </span>
+                  </div>
                 </div>
                 <div className="bg-white p-3 dark:bg-slate-900">
                   <h3 className="text-sm font-black text-slate-900 dark:text-white">{tpl.teluguName}</h3>
