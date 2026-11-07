@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CategoryLabelWithLogo } from "@/components/category/category-label-with-logo";
 import { useDashboardLanguage } from "@/components/i18n/dashboard-language-provider";
@@ -147,7 +147,8 @@ export default function AdminOverviewPage() {
   const { language } = useDashboardLanguage();
   const { region, regions } = useDashboardRegion();
   const lang = portalLanguage(language);
-  const [overviewRegionId, setOverviewRegionId] = useState<string>(() => region?.id || "all");
+  const [overviewRegionId, setOverviewRegionId] = useState<string>("all");
+  const prevRegionIdRef = useRef(region?.id);
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -215,10 +216,11 @@ export default function AdminOverviewPage() {
   }
 
   useEffect(() => {
-    if (region?.id && region.id !== overviewRegionId && overviewRegionId === "all") {
+    if (region?.id && region.id !== prevRegionIdRef.current) {
+      prevRegionIdRef.current = region.id;
       setOverviewRegionId(region.id);
     }
-  }, [region?.id, overviewRegionId]);
+  }, [region?.id]);
 
   useEffect(() => {
     if (!user) return;
