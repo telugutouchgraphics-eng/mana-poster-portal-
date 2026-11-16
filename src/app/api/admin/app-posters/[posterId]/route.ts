@@ -322,30 +322,20 @@ async function resolveAdminPosterSchedule(
   requestedPublishAt: number,
   regionId: string,
 ) {
-  if (uploadSource === "app_posters") {
-    return {
-      publishAt: now,
-      eventStartAt: 0,
-      eventEndAt: 0,
-      dynamicCategoryId: "",
-      dynamicCategoryLabel: "",
-    };
-  }
-
-  const timeCategoryStartHour = {
-    good_morning: 4,
-    good_afternoon: 12,
-    good_evening: 15,
-    good_night: 20,
-  }[categoryId];
-  if (timeCategoryStartHour != null) {
-    const publishAt = getNextIstHourStart(now, timeCategoryStartHour);
+  if (categoryId === "today_special") {
+    const publishAt =
+      uploadSource === "upload_posters"
+        ? Math.max(
+            requestedPublishAt || getCreatorPosterPublishAt(now),
+            getCreatorPosterPublishAt(now),
+          )
+        : now;
     return {
       publishAt,
       eventStartAt: publishAt,
-      eventEndAt: 0,
-      dynamicCategoryId: "",
-      dynamicCategoryLabel: "",
+      eventEndAt: getNextIstMidnight(publishAt) - 1,
+      dynamicCategoryId: "today_special",
+      dynamicCategoryLabel: "Today Special",
     };
   }
 
@@ -353,7 +343,9 @@ async function resolveAdminPosterSchedule(
   if (weekday) {
     const fallbackWeekdayStart = getNextIstWeekdayStart(now, weekday);
     const scheduledStart =
-      requestedPublishAt > 0 && getIstWeekday(requestedPublishAt) === weekday
+      uploadSource === "app_posters"
+        ? now
+        : requestedPublishAt > 0 && getIstWeekday(requestedPublishAt) === weekday
         ? Math.max(requestedPublishAt, fallbackWeekdayStart)
         : fallbackWeekdayStart;
     return {
@@ -364,6 +356,16 @@ async function resolveAdminPosterSchedule(
       dynamicCategoryLabel:
         CREATOR_ASSIGNABLE_CATEGORIES.find((item) => item.id === categoryId)
           ?.label ?? "",
+    };
+  }
+
+  if (uploadSource === "app_posters") {
+    return {
+      publishAt: now,
+      eventStartAt: 0,
+      eventEndAt: 0,
+      dynamicCategoryId: "",
+      dynamicCategoryLabel: "",
     };
   }
 

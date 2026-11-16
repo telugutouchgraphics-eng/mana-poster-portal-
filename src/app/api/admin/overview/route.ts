@@ -19,6 +19,7 @@ import {
   loadPortalAnalyticsSnapshot,
 } from "@/lib/server/dashboard-metrics";
 import { isApprovedEquivalentStatus } from "@/lib/server/poster-status";
+import { triggerThrottledPosterCleanup } from "@/lib/server/poster-cleanup";
 
 interface CachedOverviewResponse {
   data: Record<string, unknown>;
@@ -543,6 +544,7 @@ function loadReligionMetrics(
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireRole(req, ["admin"]);
+    triggerThrottledPosterCleanup();
     const requestedRegionId = String(
       req.nextUrl.searchParams.get("regionId") ?? "",
     ).trim();
